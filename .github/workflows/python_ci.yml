@@ -1,0 +1,44 @@
+# Check file validity at: https://rhysd.github.io/actionlint/
+# https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+
+name: Python Checks
+
+# env:
+  # 2022/07/12: Can't use env.VALUE in "runs-on" field yet
+  # UBUNTU_VERSION: ubuntu-20.04
+
+jobs:
+  formatting-check:
+    name: Formatting Check
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: YAPF for proper formatting
+      run: |
+        python3 -m pip install -r requirements.txt
+        yapf -r -i -vv . style google
+
+  flake8-lint:
+    runs-on: ubuntu-20.04
+    name: Lint
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v2
+      - name: Set up Python environment
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.10"
+      - name: flake8 Lint
+        uses: py-actions/flake8@v2
+        with:
+          # ignore: "F401"
+          exclude: "src/ignoreme.py"
+          max-line-length: "100"
+          path: "src"
+          plugins: "flake8-bugbear==22.1.11 flake8-black"
