@@ -6,7 +6,7 @@ name: EditorConfig Check
 on:
   push:
     branches:
-    - main
+      - main
   pull_request:
 
 jobs:
@@ -14,7 +14,5 @@ jobs:
     name: Code Style
     runs-on: ubuntu-20.04
     steps:
-    - uses: actions/checkout@v2
-    - name: EditorConfig-Action
-      uses: editorconfig-checker/action-editorconfig-checker@main
-    - run: editorconfig-checker
+      - uses: actions/checkout@v2
+      - run: make editorconfig-test
