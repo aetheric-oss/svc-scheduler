@@ -12,21 +12,28 @@ YELLOW=$(tput setaf 3)
 BOLD=$(tput bold)
 NC=$'\e[0m'
 
-echo -e "${BOLD}${YELLOW}Running the pre-commit hook...${NC}${NC}"
+echo "${BOLD}${YELLOW}Running the pre-commit hook...${NC}${NC}\n" # should be visible in the console when doing a git commit
 
 set -e
 
 # RUST
-make rust-test
+echo "${YELLOW}Running cargo tests...${NC}"
+cargo test --all
+echo "${YELLOW}Linting Rust codes through clippy...${NC}"
+cargo clippy --all -- -D warnings
+echo "${YELLOW}Running and checking Rust codes formats...\n${NC}"
+cargo fmt --all -- --check
 
 # PYTHON 3
-make python-test
+echo "${YELLOW}Formatting and checking Python files with Google style...\n${NC}"
+yapf -r -i -vv . style google
+echo "${YELLOW}Formatting and checking Python files with flake8 style...\n${NC}"
+flake8 .
 
-# TOML formatting
-make toml-test
 
 # Style Check
-make editorconfig-test
+echo "${YELLOW}Checking if the codebase is compliant with the .editorconfig file...\n${NC}"
+ec
 
 # Finish
-echo "${BOLD}${GREEN}🍺 You are good to go!${NC}${NC}"
+echo "${BOLD}${GREEN}🍺 You are good to go!\n${NC}${NC}"
