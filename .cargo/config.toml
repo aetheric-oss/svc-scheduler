@@ -5,13 +5,13 @@
 
 [build]
 rustflags = [
-  "-Wmissing_docs",
-  "-Wmissing_debug_implementations",
-  "-Wmissing_copy_implementations",
-  "-Wtrivial_casts",
-  "-Wtrivial_numeric_casts",
-  "-Wunsafe_code",
-  "-Wunstable_features",
-  "-Wunused_import_braces",
-  "-Wunused_qualifications",
-]
+    "-Wmissing_docs",
+    "-Wmissing_debug_implementations",
+    "-Wmissing_copy_implementations",
+    "-Wtrivial_casts",
+    "-Wtrivial_numeric_casts",
+    "-Wunsafe_code",
+    "-Wunstable_features",
+    "-Wunused_import_braces",
+    "-Wunused_qualifications"
+    ]
