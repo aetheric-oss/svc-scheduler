@@ -12,25 +12,45 @@ on:
 name: Rust Checks
 
 env:
-  TERM: xterm
+  RUST_VERSION: 1.62.0
+  # 2022/07/12: Can't use env.VALUE in "runs-on" field yet
+  # UBUNTU_VERSION: ubuntu-20.04
 
 jobs:
   check:
     name: Checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
-      - run: make rust-check
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ env.RUST_VERSION }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
 
   build_and_test_debug:
     name: Build & Test
     runs-on: ubuntu-20.04
+    env:
+        RUSTC_BOOTSTRAP: 1
+        CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ env.RUST_VERSION }}
+          override: true
+
       - name: Build
-        run: make build
+        run: cargo build
+
       - name: Test
-        run: make rust-test
+        run: cargo test
+
       # Coming soon: grcov + push results to website or service (coveralls, etc.)
 
   fmt:
@@ -38,11 +58,29 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
-      - run: make rust-fmt
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ env.RUST_VERSION }}
+          override: true
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
 
   clippy:
     name: Clippy
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
-      - run: make rust-clippy
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ env.RUST_VERSION }}
+          override: true
+      - run: rustup component add clippy
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
