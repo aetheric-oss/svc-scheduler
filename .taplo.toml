@@ -1,0 +1,24 @@
+exclude = ["**/.cargo/registry/**"]
+
+[formatting]
+reorder_keys  = false
+align_entries = true
+
+[[rule]]
+include = ["**/Cargo.toml"]
+keys = [
+  "dependencies",
+  "dev-dependencies",
+  "build-dependencies",
+  "target",
+  "package",
+  "workspace",
+  "profile",
+  "replace",
+  "patch",
+  "features",
+  "badges",
+]
+
+[rule.formatting]
+reorder_keys = true
