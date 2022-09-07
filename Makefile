@@ -43,45 +43,45 @@ build: check-cargo-registry
 test: rust-check rust-test rust-clippy rust-fmt toml-test python-test
 
 rust-check: check-cargo-registry
-    @echo "$(YELLOW)Finding manifest-path for cargo...$(NC)"
+	@echo "$(YELLOW)Finding manifest-path for cargo...$(NC)"
 ifeq ("$(CARGO_MANIFEST_PATH)", "")
-    @echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo check...$(NC)$(NC)"
+	@echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo check...$(NC)$(NC)"
 else
-    @echo "$(YELLOW)Running cargo check...$(NC)"
-    @$(call docker_run,cargo check --manifest-path "$(CARGO_MANIFEST_PATH)")
+	@echo "$(YELLOW)Running cargo check...$(NC)"
+	@$(call docker_run,cargo check --manifest-path "$(CARGO_MANIFEST_PATH)")
 endif
 
 rust-test: check-cargo-registry
-    @echo "$(YELLOW)Finding manifest-path for cargo...$(NC)"
+	@echo "$(YELLOW)Finding manifest-path for cargo...$(NC)"
 ifeq ("$(CARGO_MANIFEST_PATH)", "")
-    @echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo tests...$(NC)$(NC)"
+	@echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo tests...$(NC)$(NC)"
 else
-    @echo "$(YELLOW)Running cargo tests...$(NC)"
-    @$(call docker_run,cargo test --manifest-path "$(CARGO_MANIFEST_PATH)" --all)
+	@echo "$(YELLOW)Running cargo tests...$(NC)"
+	@$(call docker_run,cargo test --manifest-path "$(CARGO_MANIFEST_PATH)" --all)
 endif
 
 rust-clippy: check-cargo-registry
 ifeq ("$(CARGO_MANIFEST_PATH)", "")
-    @echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo clippy...$(NC)$(NC)"
+	@echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo clippy...$(NC)$(NC)"
 else
-    @echo "$(YELLOW)Linting Rust codes through clippy...$(NC)"
-    @$(call docker_run,cargo clippy --manifest-path "$(CARGO_MANIFEST_PATH)" --all -- -D warnings)
+	@echo "$(YELLOW)Linting Rust codes through clippy...$(NC)"
+	@$(call docker_run,cargo clippy --manifest-path "$(CARGO_MANIFEST_PATH)" --all -- -D warnings)
 endif
 
 rust-fmt: check-cargo-registry
 ifeq ("$(CARGO_MANIFEST_PATH)", "")
-    @echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo fmt...$(NC)$(NC)"
+	@echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo fmt...$(NC)$(NC)"
 else
-    @echo "$(YELLOW)Running and checking Rust codes formats...$(NC)"
-    @$(call docker_run,cargo fmt --manifest-path "$(CARGO_MANIFEST_PATH)" --all -- --check)
+	@echo "$(YELLOW)Running and checking Rust codes formats...$(NC)"
+	@$(call docker_run,cargo fmt --manifest-path "$(CARGO_MANIFEST_PATH)" --all -- --check)
 endif
 
 rust-tidy: check-cargo-registry
 ifeq ("$(CARGO_MANIFEST_PATH)", "")
-    @echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo fmt...$(NC)$(NC)"
+	@echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo fmt...$(NC)$(NC)"
 else
-    @echo "$(YELLOW)Running rust file formatting fixes...$(NC)"
-    @$(call docker_run,cargo fmt --all)
+	@echo "$(YELLOW)Running rust file formatting fixes...$(NC)"
+	@$(call docker_run,cargo fmt --all)
 endif
 
 rust-tidy: check-cargo-registry
@@ -104,7 +104,7 @@ python-test:
 
 python-tidy:
 	@echo "$(YELLOW)Running python file formatting fixes...$(NC)"
-	@$(call docker_run,black--extend-exclude .cargo .)
+	@$(call docker_run,black --extend-exclude .cargo .)
 
 editorconfig-test:
 	@echo "$(YELLOW)Checking if the codebase is compliant with the .editorconfig file...$(NC)"
