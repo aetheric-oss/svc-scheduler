@@ -1,7 +1,17 @@
+## DO NOT EDIT!
+# This file was provisioned by Terraform
+# Check file validity at: https://rhysd.github.io/actionlint/
+# https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
+
 name: PR Rebase
+
+env:
+  TERM: xterm
+
 on:
   issue_comment:
     types: [created]
+
 jobs:
   rebase:
     name: Rebase
