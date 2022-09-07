@@ -11,10 +11,13 @@ on:
 
 name: Python Checks
 
+env:
+  TERM: xterm
+
 jobs:
   formatting-check:
     name: Formatting Check
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - run: make python-test
