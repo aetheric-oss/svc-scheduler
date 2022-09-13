@@ -5,7 +5,7 @@ IMAGE_NAME       := lib-scheduler
 BUILD_IMAGE_NAME := ghcr.io/arrow-air/tools/arrow-rust
 BUILD_IMAGE_TAG  := latest
 DOCKER_PORT      := 8080
-HOST_PORT        := 8000
+HOST_PORT        := 8001
 
 # We might not have a Cargo.toml file in the root dir
 CARGO_MANIFEST_PATH ?= $(shell find -maxdepth 2 -name Cargo.toml)
