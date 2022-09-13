@@ -1,0 +1,35 @@
+## DO NOT EDIT!
+# This file was provisioned by Terraform
+
+name: Sanity checks
+
+env:
+  TERM: xterm
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  codestyle:
+    name: Code Style check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: make editorconfig-test
+
+  toml:
+    name: TOML format check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: make toml-test
+
+  cspell:
+    name: Spelling check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: make cspell-test
