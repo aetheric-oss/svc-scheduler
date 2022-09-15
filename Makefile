@@ -152,12 +152,12 @@ editorconfig-test:
 # cspell targets
 cspell-test:
 	@echo "$(YELLOW)Checking for spelling errors...$(NC)"
-	@cspell --words-only --unique "**/**" -c .cspell.config.yaml
+	@$(call docker_run,cspell --words-only --unique "**/**" -c .cspell.config.yaml)
 
 # cspell add words
 cspell-add-words:
 	@echo "$(YELLOW)Adding words to the project's cspell word list...$(NC)"
-	@cspell --words-only --unique "**/**" -c .cspell.config.yaml | sort --ignore-case >> .cspell.project-words.txt
+	@$(call docker_run,cspell --words-only --unique "**/**" -c .cspell.config.yaml | sort --ignore-case >> .cspell.project-words.txt)
 
 # Combined targets
 test: rust-check rust-test rust-clippy rust-fmt toml-test python-test
