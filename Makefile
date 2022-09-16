@@ -25,16 +25,16 @@ SGR0   := $(shell echo -e `tput sgr0`)
 # function with a generic template to run docker with the required values
 # Accepts $1 = command to run, $2 = additional flags (optional)
 docker_run = docker run \
-    --name=$(DOCKER_NAME)-$@ \
-    --rm \
-    --user `id -u`:`id -g` \
-    -e CARGO_INCREMENTAL=$(CARGO_INCREMENTAL) \
-    -e RUSTC_BOOTSTRAP=$(RUSTC_BOOTSTRAP) \
-    -v "$(PWD):/usr/src/app" \
-    -v "$(PWD)/.cargo/registry:/usr/local/cargo/registry" \
-    $(2) \
-    -t $(BUILD_IMAGE_NAME):$(BUILD_IMAGE_TAG) \
-    $(1)
+	--name=$(DOCKER_NAME)-$@ \
+	--rm \
+	--user `id -u`:`id -g` \
+	-e CARGO_INCREMENTAL=$(CARGO_INCREMENTAL) \
+	-e RUSTC_BOOTSTRAP=$(RUSTC_BOOTSTRAP) \
+	-v "$(PWD):/usr/src/app" \
+	-v "$(PWD)/.cargo/registry:/usr/local/cargo/registry" \
+	$(2) \
+	-t $(BUILD_IMAGE_NAME):$(BUILD_IMAGE_TAG) \
+	$(1)
 
 ifeq ("$(CARGO_MANIFEST_PATH)", "")
 cargo_run = echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo check...$(NC)$(SGR0)"
@@ -73,12 +73,12 @@ help:
 	@echo "$(SMUL)$(BOLD)$(GREEN)CSpell$(NC)$(SGR0)"
 	@echo "  $(BOLD)cspell-test$(SGR0) -- Run 'cspell --words-only --unique "**/**" -c .cspell.config.yaml'"
 	@echo "                 to validate files are not containing any spelling errors."
-	@echo "  $(BOLD)cspell-add-words$(SGR0) -- Run 'cspell --words-only --unique "**/**" -c .cspell.config.yaml | "
-	@echo "                      sort --ignore-case >> .cspell.project-words.txt'"
+	@echo "  $(BOLD)cspell-add-words$(SGR0) -- Run 'cspell --words-only --unique "**/**" -c .cspell.config.yaml 2> /dev/null |"
+	@echo "                      sort -f >> .cspell.project-words.txt'"
 	@echo "                      to add remaining words to the project's cspell ignore list"
 	@echo ""
 	@echo "$(SMUL)$(BOLD)$(GREEN)Combined targets$(NC)$(SGR0)"
-	@echo "  $(BOLD)test$(SGR0) -- Run targets; rust-check rust-test rust-clippy rust-fmt toml-test python-test cspell-test"
+	@echo "  $(BOLD)test$(SGR0) -- Run targets; rust-check rust-test rust-clippy rust-fmt toml-test python-test"
 	@echo "  $(BOLD)tidy$(SGR0) -- Run targets; rust-tidy toml-tidy python-tidy"
 
 	@echo "  $(BOLD)run$(SGR0)  -- Run docker container as a daemon, binding port $(HOST_PORT):$(DOCKER_PORT)"
@@ -143,11 +143,12 @@ python-tidy:
 editorconfig-test:
 	@echo "$(YELLOW)Checking if the codebase is compliant with the .editorconfig file...$(NC)"
 	@docker run \
-    --name=$(DOCKER_NAME)-$@ \
-    --rm \
-    --user `id -u`:`id -g` \
-    -v "$(PWD):/usr/src/app" \
-    -t mstruebing/editorconfig-checker
+		--name=$(DOCKER_NAME)-$@ \
+		--rm \
+		--user `id -u`:`id -g` \
+		-w "/usr/src/app" \
+		-v "$(PWD):/usr/src/app" \
+		-t mstruebing/editorconfig-checker
 
 # cspell targets
 cspell-test:
@@ -157,14 +158,14 @@ cspell-test:
 # cspell add words
 cspell-add-words:
 	@echo "$(YELLOW)Adding words to the project's cspell word list...$(NC)"
-	@$(call docker_run,cspell --words-only --unique "**/**" -c .cspell.config.yaml | sort --ignore-case >> .cspell.project-words.txt)
+	@$(call docker_run,sh -c 'cspell --words-only --unique "**/**" -c .cspell.config.yaml 2> /dev/null | sort -f >> .cspell.project-words.txt')
 
 # Combined targets
 test: rust-check rust-test rust-clippy rust-fmt toml-test python-test
 tidy: rust-tidy toml-tidy python-tidy
 
 run: stop
-    # Run docker container as a daemon and map a port
+# Run docker container as a daemon and map a port
 	@$(call docker_run,sh,-d -p $(HOST_PORT):$(DOCKER_PORT))
 
 stop:
