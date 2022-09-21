@@ -20,3 +20,6 @@ target/
 
 # Don't add vscode meta files
 .vscode
+
+# Don't add DS_Store
+.DS_Store
