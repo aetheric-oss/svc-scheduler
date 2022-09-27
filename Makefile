@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
-DOCKER_NAME      := arrow-lib-scheduler
-IMAGE_NAME       := lib-scheduler
+DOCKER_NAME      := arrow-svc-scheduler
+IMAGE_NAME       := svc-scheduler
 BUILD_IMAGE_NAME := ghcr.io/arrow-air/tools/arrow-rust
 BUILD_IMAGE_TAG  := latest
 
