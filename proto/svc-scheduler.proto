@@ -1,0 +1,130 @@
+syntax = "proto3";
+package svc_scheduler;
+import "google/protobuf/timestamp.proto";
+
+//Scheduler service
+service Scheduler {
+    rpc queryFlight (QueryFlightRequest) returns (QueryFlightResponse);
+    rpc confirmFlight (Id) returns (ConfirmFlightResponse);
+    rpc cancelFlight (Id) returns (CancelFlightResponse);
+    rpc isReady (ReadyRequest) returns (ReadyResponse);
+}
+// QueryFlightRequest
+message QueryFlightRequest {
+    //is_cargo - true if cargo mission, false if people transport
+    bool isCargo = 1;
+    //persons - number of people for transport
+    uint32 persons = 2;
+    //weight in grams
+    uint32 weightGrams = 3;
+    //requested preferred time of flight
+    google.protobuf.Timestamp requestedTime = 4;
+    //longitude
+    float longitude = 5;
+    //latitude
+    float latitude = 6;
+}
+//Flight Status Enum
+enum FlightStatus{
+    //READY
+    READY = 0;
+    //BOARDING
+    BOARDING = 1;
+    //IN_FLIGHT
+    IN_FLIGHT = 3;
+    //FINISHED
+    FINISHED = 4;
+    //CANCELLED
+    CANCELLED = 5;
+}
+//Flight Priority Enum
+enum FlightPriority{
+    //LOW
+    LOW = 0;
+    //HIGH
+    HIGH = 1;
+    //EMERGENCY
+    EMERGENCY = 2;
+}
+
+//QueryFlightPlan
+message QueryFlightPlan {
+    //id of the flight
+    uint32 id = 1;
+    //pilot_id
+    uint32 pilot_id = 2;
+    //aircraft_id
+    uint32 aircraft_id = 3;
+    //cargo
+    repeated uint32 cargo = 4;
+    //weather_conditions
+    string weather_conditions = 5;
+    //vertiport_id_departure
+    uint32 vertiport_id_departure = 6;
+    //pad_id_departure
+    uint32 pad_id_departure = 7;
+    //vertiport_id_destination
+    uint32 vertiport_id_destination = 8;
+    //pad_id_destination
+    uint32 pad_id_destination = 9;
+    //estimated_departure
+    google.protobuf.Timestamp estimated_departure = 10;
+    //estimated_arrival
+    google.protobuf.Timestamp estimated_arrival = 11;
+    //actual_departure
+    optional google.protobuf.Timestamp actual_departure = 12;
+    //actual_arrival
+    optional google.protobuf.Timestamp actual_arrival = 13;
+    //flight_release_approval
+    optional google.protobuf.Timestamp flight_release_approval = 14;
+    //flight_plan_submitted
+    optional google.protobuf.Timestamp flight_plan_submitted = 15;
+    //flightStatus
+    FlightStatus flightStatus = 16;
+    //flightPriority
+    FlightPriority flightPriority = 17;
+
+}
+//QueryFlightResponse
+message QueryFlightResponse {
+    //array/vector of flight items
+    repeated QueryFlightPlan flights = 1;
+}
+
+//Id type for passing id only requests
+message Id{
+    //id
+    uint32 id = 1;
+}
+
+//ConfirmFlightResponse
+message ConfirmFlightResponse{
+    //id
+    uint32 id = 1;
+    //indicates if confirmation was successful
+    bool confirmed = 2;
+    //time when the flight was confirmed
+    google.protobuf.Timestamp confirmationTime = 3;
+}
+//CancelFlightResponse
+message CancelFlightResponse{
+    //id
+    uint32 id = 1;
+    //indicates if cancellation was successful
+    bool cancelled = 2;
+    //time when the flight was cancelled
+    google.protobuf.Timestamp cancellationTime = 3;
+    //reason of cancellation
+    string reason = 4;
+}
+
+// Ready Request
+message ReadyRequest {
+    // No arguments
+}
+
+// Ready Response
+message ReadyResponse {
+    // ready
+    bool ready = 1;
+}
