@@ -17,14 +17,8 @@ echo -e "${BOLD}${YELLOW}Running the pre-commit hook...${NC}${SGR0}"
 
 set -e
 
-# RUST
-make rust-test
-
-# PYTHON 3
-make python-test
-
-# TOML formatting
-make toml-test
+# Tests
+make test
 
 # Style Check
 make editorconfig-test
