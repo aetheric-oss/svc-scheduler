@@ -160,6 +160,16 @@ editorconfig-test:
 		-v "$(PWD):/usr/src/app" \
 		-t mstruebing/editorconfig-checker
 
+md-test:
+	@echo "$(YELLOW)Checking if all document links are valid...$(NC)"
+	@docker run \
+		--name=$(DOCKER_NAME)-$@ \
+		--rm \
+		--user `id -u`:`id -g` \
+		-w "/usr/src/app" \
+		-v "$(PWD):/usr/src/app" \
+        ghcr.io/tcort/markdown-link-check:stable */*.md* *.md*
+
 # cspell targets
 cspell-test: docker-pull
 	@echo "$(YELLOW)Checking for spelling errors...$(NC)"
