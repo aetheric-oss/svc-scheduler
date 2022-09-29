@@ -1,6 +1,6 @@
 [package]
-edition = "2021"             # Allowed values are 2015, 2018, 2021
-name    = "svc-cargo-client"
+edition = "2021"                 # Allowed values are 2015, 2018, 2021
+name    = "svc-scheduler-client"
 version = "0.1.0"
 # Rust Editions: https://doc.rust-lang.org/edition-guide/index.html
 

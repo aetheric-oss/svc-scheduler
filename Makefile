@@ -168,7 +168,7 @@ md-test:
 		--user `id -u`:`id -g` \
 		-w "/usr/src/app" \
 		-v "$(PWD):/usr/src/app" \
-        ghcr.io/tcort/markdown-link-check:stable */*.md* *.md*
+		ghcr.io/tcort/markdown-link-check:stable */*.md* *.md*
 
 # cspell targets
 cspell-test: docker-pull
