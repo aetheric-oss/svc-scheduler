@@ -18,6 +18,8 @@ router             = { git = "https://github.com/Arrow-air/lib-router.git", bran
 rrule              = "0.10.0"
 iso8601-duration   = "0.1.0"
 svc-storage-client = { git = "https://github.com/Arrow-air/svc-storage.git", branch = "develop" }
+router             = { git = "https://github.com/Arrow-air/lib-router.git", branch = "develop" }
+svc-storage-client = { git = "https://github.com/Arrow-air/svc-storage.git", branch = "roman/dw-212/svc-scheduler-v1" }
 tokio              = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 tonic              = "0.8.1"
 
