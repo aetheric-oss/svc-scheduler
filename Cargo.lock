@@ -506,6 +506,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f7254b99e31cad77da24b08ebf628882739a608578bb1bcdfc1f9c21260d7c0"
 
 [[package]]
+name = "ordered-float"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98ffdb14730ed2ef599c65810c15b000896e21e8776b512de0db0c3d7335cc2a"
+dependencies = [
+ "num-traits",
+ "serde",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -552,6 +562,12 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "piston-float"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad78bf43dcf80e8f950c92b84f938a0fc7590b7f6866fbcbeca781609c115590"
 
 [[package]]
 name = "ppv-lite86"
@@ -632,6 +648,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quaternion"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "098443236d1445368525aa1874295cb9d9fc7699b52907c78692f0b18bd8c216"
+dependencies = [
+ "vecmath",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -704,10 +729,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "router"
+version = "0.1.0"
+source = "git+https://github.com/Arrow-air/lib-router.git?branch=develop#a5244679b6cb4b5adaf5ad54424ea8d973078bea"
+dependencies = [
+ "cargo-husky",
+ "ordered-float",
+ "petgraph",
+ "quaternion",
+ "rand",
+ "serde",
+ "uuid",
+ "vecmath",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.144"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f747710de3dcd43b88c9168773254e809d8ddbdf9653b84e2554ab219f17860"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.144"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94ed3a816fb1d101812f83e789f888322c34e291f894f19590dc310963e87a00"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "slab"
@@ -729,7 +783,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "svc-cargo-client"
+name = "svc-scheduler"
+version = "0.1.0"
+dependencies = [
+ "cargo-husky",
+ "chrono",
+ "dotenv",
+ "prost",
+ "prost-types",
+ "router",
+ "svc-storage-client",
+ "tokio",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
+name = "svc-scheduler-client"
 version = "0.1.0"
 dependencies = [
  "prost",
@@ -739,17 +809,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "svc-scheduler"
+name = "svc-storage-client"
 version = "0.1.0"
+source = "git+https://github.com/Arrow-air/svc-storage.git?branch=roman/dw-212/svc-scheduler-v1#a12db3a74474c5aa4e5d53e836aa2d7dc2196528"
 dependencies = [
- "cargo-husky",
- "chrono",
- "dotenv",
  "prost",
  "prost-types",
- "tokio",
  "tonic",
- "tonic-build",
 ]
 
 [[package]]
@@ -1009,6 +1075,37 @@ name = "unicode-ident"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcc811dc4066ac62f84f11307873c4850cb653bfa9b1719cee2bd2204a4bc5dd"
+
+[[package]]
+name = "uuid"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd6469f4314d5f1ffec476e05f17cc9a78bc7a27a6a857842170bdf8d6f98d2f"
+dependencies = [
+ "getrandom",
+ "rand",
+ "uuid-macro-internal",
+]
+
+[[package]]
+name = "uuid-macro-internal"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "548f7181a5990efa50237abb7ebca410828b57a8955993334679f8b50b35c97d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "vecmath"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "956ae1e0d85bca567dee1dcf87fb1ca2e792792f66f87dced8381f99cd91156a"
+dependencies = [
+ "piston-float",
+]
 
 [[package]]
 name = "want"

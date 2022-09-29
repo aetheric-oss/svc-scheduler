@@ -14,11 +14,30 @@ use svc_scheduler::{
     CancelFlightResponse, ConfirmFlightResponse, FlightPriority, FlightStatus, Id, QueryFlightPlan,
     QueryFlightRequest, QueryFlightResponse, ReadyRequest, ReadyResponse,
 };
+use svc_storage_client::svc_storage::storage_client::StorageClient;
+use svc_storage_client::svc_storage::AircraftFilter;
 use tonic::{transport::Server, Request, Response, Status};
+
+//static mut STORAGE_CLIENT: StorageClient<tonic::transport::Channel> = None;
 
 ///Implementation of gRPC endpoints
 #[derive(Debug, Default, Copy, Clone)]
 pub struct SchedulerImpl {}
+
+/*impl SchedulerImpl {
+    #[tonic::async_trait]
+    pub async fn get_aircrafts() -> Result<(), Box<dyn std::error::Error>> {
+        let mut client = StorageClient::connect("http://[::1]:50052").await?;
+        let sys_time = SystemTime::now();
+        let request = tonic::Request::new(AircraftFilter {});
+
+        let response = client.aircrafts(request).await?;
+
+        println!("RESPONSE={:?}", response.into_inner());
+
+        Ok(())
+    }
+}*/
 
 #[tonic::async_trait]
 impl Scheduler for SchedulerImpl {
@@ -109,6 +128,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let addr = address.parse()?;
     let scheduler = SchedulerImpl::default();
+    //todo move storage client to some global state and client queries to specific methods
+    let mut storage_client = StorageClient::connect("http://[::1]:50052").await?;
+    let request = tonic::Request::new(AircraftFilter {});
+    let resp = storage_client.aircrafts(request).await?;
+    println!("RESPONSE={:?}", resp.into_inner());
+
     //start server
     Server::builder()
         .add_service(SchedulerServer::new(scheduler))

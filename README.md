@@ -29,8 +29,8 @@ cargo test
 
 ## :scroll: Documentation
 The following documents are relevant to this service:
-- [Concept of Operations](TODO)
-- [Requirements & User Stories](TODO)
+- [Concept of Operations](./docs/conops.md)
+- [Requirements & User Stories](./docs/requirements.md)
 - [SDD](./docs/sdd.md)(TODO)
 - [ICD](./docs/icd.md)
 
