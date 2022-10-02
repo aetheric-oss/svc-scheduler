@@ -1,0 +1,18 @@
+## DO NOT EDIT!
+# This file was provisioned by Terraform
+# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/.cargo/config.toml
+
+# https://doc.rust-lang.org/cargo/reference/config.html
+
+[build]
+rustflags = [
+  "-Wmissing_docs",
+  "-Wmissing_debug_implementations",
+  "-Wmissing_copy_implementations",
+  "-Wtrivial_casts",
+  "-Wtrivial_numeric_casts",
+  "-Wunsafe_code",
+  "-Wunstable_features",
+  "-Wunused_import_braces",
+  "-Wunused_qualifications",
+]
