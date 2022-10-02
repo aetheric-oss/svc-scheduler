@@ -1,5 +1,6 @@
 ## DO NOT EDIT!
 # This file was provisioned by Terraform
+# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/.github/workflows/sanity_checks.yml
 
 name: Sanity checks
 
@@ -14,29 +15,29 @@ on:
 
 jobs:
   codestyle:
-    name: Code Style check
+    name: Code Style Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - run: make editorconfig-test
 
-  toml:
-    name: TOML format check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - run: make toml-test
-
   cspell:
-    name: Spelling check
+    name: Spelling Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - run: make cspell-test
 
   md-test:
-    name: Broken Link Checker
+    name: Markdown Broken Link Checker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - run: make md-test
+      - run: make md-test-links
+
+  toml:
+    name: TOML Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: make toml-test
