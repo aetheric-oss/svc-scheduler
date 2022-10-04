@@ -35,7 +35,7 @@ endif
 
 # Rust / cargo targets
 check-cargo-registry:
-	if [ ! -d "$(PWD)/.cargo/registry" ]; then mkdir -p "$(PWD)/.cargo/registry" ; fi
+	if [ ! -d "$(SOURCE_PATH)/.cargo/registry" ]; then mkdir -p "$(SOURCE_PATH)/.cargo/registry" ; fi
 
 .SILENT: check-cargo-registry docker-pull
 
