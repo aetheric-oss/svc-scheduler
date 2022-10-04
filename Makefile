@@ -11,14 +11,13 @@ PACKAGE_NAME := $(IMAGE_NAME)
 DOCKER_PORT  := 8080
 HOST_PORT    := 8002
 
-export
-
 help: .help-base .help-rust .help-python .help-cspell .help-markdown .help-editorconfig .help-toml .help-docker
-all: test build release docker-build
+build: rust-build docker-build
+all: test build release
 
 include .make/docker.mk
 
-
+release: rust-release
 test: rust-test-all cspell-test toml-test python-test md-test-links editorconfig-test
 tidy: rust-tidy toml-tidy python-tidy
 
