@@ -1,6 +1,7 @@
 ## DO NOT EDIT!
 # This file was provisioned by Terraform
 # File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/all/.make/cspell.mk
+CSPELL_PROJECT_WORDS ?= .cspell.project-words.txt
 
 .help-cspell:
 	@echo ""
@@ -12,6 +13,10 @@
 	@echo "                      to add remaining words to the project's cspell ignore list"
 
 cspell-test: docker-pull
+ifeq ("$(wildcard $(CSPELL_PROJECT_WORDS))","")
+	@echo "$(YELLOW)No $(CSPELL_PROJECT_WORDS) found, creating...$(SGR0)"
+	touch $(CSPELL_PROJECT_WORDS)
+endif
 	@echo "$(CYAN)Checking for spelling errors...$(SGR0)"
 	@$(call docker_run,cspell --words-only --unique "**/**" -c .cspell.config.yaml)
 
