@@ -16,6 +16,10 @@ indent_size = off
 trim_trailing_whitespace = false
 [{*.yml,*.yaml,*.toml}]
 indent_size = 2
+[*.rs]
+trim_trailing_whitespace = false
+indent_style = space
+indent_size = 4
 [*.tf]
 indent_size = 2
 [{Makefile*,*.mk,*.sh}]
