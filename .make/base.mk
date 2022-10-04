@@ -6,8 +6,6 @@ SHELL := /bin/bash
 
 BUILD_IMAGE_NAME := ghcr.io/arrow-air/tools/arrow-rust
 BUILD_IMAGE_TAG  := latest
-DOCKER_PORT      := 8000
-HOST_PORT        := 8080
 
 SOURCE_PATH      ?= $(PWD)
 
