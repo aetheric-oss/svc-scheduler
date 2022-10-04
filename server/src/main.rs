@@ -7,6 +7,7 @@ pub mod svc_scheduler {
 }
 
 use dotenv::dotenv;
+use once_cell::sync::OnceCell;
 use std::env;
 use std::time::SystemTime;
 use svc_scheduler::scheduler_server::{Scheduler, SchedulerServer};
@@ -18,26 +19,13 @@ use svc_storage_client::svc_storage::storage_client::StorageClient;
 use svc_storage_client::svc_storage::AircraftFilter;
 use tonic::{transport::Server, Request, Response, Status};
 
-//static mut STORAGE_CLIENT: StorageClient<tonic::transport::Channel> = None;
+/// GRPC client for storage service -
+/// it has to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
+pub static STORAGE_CLIENT: OnceCell<StorageClient<tonic::transport::Channel>> = OnceCell::new();
 
 ///Implementation of gRPC endpoints
 #[derive(Debug, Default, Copy, Clone)]
 pub struct SchedulerImpl {}
-
-/*impl SchedulerImpl {
-    #[tonic::async_trait]
-    pub async fn get_aircrafts() -> Result<(), Box<dyn std::error::Error>> {
-        let mut client = StorageClient::connect("http://[::1]:50052").await?;
-        let sys_time = SystemTime::now();
-        let request = tonic::Request::new(AircraftFilter {});
-
-        let response = client.aircrafts(request).await?;
-
-        println!("RESPONSE={:?}", response.into_inner());
-
-        Ok(())
-    }
-}*/
 
 #[tonic::async_trait]
 impl Scheduler for SchedulerImpl {
@@ -47,6 +35,14 @@ impl Scheduler for SchedulerImpl {
         &self,
         request: Request<QueryFlightRequest>, // Accept request of type QueryFlightRequest
     ) -> Result<Response<QueryFlightResponse>, Status> {
+        let r = Request::new(AircraftFilter {});
+        let mut client = STORAGE_CLIENT
+            .get()
+            .expect("Storage Client not initialized")
+            .clone();
+        let resp = client.aircrafts(r).await?;
+        println!("RESPONSE={:?}", resp.into_inner());
+
         // TODO implement. Currently returns arbitrary value
         println!("Got a request: {:?}", request);
         let requested_time = request.into_inner().requested_time;
@@ -128,11 +124,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let addr = address.parse()?;
     let scheduler = SchedulerImpl::default();
-    //todo move storage client to some global state and client queries to specific methods
-    let mut storage_client = StorageClient::connect("http://[::1]:50052").await?;
-    let request = tonic::Request::new(AircraftFilter {});
-    let resp = storage_client.aircrafts(request).await?;
-    println!("RESPONSE={:?}", resp.into_inner());
+    //initialize storage client here so it can be used in other methods
+    STORAGE_CLIENT
+        .set(StorageClient::connect("http://[::1]:50052").await?)
+        .unwrap();
 
     //start server
     Server::builder()
