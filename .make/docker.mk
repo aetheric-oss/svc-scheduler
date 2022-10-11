@@ -13,7 +13,7 @@ IMAGE_NAME        ?= $(PACKAGE_NAME)
 	@echo "  $(BOLD)docker-stop$(SGR0) -- Run 'docker kill $${DOCKER_NAME}-run' to stop our docker after running"
 
 docker-build:
-	@DOCKER_BUILDKIT=1 docker build --build-arg PACKAGE_NAME --tag $(IMAGE_NAME):latest $(DOCKER_BUILD_PATH)
+	@DOCKER_BUILDKIT=1 docker build --build-arg PACKAGE_NAME=$(PACKAGE_NAME) --tag $(IMAGE_NAME):latest $(DOCKER_BUILD_PATH)
 
 docker-run: docker-stop
 	# Run docker container as a daemon and map a port
