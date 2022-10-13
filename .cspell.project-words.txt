@@ -18,6 +18,7 @@ protobuf
 chrono
 codegen
 vertiport
+vertiports
 repr
 dotenv
 aircrafts
