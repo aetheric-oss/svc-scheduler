@@ -19,7 +19,7 @@ include .make/docker.mk
 
 release: rust-release
 test: rust-test-all cspell-test toml-test python-test md-test-links editorconfig-test
-tidy: rust-tidy toml-tidy python-tidy
+tidy: rust-tidy toml-tidy python-tidy editorconfig-tidy
 
 include .make/base.mk
 include .make/cspell.mk
