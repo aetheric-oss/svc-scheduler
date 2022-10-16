@@ -1,0 +1,2 @@
+export COMMITLINT_CHECK=${1}
+make commitlint-test
