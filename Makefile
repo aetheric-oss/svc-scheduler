@@ -11,7 +11,7 @@ PACKAGE_NAME := $(IMAGE_NAME)
 DOCKER_PORT  := 8000
 HOST_PORT    := 8002
 
-help: .help-base .help-rust .help-python .help-cspell .help-markdown .help-editorconfig .help-toml .help-docker
+help: .help-base .help-rust .help-python .help-cspell .help-markdown .help-editorconfig .help-commitlint .help-toml .help-docker
 build: rust-build docker-build
 all: test build release
 
@@ -25,6 +25,7 @@ include .make/base.mk
 include .make/cspell.mk
 include .make/markdown.mk
 include .make/editorconfig.mk
+include .make/commitlint.mk
 include .make/toml.mk
 include .make/rust.mk
 include .make/python.mk
