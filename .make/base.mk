@@ -4,8 +4,9 @@
 
 SHELL := /bin/bash
 
-BUILD_IMAGE_NAME := ghcr.io/arrow-air/tools/arrow-rust
-BUILD_IMAGE_TAG  := latest
+SANITYCHECKS_IMAGE_NAME := ghcr.io/arrow-air/tools/arrow-sanitychecks
+SANITYCHEKCS_IMAGE_TAG  := 0.1
+
 SOURCE_PATH      ?= $(PWD)
 
 # Style templates for console output.
@@ -21,19 +22,18 @@ SGR0   := $(shell echo -e `tput sgr0`)
 docker_run = docker run \
 	--name=$(DOCKER_NAME)-$@ \
 	--rm \
-	-e HOST_PORT=$(HOST_PORT) \
 	--user `id -u`:`id -g` \
 	--workdir=/usr/src/app \
 	-v "$(SOURCE_PATH)/:/usr/src/app" \
 	$(2) \
-	-t $(BUILD_IMAGE_NAME):$(BUILD_IMAGE_TAG) \
+	-t $(SANITYCHECKS_IMAGE_NAME):$(SANITYCHEKCS_IMAGE_TAG) \
 	$(1)
 
-.SILENT: docker-pull
+.SILENT: *docker-pull
 
 .help-base:
 	@echo ""
 	@echo "$(BOLD)$(CYAN)Available targets$(SGR0)"
 
 docker-pull:
-	@docker pull -q $(BUILD_IMAGE_NAME):$(BUILD_IMAGE_TAG)
+	@echo docker pull -q $(SANITYCHECKS_IMAGE_NAME):$(SANITYCHEKCS_IMAGE_TAG)
