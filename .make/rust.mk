@@ -2,18 +2,34 @@
 # This file was provisioned by Terraform
 # File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/all/.make/rust.mk
 
-# We might not have a Cargo.toml file in the root dir
+RUST_IMAGE_NAME     ?= ghcr.io/arrow-air/tools/arrow-rust
+RUST_IMAGE_TAG      ?= 1.0
 CARGO_MANIFEST_PATH ?= Cargo.toml
 CARGO_INCREMENTAL   ?= 1
 RUSTC_BOOTSTRAP     ?= 0
 RELEASE_TARGET      ?= x86_64-unknown-linux-musl
-RUST_DOCKER_PARAMS  ?= -e CARGO_INCREMENTAL=$(CARGO_INCREMENTAL) -e RUSTC_BOOTSTRAP=$(RUSTC_BOOTSTRAP) -v "$(SOURCE_PATH)/.cargo/registry:/usr/local/cargo/registry"
+HOSTNAME            ?= $(DOCKER_NAME)-run
 
+# function with a generic template to run docker with the required values
+# Accepts $1 = command to run, $2 = additional command flags (optional)
 ifeq ("$(CARGO_MANIFEST_PATH)", "")
 cargo_run = echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo check...$(SGR0)"
 else
-cargo_run = $(call docker_run, cargo $(1) --manifest-path "$(CARGO_MANIFEST_PATH)" $(2), $(RUST_DOCKER_PARAMS))
+cargo_run = docker run \
+	--name=$(DOCKER_NAME)-$@ \
+	--rm \
+	--user `id -u`:`id -g` \
+	--workdir=/usr/src/app \
+	-v "$(SOURCE_PATH)/:/usr/src/app" \
+	-v "$(SOURCE_PATH)/.cargo/registry:/usr/local/cargo/registry" \
+	-e CARGO_INCREMENTAL=$(CARGO_INCREMENTAL) \
+	-e RUSTC_BOOTSTRAP=$(RUSTC_BOOTSTRAP) \
+	-t $(RUST_IMAGE_NAME):$(RUST_IMAGE_TAG) \
+	cargo $(1) --manifest-path "$(CARGO_MANIFEST_PATH)" $(2)
 endif
+
+rust-docker-pull:
+	@echo docker pull -q $(RUST_IMAGE_NAME):$(RUST_IMAGE_TAG)
 
 .help-rust:
 	@echo ""
@@ -37,41 +53,47 @@ endif
 check-cargo-registry:
 	if [ ! -d "$(SOURCE_PATH)/.cargo/registry" ]; then mkdir -p "$(SOURCE_PATH)/.cargo/registry" ; fi
 
-.SILENT: check-cargo-registry docker-pull
+.SILENT: check-cargo-registry rust-docker-pull
 
-rust-build: check-cargo-registry docker-pull
+rust-build: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo build...$(SGR0)"
 	@$(call cargo_run,build)
 
-rust-release: docker-pull
+rust-release: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo build --release...$(SGR0)"
 	@$(call cargo_run,build,--release --target $(RELEASE_TARGET))
 
-rust-clean: check-cargo-registry docker-pull
+rust-clean: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo clean...$(SGR0)"
 	@$(call cargo_run,clean)
 
-rust-check: check-cargo-registry docker-pull
+rust-check: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo check...$(SGR0)"
 	@$(call cargo_run,check)
 
-rust-test: check-cargo-registry docker-pull
+rust-test: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo test...$(SGR0)"
 	@$(call cargo_run,test,--all)
 
-rust-example-%: check-cargo-registry docker-pull
-	@echo "$(YELLOW)cargo run --example $* ...$(SGR0)"
-	@$(call cargo_run,run --example $*)
+rust-example-%: EXAMPLE_TARGET=$*
+rust-example-%: check-cargo-registry rust-docker-pull
+	@docker compose run \
+		--user `id -u`:`id -g` \
+		--rm \
+		-e CARGO_INCREMENTAL=1 \
+		-e RUSTC_BOOTSTRAP=0 \
+		-e EXAMPLE_TARGET=$(EXAMPLE_TARGET) \
+		example && docker compose stop
 
-rust-clippy: check-cargo-registry docker-pull
+rust-clippy: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running clippy...$(SGR0)"
 	@$(call cargo_run,clippy,--all -- -D warnings)
 
-rust-fmt: check-cargo-registry docker-pull
+rust-fmt: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running and checking Rust codes formats...$(SGR0)"
 	@$(call cargo_run,fmt,--all -- --check)
 
-rust-tidy: check-cargo-registry docker-pull
+rust-tidy: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running rust file formatting fixes...$(SGR0)"
 	@$(call cargo_run,fmt,--all)
 
