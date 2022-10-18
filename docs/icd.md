@@ -24,6 +24,6 @@ File | Description
 
 gRPC supports Transport Layer Security (TLS): https://grpc.io/docs/guides/auth/
 
-SSL/TLS certificates will be stored as `.pem` file contents in the GitHub organization as [Encrypted Environment Secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets). These environment secrets can be accessed by the CI/CD pipeline without exposing the information to the public.
+SSL/TLS certificates will be stored as `.pem` file contents in the GitHub organization as Encrypted Environment Secrets. These environment secrets can be accessed by the CI/CD pipeline without exposing the information to the public.
 
 > Privacy Enhanced Mail, or as it is commonly known PEM, is a file format widely used for storing and transferring encrypted data, especially certificates and cryptographic keys

@@ -23,3 +23,5 @@ repr
 dotenv
 aircrafts
 tcort
+rideshare
+rrule
