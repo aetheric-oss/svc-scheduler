@@ -14,14 +14,16 @@
 
 - src location,
 - dest location,
-- time and date
+- time and date (immediate? (within 1 hour) or scheduled for future)
 - other constraints (weight of cargo, number of seats for passengers)
 
 ### Proposed algorithm:
 ```
+0. Fetch all vertiports for the region of the src and dest locations
+  
 1. Find nearest vertiports for src and dest in radius
-- try 1km, if none found then 2km then 5km etc.
-
+- try nearest, second/third nearest
+  
 2. Sort vertiport src/dest combinations - best has lowest combined distance
 
 3. For each src/dest vertiport combination
@@ -48,7 +50,7 @@
 ```
 
 
-###Schedule representation
+### Schedule representation
 
 - calendar for each vertiport/pad/pilot/aircraft with recurring events (blocked times)
 - calendar starts with standard schedule (working hours) - having events as blocked time and available as no event
@@ -63,6 +65,7 @@ Each v/p/p/a entity in database can have a TEXT field schedule with RRULE string
 - see https://docs.rs/rrule/0.10.0/rrule/ and referenced iCalendar RFC
 - this is useful to capture schedule including working hours, lunch breaks, maintenance windows, public holidays and all recurring disruptions to availability
 - Step 1 of querying availability - we will need to check recurring events first
+- rrule library has a limitation that it doesn't allow to store duration of event/blocking, so we need to work with 15 min blocks (or other minimum flight time value)
 
 Every created Flight plan (draft or confirmed) is linked to v/p/p/a and has a start and end date
 - Step 2 of querying availability - we will check if for the proposed duration there are no flight plans already associated with given v/p/p/a

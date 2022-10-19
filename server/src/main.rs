@@ -5,9 +5,15 @@ pub mod svc_scheduler {
     #![allow(unused_qualifications)]
     include!("svc_scheduler.rs");
 }
+mod queries;
+mod router_utils;
 
 use dotenv::dotenv;
 use once_cell::sync::OnceCell;
+use router_utils::{
+    get_nearby_nodes, get_nearest_vertiports, get_route, init_router, Aircraft,
+    NearbyLocationQuery, RouteQuery, SAN_FRANCISCO,
+};
 use std::env;
 use svc_scheduler::scheduler_server::{Scheduler, SchedulerServer};
 use svc_scheduler::{
@@ -17,7 +23,10 @@ use svc_scheduler::{
 use svc_storage_client::svc_storage::storage_client::StorageClient;
 use tonic::{transport::Server, Request, Response, Status};
 
-mod queries;
+use chrono::TimeZone;
+use ordered_float::OrderedFloat;
+use router::location::Location;
+use rrule::{RRuleSet, Tz};
 
 /// GRPC client for storage service -
 /// it has to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
@@ -72,10 +81,51 @@ impl Scheduler for SchedulerImpl {
     }
 }
 
+fn test_router() {
+    let nodes = get_nearby_nodes(NearbyLocationQuery {
+        location: SAN_FRANCISCO,
+        radius: 25.0,
+        capacity: 20,
+    });
+
+    //println!("nodes: {:?}", nodes);
+    let init_res = init_router(Aircraft::ArrowCargo);
+    println!("init_res: {:?}", init_res);
+    let src_location = Location {
+        latitude: OrderedFloat(37.52123),
+        longitude: OrderedFloat(-122.50892),
+        altitude_meters: OrderedFloat(20.0),
+    };
+    let dst_location = Location {
+        latitude: OrderedFloat(37.81032),
+        longitude: OrderedFloat(-122.28432),
+        altitude_meters: OrderedFloat(20.0),
+    };
+    let (src, dst) = get_nearest_vertiports(&src_location, &dst_location, nodes);
+    println!("src: {:?}, dst: {:?}", src.location, dst.location);
+    let route = get_route(RouteQuery {
+        from: src,
+        to: dst,
+        aircraft: Aircraft::ArrowCargo,
+    });
+    println!("route: {:?}", route);
+}
+
 ///Main entry point: starts gRPC Server on specified address and port
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
+    test_router();
+
+    let rrule: RRuleSet = "DTSTART:20221018T190000Z\nRRULE:FREQ=DAILY"
+        .parse()
+        .unwrap();
+
+    let after = Tz::UTC.ymd(2022, 11, 19).and_hms(19, 0, 0);
+    let before = Tz::UTC.ymd(2022, 11, 19).and_hms(20, 0, 0);
+
+    let (events, skipped) = rrule.before(before).after(after).all(10);
+    println!("Events: {:?} {:?}", events, skipped);
     //parse socket address from env variable or take default value
     let address = match env::var("GRPC_SOCKET_ADDR") {
         Ok(val) => val,
