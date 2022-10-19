@@ -2,7 +2,7 @@
 # This file was provisioned by Terraform
 # File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/all/.make/toml.mk
 
-TOML_FILES ?= $(shell find . -type f -iname '*.toml')
+TOML_FILES ?= $(shell find . -type f -iname '*.toml' ! -path "./target")
 
 .help-toml:
 	@echo ""
