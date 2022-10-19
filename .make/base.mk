@@ -5,7 +5,7 @@
 SHELL := /bin/bash
 
 SANITYCHECKS_IMAGE_NAME := ghcr.io/arrow-air/tools/arrow-sanitychecks
-SANITYCHEKCS_IMAGE_TAG  := 0.1
+SANITYCHECKS_IMAGE_TAG  := 0.1
 
 SOURCE_PATH      ?= $(PWD)
 
@@ -26,7 +26,7 @@ docker_run = docker run \
 	--workdir=/usr/src/app \
 	-v "$(SOURCE_PATH)/:/usr/src/app" \
 	$(2) \
-	-t $(SANITYCHECKS_IMAGE_NAME):$(SANITYCHEKCS_IMAGE_TAG) \
+	-t $(SANITYCHECKS_IMAGE_NAME):$(SANITYCHECKS_IMAGE_TAG) \
 	$(1)
 
 .SILENT: *docker-pull
@@ -36,4 +36,4 @@ docker_run = docker run \
 	@echo "$(BOLD)$(CYAN)Available targets$(SGR0)"
 
 docker-pull:
-	@echo docker pull -q $(SANITYCHECKS_IMAGE_NAME):$(SANITYCHEKCS_IMAGE_TAG)
+	@echo docker pull -q $(SANITYCHECKS_IMAGE_NAME):$(SANITYCHECKS_IMAGE_TAG)
