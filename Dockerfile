@@ -1,6 +1,6 @@
 ## DO NOT EDIT!
 # This file was provisioned by Terraform
-# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/Dockerfile
+# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-svc/Dockerfile
 FROM --platform=$BUILDPLATFORM ghcr.io/arrow-air/tools/arrow-rust:latest AS build
 
 ENV CARGO_INCREMENTAL=1
