@@ -1,0 +1,177 @@
+## DO NOT EDIT!
+# This file was provisioned by Terraform
+# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-svc/.github/workflows/release.yml
+
+name: Tag and Release
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'develop'
+
+env:
+  REGISTRY: ghcr.io
+  PACKAGE_NAME: ${{ github.repository }}
+  TERM: xterm
+
+jobs:
+  prepare:
+    name: Create Tag and Release notes
+    if: ${{ !contains(github.event.head_commit.message, 'Provisioned by Terraform') }}
+    permissions:
+      contents: write
+      packages: write
+      deployments: write
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.head_ref || 'main' }}
+    steps:
+      - id: generate-token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.RELEASE_AUTOMATION_APP_ID }}
+          private_key: ${{ secrets.RELEASE_AUTOMATION_PRIVATE_KEY }}
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Determine new Tag
+        uses: mathieudutour/github-tag-action@v6.0
+        id: tag_version
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          pre_release_branches: develop
+          dry_run: true
+
+      - name: Generate Changelog
+        id: changelog
+        uses: mrchief/universal-changelog-action@v1.3.2
+        with:
+          previousReleaseTagNameOrSha: ${{ steps.tag_version.outputs.previous_tag }}
+          nextReleaseTagName: ${{ github.sha }}
+          nextReleaseName: "Release ${{ steps.tag_version.outputs.new_version }}"
+
+      - name: Update CHANGELOG.md
+        run: |
+          cat - CHANGELOG.md > temp <<'CHANGELOG.md-EOF'
+          ${{ steps.changelog.outputs.changelog }}
+          CHANGELOG.md-EOF
+          sed -i 's/releases\/tag\/${{ github.sha }}/releases\/tag\/${{ steps.tag_version.outputs.new_tag }}/g' temp
+          mv temp CHANGELOG.md
+
+      - name: Update package version
+        run: |
+          cargo install cargo-edit
+          cargo set-version ${{ steps.tag_version.outputs.new_version }}
+          make toml-tidy
+
+      - name: Commit and push CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+          CHANGED_FILE: "CHANGELOG.md"
+          MESSAGE: "chore(ci): update changelog\n\n[skip ci]"
+        run: |
+          export CONTENT=$(base64 -i ${{ env.CHANGED_FILE }})
+          export SHA=$(git rev-parse ${{ github.ref_name }}:${{ env.CHANGED_FILE }})
+          gh api --method PUT /repos/:owner/:repo/contents/${{ env.CHANGED_FILE }} \
+            --field message="${{ env.MESSAGE }}" \
+            --field content="$CONTENT" \
+            --field encoding="base64" \
+            --field branch="${{ github.ref_name }}" \
+            --field sha="$SHA"
+
+      - name: Commit and push server Cargo.toml
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+          CHANGED_FILE: "server/Cargo.toml"
+          MESSAGE: "chore(ci): update package version\n\n[skip ci]"
+        run: |
+          export CONTENT=$(base64 -i ${{ env.CHANGED_FILE }})
+          export SHA=$(git rev-parse ${{ github.ref_name }}:${{ env.CHANGED_FILE }})
+          gh api --method PUT /repos/:owner/:repo/contents/${{ env.CHANGED_FILE }} \
+            --field message="${{ env.MESSAGE }}" \
+            --field content="$CONTENT" \
+            --field encoding="base64" \
+            --field branch="${{ github.ref_name }}" \
+            --field sha="$SHA"
+
+      - name: Commit and push client-grpc Cargo.toml
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+          CHANGED_FILE: "client-grpc/Cargo.toml"
+          MESSAGE: "chore(ci): update package version<br/><br/>[skip ci]"
+        run: |
+          export CONTENT=$(base64 -i ${{ env.CHANGED_FILE }})
+          export SHA=$(git rev-parse ${{ github.ref_name }}:${{ env.CHANGED_FILE }})
+          gh api --method PUT /repos/:owner/:repo/contents/${{ env.CHANGED_FILE }} \
+            --field message="${{ env.MESSAGE }}" \
+            --field content="$CONTENT" \
+            --field encoding="base64" \
+            --field branch="${{ github.ref_name }}" \
+            --field sha="$SHA"
+
+      - name: Push New Tag
+        uses: mathieudutour/github-tag-action@v6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          custom_tag: ${{ steps.tag_version.outputs.new_version }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: 'amd64,arm64'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ env.PACKAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}},value=${{ steps.tag_version.outputs.new_tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.tag_version.outputs.new_tag }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+
+      - name: Clean Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Build and publish client
+        env:
+          PUBLISH_DRY_RUN: 0
+        run: |
+          make rust-publish
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
+          release_name: Release ${{ steps.tag_version.outputs.new_version }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: ${{ env.GITHUB_REF_NAME == 'develop' }}
