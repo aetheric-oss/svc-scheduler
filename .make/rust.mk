@@ -8,7 +8,6 @@ CARGO_MANIFEST_PATH ?= Cargo.toml
 CARGO_INCREMENTAL   ?= 1
 RUSTC_BOOTSTRAP     ?= 0
 RELEASE_TARGET      ?= x86_64-unknown-linux-musl
-HOSTNAME            ?= $(DOCKER_NAME)-run
 PUBLISH_DRY_RUN     ?= 1
 
 # function with a generic template to run docker with the required values
@@ -96,7 +95,8 @@ rust-example-%: check-cargo-registry rust-docker-pull
 		-e EXAMPLE_TARGET=$(EXAMPLE_TARGET) \
 		-e SERVER_PORT_GRPC=$(DOCKER_PORT_GRPC) \
 		-e SERVER_PORT_REST=$(DOCKER_PORT_REST) \
-		example && docker compose stop
+		-e SERVER_HOSTNAME=$(DOCKER_NAME)-example-server \
+		example && docker compose down
 
 rust-clippy: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running clippy...$(SGR0)"
