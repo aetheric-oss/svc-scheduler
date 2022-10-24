@@ -36,6 +36,8 @@ enum FlightStatus{
     FINISHED = 4;
     //CANCELLED
     CANCELLED = 5;
+    //DRAFT
+    DRAFT = 6;
 }
 //Flight Priority Enum
 enum FlightPriority{

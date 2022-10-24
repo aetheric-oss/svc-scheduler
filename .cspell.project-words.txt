@@ -18,7 +18,17 @@ protobuf
 chrono
 codegen
 vertiport
+vertiports
 repr
 dotenv
 aircrafts
 tcort
+rideshare
+DTSTART
+rrule
+rrules
+rruleset
+rdate
+BYDAY
+commitlint
+healthcheck

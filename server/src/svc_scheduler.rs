@@ -152,6 +152,8 @@ pub enum FlightStatus {
     Finished = 4,
     /// CANCELLED
     Cancelled = 5,
+    /// DRAFT
+    Draft = 6,
 }
 impl FlightStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -165,6 +167,7 @@ impl FlightStatus {
             FlightStatus::InFlight => "IN_FLIGHT",
             FlightStatus::Finished => "FINISHED",
             FlightStatus::Cancelled => "CANCELLED",
+            FlightStatus::Draft => "DRAFT",
         }
     }
 }
