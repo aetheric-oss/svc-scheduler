@@ -5,16 +5,43 @@ pub mod svc_scheduler {
     #![allow(unused_qualifications)]
     include!("svc_scheduler.rs");
 }
+mod calendar_utils;
+mod queries;
+mod router_utils;
 
 use dotenv::dotenv;
+use once_cell::sync::OnceCell;
+use router_utils::{
+    get_nearby_nodes, get_nearest_vertiports, get_route, init_router, Aircraft,
+    NearbyLocationQuery, RouteQuery, SAN_FRANCISCO,
+};
 use std::env;
-use std::time::SystemTime;
+use std::str::FromStr;
 use svc_scheduler::scheduler_server::{Scheduler, SchedulerServer};
 use svc_scheduler::{
-    CancelFlightResponse, ConfirmFlightResponse, FlightPriority, FlightStatus, Id, QueryFlightPlan,
-    QueryFlightRequest, QueryFlightResponse, ReadyRequest, ReadyResponse,
+    CancelFlightResponse, ConfirmFlightResponse, Id, QueryFlightRequest, QueryFlightResponse,
+    ReadyRequest, ReadyResponse,
 };
+use svc_storage_client::svc_storage::storage_client::StorageClient;
 use tonic::{transport::Server, Request, Response, Status};
+
+use calendar_utils::Calendar;
+use chrono::TimeZone;
+use ordered_float::OrderedFloat;
+use router::location::Location;
+use rrule::Tz;
+
+/// GRPC client for storage service -
+/// it has to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
+pub static STORAGE_CLIENT: OnceCell<StorageClient<tonic::transport::Channel>> = OnceCell::new();
+
+/// shorthand function to clone storage client
+pub fn get_storage_client() -> StorageClient<tonic::transport::Channel> {
+    STORAGE_CLIENT
+        .get()
+        .expect("Storage Client not initialized")
+        .clone()
+}
 
 ///Implementation of gRPC endpoints
 #[derive(Debug, Default, Copy, Clone)]
@@ -26,66 +53,25 @@ impl Scheduler for SchedulerImpl {
     /// Returns draft QueryFlightPlan which can be confirmed or cancelled.
     async fn query_flight(
         &self,
-        request: Request<QueryFlightRequest>, // Accept request of type QueryFlightRequest
+        request: Request<QueryFlightRequest>,
     ) -> Result<Response<QueryFlightResponse>, Status> {
-        // TODO implement. Currently returns arbitrary value
-        println!("Got a request: {:?}", request);
-        let requested_time = request.into_inner().requested_time;
-        let item = QueryFlightPlan {
-            id: 1234,
-            pilot_id: 1,
-            aircraft_id: 1,
-            cargo: [123].to_vec(),
-            weather_conditions: "Sunny, no wind :)".to_string(),
-            vertiport_id_departure: 1,
-            pad_id_departure: 1,
-            vertiport_id_destination: 1,
-            pad_id_destination: 1,
-            estimated_departure: requested_time.clone(),
-            estimated_arrival: requested_time,
-            actual_departure: None,
-            actual_arrival: None,
-            flight_release_approval: None,
-            flight_plan_submitted: None,
-            flight_status: FlightStatus::Ready as i32,
-            flight_priority: FlightPriority::Low as i32,
-        };
-        let response = QueryFlightResponse {
-            flights: [item].to_vec(),
-        };
-
-        Ok(Response::new(response)) // Send back response
+        queries::query_flight(request, get_storage_client()).await
     }
 
     ///Confirms the draft flight plan by id.
     async fn confirm_flight(
         &self,
-        _request: Request<Id>,
+        request: Request<Id>,
     ) -> Result<Response<ConfirmFlightResponse>, Status> {
-        // TODO implement. Currently returns arbitrary value
-        let sys_time = SystemTime::now();
-        let response = ConfirmFlightResponse {
-            id: 1234,
-            confirmed: true,
-            confirmation_time: Some(prost_types::Timestamp::from(sys_time)),
-        };
-        Ok(Response::new(response))
+        queries::confirm_flight(request, get_storage_client()).await
     }
 
     ///Cancels the draft flight plan by id.
     async fn cancel_flight(
         &self,
-        _request: Request<Id>,
+        request: Request<Id>,
     ) -> Result<Response<CancelFlightResponse>, Status> {
-        // TODO implement. Currently returns arbitrary value
-        let sys_time = SystemTime::now();
-        let response = CancelFlightResponse {
-            id: 1234,
-            cancelled: true,
-            cancellation_time: Some(prost_types::Timestamp::from(sys_time)),
-            reason: "user cancelled".into(),
-        };
-        Ok(Response::new(response))
+        queries::cancel_flight(request, get_storage_client()).await
     }
 
     /// Returns ready:true when service is available
@@ -98,10 +84,65 @@ impl Scheduler for SchedulerImpl {
     }
 }
 
+fn test_parse_calendar() {
+    let calendar = Calendar::from_str(
+        "DTSTART:20221020T180000Z;DURATION:PT14H\n\
+    RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\n\
+    DTSTART:20221022T000000Z;DURATION:PT24H\n\
+    RRULE:FREQ=WEEKLY;BYDAY=SA,SU",
+    );
+    println!("{:?}", calendar.as_ref().unwrap().to_string());
+
+    let after = Tz::UTC.ymd(2022, 10, 25).and_hms(17, 0, 0);
+    let before = Tz::UTC.ymd(2022, 10, 25).and_hms(17, 59, 59);
+    /*let after = Tz::UTC.ymd(2022, 10, 22).and_hms(19, 0, 0);
+    let before = Tz::UTC.ymd(2022, 10, 22).and_hms(20, 0, 0);*/
+    /*let after = Tz::UTC.ymd(2022, 10, 22).and_hms(0, 1, 0);
+    let before = Tz::UTC.ymd(2022, 10, 22).and_hms(1, 0, 0);
+    */
+    let is_available = calendar
+        .as_ref()
+        .unwrap()
+        .is_available_between(after, before);
+    println!("Is available: {}", is_available);
+}
+
+fn test_router() {
+    let nodes = get_nearby_nodes(NearbyLocationQuery {
+        location: SAN_FRANCISCO,
+        radius: 25.0,
+        capacity: 20,
+    });
+
+    //println!("nodes: {:?}", nodes);
+    let init_res = init_router();
+    println!("init_res: {:?}", init_res);
+    let src_location = Location {
+        latitude: OrderedFloat(37.52123),
+        longitude: OrderedFloat(-122.50892),
+        altitude_meters: OrderedFloat(20.0),
+    };
+    let dst_location = Location {
+        latitude: OrderedFloat(37.81032),
+        longitude: OrderedFloat(-122.28432),
+        altitude_meters: OrderedFloat(20.0),
+    };
+    let (src, dst) = get_nearest_vertiports(&src_location, &dst_location, nodes);
+    println!("src: {:?}, dst: {:?}", src.location, dst.location);
+    let route = get_route(RouteQuery {
+        from: src,
+        to: dst,
+        aircraft: Aircraft::Cargo,
+    });
+    println!("route: {:?}", route);
+}
+
 ///Main entry point: starts gRPC Server on specified address and port
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
+    test_router();
+    test_parse_calendar();
     //parse socket address from env variable or take default value
     let address = match env::var("GRPC_SOCKET_ADDR") {
         Ok(val) => val,
@@ -109,6 +150,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let addr = address.parse()?;
     let scheduler = SchedulerImpl::default();
+    //initialize storage client here so it can be used in other methods
+    STORAGE_CLIENT
+        .set(StorageClient::connect("http://[::1]:50052").await?)
+        .unwrap();
+
     //start server
     Server::builder()
         .add_service(SchedulerServer::new(scheduler))
