@@ -26,5 +26,11 @@ tcort
 aircrafts
 tcort
 rideshare
-rrule
 DTSTART
+rrule
+rrules
+rruleset
+rdate
+BYDAY
+commitlint
+healthcheck
