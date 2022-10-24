@@ -5,6 +5,7 @@ pub mod svc_scheduler {
     #![allow(unused_qualifications)]
     include!("svc_scheduler.rs");
 }
+mod calendar_utils;
 mod queries;
 mod router_utils;
 
@@ -15,6 +16,7 @@ use router_utils::{
     NearbyLocationQuery, RouteQuery, SAN_FRANCISCO,
 };
 use std::env;
+use std::str::FromStr;
 use svc_scheduler::scheduler_server::{Scheduler, SchedulerServer};
 use svc_scheduler::{
     CancelFlightResponse, ConfirmFlightResponse, Id, QueryFlightRequest, QueryFlightResponse,
@@ -23,10 +25,11 @@ use svc_scheduler::{
 use svc_storage_client::svc_storage::storage_client::StorageClient;
 use tonic::{transport::Server, Request, Response, Status};
 
+use calendar_utils::Calendar;
 use chrono::TimeZone;
 use ordered_float::OrderedFloat;
 use router::location::Location;
-use rrule::{RRuleSet, Tz};
+use rrule::Tz;
 
 /// GRPC client for storage service -
 /// it has to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
@@ -81,6 +84,29 @@ impl Scheduler for SchedulerImpl {
     }
 }
 
+fn test_parse_calendar() {
+    let calendar = Calendar::from_str(
+        "DTSTART:20221020T180000Z;DURATION:PT14H\n\
+    RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\n\
+    DTSTART:20221022T000000Z;DURATION:PT24H\n\
+    RRULE:FREQ=WEEKLY;BYDAY=SA,SU",
+    );
+    println!("{:?}", calendar.as_ref().unwrap().to_string());
+
+    let after = Tz::UTC.ymd(2022, 10, 25).and_hms(17, 0, 0);
+    let before = Tz::UTC.ymd(2022, 10, 25).and_hms(17, 59, 59);
+    /*let after = Tz::UTC.ymd(2022, 10, 22).and_hms(19, 0, 0);
+    let before = Tz::UTC.ymd(2022, 10, 22).and_hms(20, 0, 0);*/
+    /*let after = Tz::UTC.ymd(2022, 10, 22).and_hms(0, 1, 0);
+    let before = Tz::UTC.ymd(2022, 10, 22).and_hms(1, 0, 0);
+    */
+    let is_available = calendar
+        .as_ref()
+        .unwrap()
+        .is_available_between(after, before);
+    println!("Is available: {}", is_available);
+}
+
 fn test_router() {
     let nodes = get_nearby_nodes(NearbyLocationQuery {
         location: SAN_FRANCISCO,
@@ -89,7 +115,7 @@ fn test_router() {
     });
 
     //println!("nodes: {:?}", nodes);
-    let init_res = init_router(Aircraft::ArrowCargo);
+    let init_res = init_router();
     println!("init_res: {:?}", init_res);
     let src_location = Location {
         latitude: OrderedFloat(37.52123),
@@ -106,7 +132,7 @@ fn test_router() {
     let route = get_route(RouteQuery {
         from: src,
         to: dst,
-        aircraft: Aircraft::ArrowCargo,
+        aircraft: Aircraft::Cargo,
     });
     println!("route: {:?}", route);
 }
@@ -116,16 +142,7 @@ fn test_router() {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
     test_router();
-
-    let rrule: RRuleSet = "DTSTART:20221018T190000Z\nRRULE:FREQ=DAILY"
-        .parse()
-        .unwrap();
-
-    let after = Tz::UTC.ymd(2022, 11, 19).and_hms(19, 0, 0);
-    let before = Tz::UTC.ymd(2022, 11, 19).and_hms(20, 0, 0);
-
-    let (events, skipped) = rrule.before(before).after(after).all(10);
-    println!("Events: {:?} {:?}", events, skipped);
+    test_parse_calendar();
     //parse socket address from env variable or take default value
     let address = match env::var("GRPC_SOCKET_ADDR") {
         Ok(val) => val,
