@@ -1,17 +1,42 @@
 use chrono::{DateTime, Duration};
+use chrono_tz::Tz as ChronoTz;
 use iso8601_duration::Duration as DurationParser;
-use rrule::{RRuleSet, Tz};
+pub use rrule::{RRuleSet, Tz};
 use std::fmt::Display;
 use std::str::FromStr;
 
-#[derive(Debug)]
-pub struct RecurrentEvent {
-    pub rrule_set: RRuleSet,
-    pub duration: String,
+fn datetime_to_ical_format(dt: &DateTime<Tz>) -> String {
+    let mut tz_prefix = String::new();
+    let mut tz_postfix = String::new();
+    let tz = dt.timezone();
+    match tz {
+        Tz::Local(_) => {}
+        Tz::Tz(tz) => match tz {
+            ChronoTz::UTC => {
+                tz_postfix = "Z".to_string();
+            }
+            tz => {
+                tz_prefix = format!(";TZID={}:", tz.name());
+            }
+        },
+    }
+
+    let dt = dt.format("%Y%m%dT%H%M%S");
+    format!("{}{}{}", tz_prefix, dt, tz_postfix)
 }
 
+/// Wraps rruleset and their duration
+#[derive(Debug)]
+pub struct RecurrentEvent {
+    /// The rruleset with recurrence rules
+    pub rrule_set: RRuleSet,
+    /// The duration of the event (iso8601 format)
+    pub duration: String,
+}
+///Calendar implementation for recurring events using the rrule crate and duration iso8601_duration crate
 #[derive(Debug)]
 pub struct Calendar {
+    ///Vec of rrulesets and their duration
     pub events: Vec<RecurrentEvent>,
 }
 
@@ -67,12 +92,18 @@ impl Display for Calendar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let err_msg = String::from("Error writing to string");
         for event in &self.events {
-            write!(f, "DTSTART:").expect(&err_msg);
-            write!(f, "{}", &event.rrule_set.get_dt_start().to_string()).expect(&err_msg);
-            write!(f, ";DURATION:").expect(&err_msg);
-            writeln!(f, "{}", &event.duration).expect(&err_msg);
+            writeln!(
+                f,
+                "DTSTART:{};DURATION:{}",
+                datetime_to_ical_format(event.rrule_set.get_dt_start()),
+                &event.duration
+            )
+            .expect(&err_msg);
             for rrule in event.rrule_set.get_rrule() {
-                writeln!(f, "{}", rrule).expect(&err_msg);
+                writeln!(f, "RRULE:{}", rrule).expect(&err_msg);
+            }
+            for rdate in event.rrule_set.get_rdate() {
+                writeln!(f, "RDATE:{}", datetime_to_ical_format(rdate)).expect(&err_msg);
             }
         }
         Ok(())
@@ -230,6 +261,17 @@ mod calendar_tests {
         start = Tz::UTC.ymd(2022, 10, 26).and_hms(11, 00, 0);
         end = Tz::UTC.ymd(2022, 10, 26).and_hms(13, 30, 1);
         assert_eq!(calendar.is_available_between(start, end), false);
+    }
+
+    #[test]
+    fn test_save_and_load_calendar() {
+        let orig_cal_str =
+            &(CAL_WORKDAYS_8AM_6PM.to_owned() + _WITH_1HR_DAILY_BREAK + _WITH_ONE_OFF_BLOCK);
+        let calendar = Calendar::from_str(orig_cal_str).unwrap();
+        let cal_str = calendar.to_string();
+        let calendar = Calendar::from_str(&cal_str).unwrap();
+        assert_eq!(calendar.events.len(), 4);
+        assert_eq!(calendar.events[0].duration, "PT14H");
     }
 
     #[test]
