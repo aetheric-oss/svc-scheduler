@@ -13,11 +13,11 @@ async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
     let sys_time = SystemTime::now();
     let request = tonic::Request::new(QueryFlightRequest {
         is_cargo: true,
-        persons: 0,
-        weight_grams: 5000,
-        latitude: 37.77397,
-        longitude: -122.43129,
+        persons: Some(0),
+        weight_grams: Some(5000),
         requested_time: Some(prost_types::Timestamp::from(sys_time)),
+        vertiport_depart_id: "123".to_string(),
+        vertiport_arrive_id: "456".to_string(),
     });
 
     let response = client.query_flight(request).await?;
@@ -30,7 +30,9 @@ async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
 #[ignore = "integration test env not yet implemented"]
 async fn test_cancel_flight() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = SchedulerClient::connect("http://[::1]:50051").await?;
-    let request = tonic::Request::new(Id { id: 1234 });
+    let request = tonic::Request::new(Id {
+        id: "1234".to_string(),
+    });
 
     let response = client.cancel_flight(request).await?;
     //println!("RESPONSE={:?}", response.into_inner());
@@ -42,7 +44,9 @@ async fn test_cancel_flight() -> Result<(), Box<dyn std::error::Error>> {
 #[ignore = "integration test env not yet implemented"]
 async fn test_confirm_flight() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = SchedulerClient::connect("http://[::1]:50051").await?;
-    let request = tonic::Request::new(Id { id: 1234 });
+    let request = tonic::Request::new(Id {
+        id: "1234".to_string(),
+    });
 
     let response = client.confirm_flight(request).await?;
     //println!("RESPONSE={:?}", response.into_inner());

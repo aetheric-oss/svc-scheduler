@@ -1,9 +1,9 @@
 syntax = "proto3";
-package svc_scheduler;
+package grpc;
 import "google/protobuf/timestamp.proto";
 
 //Scheduler service
-service Scheduler {
+service SchedulerRpc {
     rpc queryFlight (QueryFlightRequest) returns (QueryFlightResponse);
     rpc confirmFlight (Id) returns (ConfirmFlightResponse);
     rpc cancelFlight (Id) returns (CancelFlightResponse);
@@ -14,15 +14,15 @@ message QueryFlightRequest {
     //is_cargo - true if cargo mission, false if people transport
     bool isCargo = 1;
     //persons - number of people for transport
-    uint32 persons = 2;
+    optional uint32 persons = 2;
     //weight in grams
-    uint32 weightGrams = 3;
-    //requested preferred time of flight
-    google.protobuf.Timestamp requestedTime = 4;
-    //longitude
-    float longitude = 5;
-    //latitude
-    float latitude = 6;
+    optional uint32 weightGrams = 3;
+    //requested preferred time of flight (if omitted - asap)
+    optional google.protobuf.Timestamp requestedTime = 4;
+    //vertiport_depart_id
+    string vertiport_depart_id = 5;
+    //vertiport_depart_id
+    string vertiport_arrive_id = 6;
 }
 //Flight Status Enum
 enum FlightStatus{
@@ -52,7 +52,7 @@ enum FlightPriority{
 //QueryFlightPlan
 message QueryFlightPlan {
     //id of the flight
-    uint32 id = 1;
+    string id = 1;
     //pilot_id
     uint32 pilot_id = 2;
     //aircraft_id
@@ -96,13 +96,13 @@ message QueryFlightResponse {
 //Id type for passing id only requests
 message Id{
     //id
-    uint32 id = 1;
+    string id = 1;
 }
 
 //ConfirmFlightResponse
 message ConfirmFlightResponse{
     //id
-    uint32 id = 1;
+    string id = 1;
     //indicates if confirmation was successful
     bool confirmed = 2;
     //time when the flight was confirmed
@@ -111,7 +111,7 @@ message ConfirmFlightResponse{
 //CancelFlightResponse
 message CancelFlightResponse{
     //id
-    uint32 id = 1;
+    string id = 1;
     //indicates if cancellation was successful
     bool cancelled = 2;
     //time when the flight was cancelled

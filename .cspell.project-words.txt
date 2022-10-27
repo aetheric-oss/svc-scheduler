@@ -28,7 +28,12 @@ DTSTART
 rrule
 rrules
 rruleset
+rrulesets
 rdate
 BYDAY
 commitlint
 healthcheck
+datetime
+ical
+TZID
+nanos

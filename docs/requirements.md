@@ -19,27 +19,25 @@
 
 ### Proposed algorithm:
 ```
-0. Fetch all vertiports for the region of the src and dest locations
-  
-1. Find nearest vertiports for src and dest in radius
-- try nearest, second/third nearest
-  
-2. Sort vertiport src/dest combinations - best has lowest combined distance
 
-3. For each src/dest vertiport combination
-- Router to find routes and discard combinations which are unreachable
-- Calculate approximate time needed from boarding/loading to landing/unloading
+1. Fetch vertiports from the customer request and associated aircrafts
 
-4. Filter Vertiports based on availability for date and time
-- check generic schedule of the vertiport
+2. Run router to find if there is a route between the two vertiports
+(EXIT if not found)
+
+3. Calculate approximate time needed from boarding/loading to landing/unloading
+and blocking time intervals for 2 vertiports and aircraft.
+
+4. Check availability for date and time
+- check generic schedule of the vertiports
 - fetch all draft and confirmed flight plans connected to this vertiport
-(EXIT) if no src/dest vertiport pair is found
+(EXIT) if at least one of the vertiports is not available
 
-5. Check available pilots/aircrafts for all found vertiport schedules
-- fetch pilots/aircrafts operating in the area of vertiports
-- check generic schedule of the pilot/aircraft
-- fetch all draft and confirmed flight plans connected to this pilot/aircraft
-(EXIT) if no pilot/aircraft is found
+5. Check available aircrafts for source vertiport
+- aircrafts linked to vertiport
+- check generic schedule of the aircraft
+- fetch all draft and confirmed flight plans connected to this aircraft
+(EXIT) if no aircraft is found
 
 6. Check other constraints (cargo weight, number of passenger seats)
 
