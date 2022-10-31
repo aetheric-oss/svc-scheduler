@@ -11,14 +11,17 @@ pub struct QueryFlightRequest {
     /// weight in grams
     #[prost(uint32, optional, tag="3")]
     pub weight_grams: ::core::option::Option<u32>,
-    /// requested preferred time of flight (if omitted - asap)
+    /// requested preferred time of departure - if not set, then arrival time is used; if both set, then departure time is used
     #[prost(message, optional, tag="4")]
-    pub requested_time: ::core::option::Option<::prost_types::Timestamp>,
-    /// vertiport_depart_id
-    #[prost(string, tag="5")]
-    pub vertiport_depart_id: ::prost::alloc::string::String,
+    pub departure_time: ::core::option::Option<::prost_types::Timestamp>,
+    /// requested preferred time of arrival - if not set, then departure time is used; if both set, then departure time is used
+    #[prost(message, optional, tag="5")]
+    pub arrival_time: ::core::option::Option<::prost_types::Timestamp>,
     /// vertiport_depart_id
     #[prost(string, tag="6")]
+    pub vertiport_depart_id: ::prost::alloc::string::String,
+    /// vertiport_depart_id
+    #[prost(string, tag="7")]
     pub vertiport_arrive_id: ::prost::alloc::string::String,
 }
 /// QueryFlightPlan
