@@ -37,3 +37,4 @@ datetime
 ical
 TZID
 nanos
+subsec

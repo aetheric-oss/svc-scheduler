@@ -17,12 +17,14 @@ message QueryFlightRequest {
     optional uint32 persons = 2;
     //weight in grams
     optional uint32 weightGrams = 3;
-    //requested preferred time of flight (if omitted - asap)
-    optional google.protobuf.Timestamp requestedTime = 4;
+    //requested preferred time of departure - if not set, then arrival time is used; if both set, then departure time is used
+    optional google.protobuf.Timestamp departureTime = 4;
+    //requested preferred time of arrival - if not set, then departure time is used; if both set, then departure time is used
+    optional google.protobuf.Timestamp arrivalTime = 5;
     //vertiport_depart_id
-    string vertiport_depart_id = 5;
+    string vertiport_depart_id = 6;
     //vertiport_depart_id
-    string vertiport_arrive_id = 6;
+    string vertiport_arrive_id = 7;
 }
 //Flight Status Enum
 enum FlightStatus{

@@ -20,15 +20,15 @@ use scheduler_grpc::{
     CancelFlightResponse, ConfirmFlightResponse, Id, QueryFlightRequest, QueryFlightResponse,
     ReadyRequest, ReadyResponse,
 };
-use svc_storage_client::svc_storage::storage_client::StorageClient;
+use svc_storage_client_grpc::client::storage_rpc_client::StorageRpcClient;
 use tonic::{transport::Server, Request, Response, Status};
 
 /// GRPC client for storage service -
 /// it has to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
-pub static STORAGE_CLIENT: OnceCell<StorageClient<tonic::transport::Channel>> = OnceCell::new();
+pub static STORAGE_CLIENT: OnceCell<StorageRpcClient<tonic::transport::Channel>> = OnceCell::new();
 
 /// shorthand function to clone storage client
-pub fn get_storage_client() -> StorageClient<tonic::transport::Channel> {
+pub fn get_storage_client() -> StorageRpcClient<tonic::transport::Channel> {
     STORAGE_CLIENT
         .get()
         .expect("Storage Client not initialized")
@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //initialize storage client here so it can be used in other methods
     //todo change url to env variable
     STORAGE_CLIENT
-        .set(StorageClient::connect("http://[::1]:50052").await?)
+        .set(StorageRpcClient::connect("http://[::1]:50052").await?)
         .unwrap();
     // GRPC Server
     let grpc_port = std::env::var("DOCKER_PORT_GRPC")
