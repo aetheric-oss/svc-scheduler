@@ -1,32 +1,36 @@
 /// QueryFlightRequest
+#[derive(Eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightRequest {
     /// is_cargo - true if cargo mission, false if people transport
     #[prost(bool, tag="1")]
     pub is_cargo: bool,
     /// persons - number of people for transport
-    #[prost(uint32, tag="2")]
-    pub persons: u32,
+    #[prost(uint32, optional, tag="2")]
+    pub persons: ::core::option::Option<u32>,
     /// weight in grams
-    #[prost(uint32, tag="3")]
-    pub weight_grams: u32,
-    /// requested preferred time of flight
+    #[prost(uint32, optional, tag="3")]
+    pub weight_grams: ::core::option::Option<u32>,
+    /// requested preferred time of departure - if not set, then arrival time is used; if both set, then departure time is used
     #[prost(message, optional, tag="4")]
-    pub requested_time: ::core::option::Option<::prost_types::Timestamp>,
-    /// longitude
-    #[prost(float, tag="5")]
-    pub longitude: f32,
-    /// latitude
-    #[prost(float, tag="6")]
-    pub latitude: f32,
+    pub departure_time: ::core::option::Option<::prost_types::Timestamp>,
+    /// requested preferred time of arrival - if not set, then departure time is used; if both set, then departure time is used
+    #[prost(message, optional, tag="5")]
+    pub arrival_time: ::core::option::Option<::prost_types::Timestamp>,
+    /// vertiport_depart_id
+    #[prost(string, tag="6")]
+    pub vertiport_depart_id: ::prost::alloc::string::String,
+    /// vertiport_depart_id
+    #[prost(string, tag="7")]
+    pub vertiport_arrive_id: ::prost::alloc::string::String,
 }
 /// QueryFlightPlan
 #[derive(Eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightPlan {
     /// id of the flight
-    #[prost(uint32, tag="1")]
-    pub id: u32,
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
     /// pilot_id
     #[prost(uint32, tag="2")]
     pub pilot_id: u32,
@@ -85,20 +89,20 @@ pub struct QueryFlightResponse {
     pub flights: ::prost::alloc::vec::Vec<QueryFlightPlan>,
 }
 /// Id type for passing id only requests
-#[derive(Eq, Copy)]
+#[derive(Eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Id {
     /// id
-    #[prost(uint32, tag="1")]
-    pub id: u32,
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
 }
 /// ConfirmFlightResponse
 #[derive(Eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConfirmFlightResponse {
     /// id
-    #[prost(uint32, tag="1")]
-    pub id: u32,
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
     /// indicates if confirmation was successful
     #[prost(bool, tag="2")]
     pub confirmed: bool,
@@ -111,8 +115,8 @@ pub struct ConfirmFlightResponse {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CancelFlightResponse {
     /// id
-    #[prost(uint32, tag="1")]
-    pub id: u32,
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
     /// indicates if cancellation was successful
     #[prost(bool, tag="2")]
     pub cancelled: bool,
@@ -152,6 +156,8 @@ pub enum FlightStatus {
     Finished = 4,
     /// CANCELLED
     Cancelled = 5,
+    /// DRAFT
+    Draft = 6,
 }
 impl FlightStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -165,6 +171,7 @@ impl FlightStatus {
             FlightStatus::InFlight => "IN_FLIGHT",
             FlightStatus::Finished => "FINISHED",
             FlightStatus::Cancelled => "CANCELLED",
+            FlightStatus::Draft => "DRAFT",
         }
     }
 }
@@ -193,12 +200,12 @@ impl FlightPriority {
     }
 }
 /// Generated server implementations.
-pub mod scheduler_server {
+pub mod scheduler_rpc_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    ///Generated trait containing gRPC methods that should be implemented for use with SchedulerServer.
+    ///Generated trait containing gRPC methods that should be implemented for use with SchedulerRpcServer.
     #[async_trait]
-    pub trait Scheduler: Send + Sync + 'static {
+    pub trait SchedulerRpc: Send + Sync + 'static {
         async fn query_flight(
             &self,
             request: tonic::Request<super::QueryFlightRequest>,
@@ -218,13 +225,13 @@ pub mod scheduler_server {
     }
     ///Scheduler service
     #[derive(Debug)]
-    pub struct SchedulerServer<T: Scheduler> {
+    pub struct SchedulerRpcServer<T: SchedulerRpc> {
         inner: _Inner<T>,
         accept_compression_encodings: EnabledCompressionEncodings,
         send_compression_encodings: EnabledCompressionEncodings,
     }
     struct _Inner<T>(Arc<T>);
-    impl<T: Scheduler> SchedulerServer<T> {
+    impl<T: SchedulerRpc> SchedulerRpcServer<T> {
         pub fn new(inner: T) -> Self {
             Self::from_arc(Arc::new(inner))
         }
@@ -258,9 +265,9 @@ pub mod scheduler_server {
             self
         }
     }
-    impl<T, B> tonic::codegen::Service<http::Request<B>> for SchedulerServer<T>
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for SchedulerRpcServer<T>
     where
-        T: Scheduler,
+        T: SchedulerRpc,
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
@@ -276,11 +283,11 @@ pub mod scheduler_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/svc_scheduler.Scheduler/queryFlight" => {
+                "/grpc.SchedulerRpc/queryFlight" => {
                     #[allow(non_camel_case_types)]
-                    struct queryFlightSvc<T: Scheduler>(pub Arc<T>);
+                    struct queryFlightSvc<T: SchedulerRpc>(pub Arc<T>);
                     impl<
-                        T: Scheduler,
+                        T: SchedulerRpc,
                     > tonic::server::UnaryService<super::QueryFlightRequest>
                     for queryFlightSvc<T> {
                         type Response = super::QueryFlightResponse;
@@ -316,10 +323,10 @@ pub mod scheduler_server {
                     };
                     Box::pin(fut)
                 }
-                "/svc_scheduler.Scheduler/confirmFlight" => {
+                "/grpc.SchedulerRpc/confirmFlight" => {
                     #[allow(non_camel_case_types)]
-                    struct confirmFlightSvc<T: Scheduler>(pub Arc<T>);
-                    impl<T: Scheduler> tonic::server::UnaryService<super::Id>
+                    struct confirmFlightSvc<T: SchedulerRpc>(pub Arc<T>);
+                    impl<T: SchedulerRpc> tonic::server::UnaryService<super::Id>
                     for confirmFlightSvc<T> {
                         type Response = super::ConfirmFlightResponse;
                         type Future = BoxFuture<
@@ -354,10 +361,10 @@ pub mod scheduler_server {
                     };
                     Box::pin(fut)
                 }
-                "/svc_scheduler.Scheduler/cancelFlight" => {
+                "/grpc.SchedulerRpc/cancelFlight" => {
                     #[allow(non_camel_case_types)]
-                    struct cancelFlightSvc<T: Scheduler>(pub Arc<T>);
-                    impl<T: Scheduler> tonic::server::UnaryService<super::Id>
+                    struct cancelFlightSvc<T: SchedulerRpc>(pub Arc<T>);
+                    impl<T: SchedulerRpc> tonic::server::UnaryService<super::Id>
                     for cancelFlightSvc<T> {
                         type Response = super::CancelFlightResponse;
                         type Future = BoxFuture<
@@ -392,10 +399,12 @@ pub mod scheduler_server {
                     };
                     Box::pin(fut)
                 }
-                "/svc_scheduler.Scheduler/isReady" => {
+                "/grpc.SchedulerRpc/isReady" => {
                     #[allow(non_camel_case_types)]
-                    struct isReadySvc<T: Scheduler>(pub Arc<T>);
-                    impl<T: Scheduler> tonic::server::UnaryService<super::ReadyRequest>
+                    struct isReadySvc<T: SchedulerRpc>(pub Arc<T>);
+                    impl<
+                        T: SchedulerRpc,
+                    > tonic::server::UnaryService<super::ReadyRequest>
                     for isReadySvc<T> {
                         type Response = super::ReadyResponse;
                         type Future = BoxFuture<
@@ -443,7 +452,7 @@ pub mod scheduler_server {
             }
         }
     }
-    impl<T: Scheduler> Clone for SchedulerServer<T> {
+    impl<T: SchedulerRpc> Clone for SchedulerRpcServer<T> {
         fn clone(&self) -> Self {
             let inner = self.inner.clone();
             Self {
@@ -453,7 +462,7 @@ pub mod scheduler_server {
             }
         }
     }
-    impl<T: Scheduler> Clone for _Inner<T> {
+    impl<T: SchedulerRpc> Clone for _Inner<T> {
         fn clone(&self) -> Self {
             Self(self.0.clone())
         }
@@ -463,7 +472,7 @@ pub mod scheduler_server {
             write!(f, "{:?}", self.0)
         }
     }
-    impl<T: Scheduler> tonic::server::NamedService for SchedulerServer<T> {
-        const NAME: &'static str = "svc_scheduler.Scheduler";
+    impl<T: SchedulerRpc> tonic::server::NamedService for SchedulerRpcServer<T> {
+        const NAME: &'static str = "grpc.SchedulerRpc";
     }
 }

@@ -1,91 +1,69 @@
 //! gRPC server implementation
 
-///module svc_scheduler generated from svc-scheduler.proto
-pub mod svc_scheduler {
+///module svc_scheduler generated from svc-scheduler-grpc.proto
+pub mod scheduler_grpc {
     #![allow(unused_qualifications)]
-    include!("svc_scheduler.rs");
+    include!("grpc.rs");
 }
+///Calendar module
+pub mod calendar_utils;
+///Queries module
+pub mod queries;
+///Router module
+pub mod router_utils;
 
 use dotenv::dotenv;
-use std::env;
-use std::time::SystemTime;
-use svc_scheduler::scheduler_server::{Scheduler, SchedulerServer};
-use svc_scheduler::{
-    CancelFlightResponse, ConfirmFlightResponse, FlightPriority, FlightStatus, Id, QueryFlightPlan,
-    QueryFlightRequest, QueryFlightResponse, ReadyRequest, ReadyResponse,
+use once_cell::sync::OnceCell;
+
+use scheduler_grpc::scheduler_rpc_server::{SchedulerRpc, SchedulerRpcServer};
+use scheduler_grpc::{
+    CancelFlightResponse, ConfirmFlightResponse, Id, QueryFlightRequest, QueryFlightResponse,
+    ReadyRequest, ReadyResponse,
 };
+use svc_storage_client_grpc::client::storage_rpc_client::StorageRpcClient;
 use tonic::{transport::Server, Request, Response, Status};
+
+/// GRPC client for storage service -
+/// it has to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
+pub static STORAGE_CLIENT: OnceCell<StorageRpcClient<tonic::transport::Channel>> = OnceCell::new();
+
+/// shorthand function to clone storage client
+pub fn get_storage_client() -> StorageRpcClient<tonic::transport::Channel> {
+    STORAGE_CLIENT
+        .get()
+        .expect("Storage Client not initialized")
+        .clone()
+}
 
 ///Implementation of gRPC endpoints
 #[derive(Debug, Default, Copy, Clone)]
-pub struct SchedulerImpl {}
+pub struct SchedulerGrpcImpl {}
 
 #[tonic::async_trait]
-impl Scheduler for SchedulerImpl {
+impl SchedulerRpc for SchedulerGrpcImpl {
     ///finds the first possible flight for customer location, flight type and requested time.
     /// Returns draft QueryFlightPlan which can be confirmed or cancelled.
     async fn query_flight(
         &self,
-        request: Request<QueryFlightRequest>, // Accept request of type QueryFlightRequest
+        request: Request<QueryFlightRequest>,
     ) -> Result<Response<QueryFlightResponse>, Status> {
-        // TODO implement. Currently returns arbitrary value
-        println!("Got a request: {:?}", request);
-        let requested_time = request.into_inner().requested_time;
-        let item = QueryFlightPlan {
-            id: 1234,
-            pilot_id: 1,
-            aircraft_id: 1,
-            cargo: [123].to_vec(),
-            weather_conditions: "Sunny, no wind :)".to_string(),
-            vertiport_id_departure: 1,
-            pad_id_departure: 1,
-            vertiport_id_destination: 1,
-            pad_id_destination: 1,
-            estimated_departure: requested_time.clone(),
-            estimated_arrival: requested_time,
-            actual_departure: None,
-            actual_arrival: None,
-            flight_release_approval: None,
-            flight_plan_submitted: None,
-            flight_status: FlightStatus::Ready as i32,
-            flight_priority: FlightPriority::Low as i32,
-        };
-        let response = QueryFlightResponse {
-            flights: [item].to_vec(),
-        };
-
-        Ok(Response::new(response)) // Send back response
+        queries::query_flight(request, get_storage_client()).await
     }
 
     ///Confirms the draft flight plan by id.
     async fn confirm_flight(
         &self,
-        _request: Request<Id>,
+        request: Request<Id>,
     ) -> Result<Response<ConfirmFlightResponse>, Status> {
-        // TODO implement. Currently returns arbitrary value
-        let sys_time = SystemTime::now();
-        let response = ConfirmFlightResponse {
-            id: 1234,
-            confirmed: true,
-            confirmation_time: Some(prost_types::Timestamp::from(sys_time)),
-        };
-        Ok(Response::new(response))
+        queries::confirm_flight(request, get_storage_client()).await
     }
 
     ///Cancels the draft flight plan by id.
     async fn cancel_flight(
         &self,
-        _request: Request<Id>,
+        request: Request<Id>,
     ) -> Result<Response<CancelFlightResponse>, Status> {
-        // TODO implement. Currently returns arbitrary value
-        let sys_time = SystemTime::now();
-        let response = CancelFlightResponse {
-            id: 1234,
-            cancelled: true,
-            cancellation_time: Some(prost_types::Timestamp::from(sys_time)),
-            reason: "user cancelled".into(),
-        };
-        Ok(Response::new(response))
+        queries::cancel_flight(request).await
     }
 
     /// Returns ready:true when service is available
@@ -102,19 +80,29 @@ impl Scheduler for SchedulerImpl {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
-    //parse socket address from env variable or take default value
-    let address = match env::var("GRPC_SOCKET_ADDR") {
-        Ok(val) => val,
-        Err(_) => "[::1]:50051".to_string(), // default value
-    };
-    let addr = address.parse()?;
-    let scheduler = SchedulerImpl::default();
-    //start server
+    //initialize storage client here so it can be used in other methods
+    //todo change url to env variable
+    STORAGE_CLIENT
+        .set(StorageRpcClient::connect("http://[::1]:50052").await?)
+        .unwrap();
+    // GRPC Server
+    let grpc_port = std::env::var("DOCKER_PORT_GRPC")
+        .unwrap_or_else(|_| "50051".to_string())
+        .parse::<u16>()
+        .unwrap_or(50051);
+    let addr = format!("[::]:{grpc_port}").parse().unwrap();
+    println!("gRPC server running at: {}", addr);
+    let scheduler = SchedulerGrpcImpl::default();
+    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+    health_reporter
+        .set_serving::<SchedulerRpcServer<SchedulerGrpcImpl>>()
+        .await;
+
     Server::builder()
-        .add_service(SchedulerServer::new(scheduler))
+        .add_service(health_service)
+        .add_service(SchedulerRpcServer::new(scheduler))
         .serve(addr)
         .await?;
-    println!("gRPC server running at: {}", address);
-
+    println!("gRPC Server Listening at {}", addr);
     Ok(())
 }
