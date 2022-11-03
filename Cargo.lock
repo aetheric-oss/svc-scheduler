@@ -147,9 +147,9 @@ checksum = "7b02b629252fe8ef6460461409564e2c21d0c8e77e0944f3d189ff06c4e932ad"
 
 [[package]]
 name = "cc"
-version = "1.0.73"
+version = "1.0.74"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fff2a6927b3bb87f9595d67196a70493f627687a71d87a0d692242c33f58c11"
+checksum = "581f5dba903aac52ea3feb5ec4810848460ee833876f1f9b0fdeab1f19091574"
 
 [[package]]
 name = "cfg-if"
@@ -179,7 +179,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29c39203181991a7dd4343b8005bd804e7a9a37afb8ac070e43771e8c820bbde"
 dependencies = [
  "chrono",
- "chrono-tz-build",
+ "chrono-tz-build 0.0.3",
+ "phf",
+]
+
+[[package]]
+name = "chrono-tz"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a87b30366b6766751277791b473b674f3bf7fb75696841c784a3eb7e7fbf44ee"
+dependencies = [
+ "chrono",
+ "chrono-tz-build 0.1.0",
  "phf",
 ]
 
@@ -188,6 +199,17 @@ name = "chrono-tz-build"
 version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f509c3a87b33437b05e2458750a0700e5bdd6956176773e6c7d6dd15a283a0c"
+dependencies = [
+ "parse-zoneinfo",
+ "phf",
+ "phf_codegen",
+]
+
+[[package]]
+name = "chrono-tz-build"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9998fb9f7e9b2111641485bf8beb32f92945f97f92a3d061f744cfef335f751"
 dependencies = [
  "parse-zoneinfo",
  "phf",
@@ -419,9 +441,9 @@ checksum = "c4a1e36c821dbe04574f602848a19f742f4fb3c98d40449f11bcad18d6b17421"
 
 [[package]]
 name = "hyper"
-version = "0.14.20"
+version = "0.14.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02c929dc5c39e335a03c405292728118860721b10190d98c2a0f0efd5baafbac"
+checksum = "abfba89e19b959ca163c7752ba59d737c1ceea53a5d31a149c805446fc958064"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -640,9 +662,9 @@ dependencies = [
 
 [[package]]
 name = "num_cpus"
-version = "1.13.1"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19e64526ebdee182341572e50e9ad03965aa510cd94427a4549448f285e957a1"
+checksum = "f6058e64324c71e02bc2b150e4f3bc8286db6c83092132ffa3f6b1eab0f9def5"
 dependencies = [
  "hermit-abi",
  "libc",
@@ -650,9 +672,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.15.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
+checksum = "86f0b0d4bf799edbc74508c1e8bf170ff5f41238e5f8225603ca7caaae2b7860"
 
 [[package]]
 name = "ordered-float"
@@ -949,7 +971,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "822efdcd86c668b92c5ddc4c08906b731d184feb3e595575924737495ae928a7"
 dependencies = [
  "chrono",
- "chrono-tz",
+ "chrono-tz 0.6.3",
  "lazy_static",
  "log",
  "regex",
@@ -1025,7 +1047,7 @@ version = "0.2.0-develop.0"
 dependencies = [
  "cargo-husky",
  "chrono",
- "chrono-tz",
+ "chrono-tz 0.6.3",
  "dotenv",
  "iso8601-duration",
  "once_cell",
@@ -1046,6 +1068,8 @@ dependencies = [
 name = "svc-scheduler-client"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "chrono-tz 0.8.0",
  "prost",
  "prost-types",
  "tokio",
@@ -1054,12 +1078,13 @@ dependencies = [
 
 [[package]]
 name = "svc-storage-client-grpc"
-version = "0.2.0-develop.0"
-source = "git+https://github.com/Arrow-air/svc-storage.git?branch=develop#89ab9c84edf4faba8281316a0c143292f72f5b85"
+version = "0.4.0-develop.1"
+source = "git+https://github.com/Arrow-air/svc-storage.git?branch=develop#52bc15ccd06edf7a0f50770d01850f6f5936dee5"
 dependencies = [
  "prost",
  "prost-types",
  "tonic",
+ "uuid",
 ]
 
 [[package]]

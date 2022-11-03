@@ -1,12 +1,15 @@
 use once_cell::sync::OnceCell;
 use ordered_float::OrderedFloat;
-use router::{
+use router::status;
+pub use router::{
     generator::generate_nodes_near,
     haversine,
     location::Location,
     node::Node,
     router::engine::{Algorithm, Router},
 };
+use svc_storage_client_grpc::client::Vertiport;
+use tonic::Status;
 
 /// Query struct for generating nodes near a location.
 #[derive(Debug, Copy, Clone)]
@@ -67,6 +70,35 @@ pub fn estimate_flight_time_minutes(distance_km: f32, aircraft: Aircraft) -> f32
     }
 }
 
+/// gets node by id
+pub fn get_node_by_id(id: &str) -> Result<&'static Node, Status> {
+    let nodes = NODES.get().expect("Nodes not initialized");
+    let node = nodes
+        .iter()
+        .find(|node| node.uid == id)
+        .ok_or_else(|| Status::not_found("Node not found by id: ".to_owned() + id))?;
+    Ok(node)
+}
+
+/// Initialize the router with vertiports from the storage service
+pub fn init_router_from_vertiports(vertiports: &[Vertiport]) {
+    let nodes = vertiports
+        .iter()
+        .map(|vertiport| Node {
+            uid: vertiport.id.clone(),
+            location: Location {
+                latitude: OrderedFloat(vertiport.data.as_ref().unwrap().latitude),
+                longitude: OrderedFloat(vertiport.data.as_ref().unwrap().longitude),
+                altitude_meters: OrderedFloat(0.0),
+            },
+            forward_to: None,
+            status: status::Status::Ok,
+        })
+        .collect();
+    NODES.set(nodes).expect("Failed to set NODES");
+    init_router();
+}
+
 /// Takes customer location (src) and required destination (dst) and returns a tuple with nearest vertiports to src and dst
 pub fn get_nearest_vertiports<'a>(
     src_location: &'a Location,
@@ -102,6 +134,11 @@ pub fn get_nearby_nodes(query: NearbyLocationQuery) -> &'static Vec<Node> {
         ))
         .expect("Failed to generate nodes");
     return NODES.get().unwrap();
+}
+
+/// Checks if router is initialized
+pub fn is_router_initialized() -> bool {
+    ARROW_CARGO_ROUTER.get().is_some()
 }
 
 /// Get route
@@ -155,7 +192,7 @@ pub fn init_router() -> &'static str {
 }
 
 #[cfg(test)]
-mod calendar_tests {
+mod router_tests {
     use super::{
         get_nearby_nodes, get_nearest_vertiports, get_route, init_router, Aircraft,
         NearbyLocationQuery, RouteQuery, SAN_FRANCISCO,

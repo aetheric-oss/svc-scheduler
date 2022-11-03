@@ -126,17 +126,10 @@ impl Calendar {
                 .after(start_time)
                 .before(end_time)
                 .all(1);
-            println!(
-                "RRULESET: {:?} {:?}",
-                &event.rrule_set.to_string(),
-                duration
-            );
-            println!("events: {:?}", events);
             if !events.is_empty() {
                 return false;
             }
             let d = DurationParser::parse(duration).expect("Failed to parse duration");
-            println!("duration: {:?} ", d);
             let adjusted_start_time = start_time
                 - Duration::days(d.day as i64)
                 - Duration::hours(d.hour as i64)
@@ -150,7 +143,6 @@ impl Calendar {
                 .after(adjusted_start_time)
                 .before(end_time)
                 .all(10);
-            println!("events with duration: {:?}", events);
             if !events.is_empty() {
                 return false;
             }
