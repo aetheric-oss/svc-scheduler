@@ -38,3 +38,5 @@ ical
 TZID
 nanos
 subsec
+codeowners
+commitlintrc

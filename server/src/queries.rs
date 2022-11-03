@@ -1,7 +1,7 @@
 use crate::router_utils::{
-    estimate_flight_time_minutes, get_nearby_nodes, get_route, init_router, Aircraft,
-    NearbyLocationQuery, RouteQuery, LANDING_AND_UNLOADING_TIME_MIN, LOADING_AND_TAKEOFF_TIME_MIN,
-    NODES, SAN_FRANCISCO,
+    estimate_flight_time_minutes, get_node_by_id, get_route, init_router_from_vertiports,
+    is_router_initialized, Aircraft, RouteQuery, LANDING_AND_UNLOADING_TIME_MIN,
+    LOADING_AND_TAKEOFF_TIME_MIN,
 };
 use crate::scheduler_grpc::{
     CancelFlightResponse, ConfirmFlightResponse, FlightPriority, FlightStatus, Id, QueryFlightPlan,
@@ -17,16 +17,18 @@ use std::str::FromStr;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use svc_storage_client_grpc::client::{
-    storage_rpc_client::StorageRpcClient, AircraftFilter, FlightPlan, VertiportFilter,
+    flight_plan_rpc_client::FlightPlanRpcClient, vehicle_rpc_client::VehicleRpcClient,
+    vertiport_rpc_client::VertiportRpcClient, FlightPlan, FlightPlanData, SearchFilter,
 };
+
 use tokio;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
 const CANCEL_FLIGHT_SECONDS: u64 = 30;
 
-fn unconfirmed_flight_plans() -> &'static Mutex<HashMap<String, FlightPlan>> {
-    static INSTANCE: OnceCell<Mutex<HashMap<String, FlightPlan>>> = OnceCell::new();
+fn unconfirmed_flight_plans() -> &'static Mutex<HashMap<String, FlightPlanData>> {
+    static INSTANCE: OnceCell<Mutex<HashMap<String, FlightPlanData>>> = OnceCell::new();
     INSTANCE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -43,28 +45,30 @@ fn cancel_flight_after_timeout(id: String) {
 ///Finds the first possible flight for customer location, flight type and requested time.
 pub async fn query_flight(
     request: Request<QueryFlightRequest>,
-    mut storage_client: StorageRpcClient<tonic::transport::Channel>,
+    mut _fp_client: FlightPlanRpcClient<tonic::transport::Channel>,
+    mut vehicle_client: VehicleRpcClient<tonic::transport::Channel>,
+    mut vertiport_client: VertiportRpcClient<tonic::transport::Channel>,
 ) -> Result<Response<QueryFlightResponse>, Status> {
     let flight_request = request.into_inner();
     // 1. Fetch vertiports from customer request
-    let _r_vertiports = storage_client
-        .vertiports(Request::new(VertiportFilter {}))
+    let vertiports = vertiport_client
+        .vertiports(Request::new(SearchFilter {
+            search_field: "".to_string(),
+            search_value: "".to_string(),
+            page_number: 0,
+            results_per_page: 0,
+        }))
         .await?
         .into_inner()
         .vertiports;
-    //TODO use vertiports from DB instead of NODES
+    println!("Vertiports found: {}", vertiports.len());
     //2. Find route and cost between requested vertiports
-    if NODES.get().is_none() {
-        get_nearby_nodes(NearbyLocationQuery {
-            location: SAN_FRANCISCO,
-            radius: 25.0,
-            capacity: 20,
-        });
-        init_router();
+    if !is_router_initialized() {
+        init_router_from_vertiports(&vertiports);
     }
     let (route, cost) = get_route(RouteQuery {
-        from: &NODES.get().unwrap()[0],
-        to: &NODES.get().unwrap()[1],
+        from: get_node_by_id(&flight_request.vertiport_depart_id).unwrap(),
+        to: get_node_by_id(&flight_request.vertiport_arrive_id).unwrap(),
         aircraft: Aircraft::Cargo,
     })
     .unwrap();
@@ -141,11 +145,16 @@ pub async fn query_flight(
         return Err(Status::not_found("Arrival vertiport not available"));
     }
     //5. check schedule of aircrafts
-    let aircrafts = storage_client
-        .aircrafts(Request::new(AircraftFilter {})) //todo filter associated aircrafts to dep vertiport?
+    let aircrafts = vehicle_client
+        .vehicles(Request::new(SearchFilter {
+            search_field: "".to_string(),
+            search_value: "".to_string(),
+            page_number: 0,
+            results_per_page: 50,
+        })) //todo filter associated aircrafts to dep vertiport?
         .await?
         .into_inner()
-        .aircrafts;
+        .vehicles;
     for _aircraft in aircrafts {
         let aircraft_schedule = Calendar::from_str(SAMPLE_CAL).unwrap(); //TODO get from aircraft.schedule
         let is_aircraft_available =
@@ -166,11 +175,28 @@ pub async fn query_flight(
     let fp_id = Uuid::new_v4().to_string();
     unconfirmed_flight_plans().lock().unwrap().insert(
         fp_id.clone(),
-        FlightPlan {
-            id: 1234, //todo string id
-            flight_status: FlightStatus::Ready as i32,
+        FlightPlanData {
+            pilot_id: "".to_string(),
+            vehicle_id: "".to_string(),
+            cargo_weight: vec![],
+            flight_distance: 0,
+            weather_conditions: "".to_string(),
+            departure_vertiport_id: "".to_string(),
+            departure_pad_id: "".to_string(),
+            destination_vertiport_id: "".to_string(),
+            destination_pad_id: "".to_string(),
+            scheduled_departure: None,
+            scheduled_arrival: None,
+            actual_departure: None,
+            actual_arrival: None,
+            flight_release_approval: None,
+            flight_plan_submitted: None,
+            approved_by: None,
+            flight_status: 0,
+            flight_priority: 0,
         },
     );
+
     //8. automatically cancel draft flight plan if not confirmed by user
     cancel_flight_after_timeout(fp_id.clone());
     //9. return response - TODO copy from storage flight plan
@@ -205,14 +231,14 @@ pub async fn query_flight(
     Ok(Response::new(response))
 }
 
-fn get_fp_by_id(id: String) -> Option<FlightPlan> {
-    unconfirmed_flight_plans().lock().unwrap().get(&id).copied()
+fn get_fp_by_id(id: String) -> Option<FlightPlanData> {
+    unconfirmed_flight_plans().lock().unwrap().get(&id).cloned()
 }
 
 ///Confirms the flight plan
 pub async fn confirm_flight(
     request: Request<Id>,
-    mut storage_client: StorageRpcClient<tonic::transport::Channel>,
+    mut storage_client: FlightPlanRpcClient<tonic::transport::Channel>,
 ) -> Result<Response<ConfirmFlightResponse>, Status> {
     let fp_id = request.into_inner().id;
     let draft_fp = get_fp_by_id(fp_id.clone());
@@ -225,7 +251,7 @@ pub async fn confirm_flight(
             .into_inner();
         let sys_time = SystemTime::now();
         let response = ConfirmFlightResponse {
-            id: fp.id.to_string(), //todo this should be string
+            id: fp.id, //todo this should be string
             confirmed: true,
             confirmation_time: Some(Timestamp::from(sys_time)),
         };
