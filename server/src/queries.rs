@@ -29,7 +29,33 @@ const CANCEL_FLIGHT_SECONDS: u64 = 30;
 
 fn unconfirmed_flight_plans() -> &'static Mutex<HashMap<String, FlightPlanData>> {
     static INSTANCE: OnceCell<Mutex<HashMap<String, FlightPlanData>>> = OnceCell::new();
-    INSTANCE.get_or_init(|| Mutex::new(HashMap::new()))
+    let ret = INSTANCE.get_or_init(|| Mutex::new(HashMap::new()));
+
+    ret.lock().unwrap().insert(
+        "0fc37762-c423-417c-94bc-5d6d452322d7".to_string(),
+        FlightPlanData {
+            pilot_id: "".to_string(),
+            vehicle_id: "".to_string(),
+            cargo_weight: vec![],
+            flight_distance: 0,
+            weather_conditions: "".to_string(),
+            departure_vertiport_id: "".to_string(),
+            departure_pad_id: "".to_string(),
+            destination_vertiport_id: "".to_string(),
+            destination_pad_id: "".to_string(),
+            scheduled_departure: None,
+            scheduled_arrival: None,
+            actual_departure: None,
+            actual_arrival: None,
+            flight_release_approval: None,
+            flight_plan_submitted: None,
+            approved_by: None,
+            flight_status: 0,
+            flight_priority: 0,
+        },
+    );
+
+    ret
 }
 
 fn cancel_flight_after_timeout(id: String) {
@@ -228,6 +254,7 @@ pub async fn query_flight(
     let response = QueryFlightResponse {
         flights: [item].to_vec(),
     };
+    println!("{:?}", response);
     Ok(Response::new(response))
 }
 
@@ -243,8 +270,11 @@ pub async fn confirm_flight(
     let fp_id = request.into_inner().id;
     let draft_fp = get_fp_by_id(fp_id.clone());
     return if draft_fp.is_none() {
+        println!("Not found");
         Err(Status::not_found("Flight plan not found"))
     } else {
+        println!(" found");
+
         let fp = storage_client
             .insert_flight_plan(Request::new(draft_fp.unwrap()))
             .await?
@@ -256,6 +286,8 @@ pub async fn confirm_flight(
             confirmation_time: Some(Timestamp::from(sys_time)),
         };
         unconfirmed_flight_plans().lock().unwrap().remove(&fp_id);
+        println!("{:?}", response);
+
         Ok(Response::new(response))
     };
 }
@@ -274,5 +306,6 @@ pub async fn cancel_flight(request: Request<Id>) -> Result<Response<CancelFlight
         cancellation_time: Some(Timestamp::from(sys_time)),
         reason: "user cancelled".into(),
     };
+    println!("{:?}", response);
     Ok(Response::new(response))
 }

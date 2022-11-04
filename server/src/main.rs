@@ -73,6 +73,7 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<QueryFlightRequest>,
     ) -> Result<Response<QueryFlightResponse>, Status> {
+        println!("{:?}", request);
         queries::query_flight(
             request,
             get_flight_plan_client(),
@@ -87,6 +88,7 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<Id>,
     ) -> Result<Response<ConfirmFlightResponse>, Status> {
+        println!("{:?}", request);
         queries::confirm_flight(request, get_flight_plan_client()).await
     }
 
@@ -95,6 +97,7 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<Id>,
     ) -> Result<Response<CancelFlightResponse>, Status> {
+        println!("{:?}", request);
         queries::cancel_flight(request).await
     }
 
