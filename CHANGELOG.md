@@ -1,3 +1,12 @@
+## [Release 0.2.0-develop.1](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.0-develop.1)
+
+### 🛠 Maintenance
+
+-  **ci:** update changelog ([`44bf327`](https://github.com/Arrow-air/svc-scheduler/commit/44bf327bc02f5a05309e10fe9c43cf5efa083723))
+-  **ci:** update package version ([`6c65681`](https://github.com/Arrow-air/svc-scheduler/commit/6c656810268afd35e0c3303af196e85f1c463462))
+-  **ci:** update package version<br/><br/>[skip ci] ([`4361167`](https://github.com/Arrow-air/svc-scheduler/commit/43611676a4a4b372daf385492335719beda2031a))
+- update code to work with new version of svc-storage and test data ([`83705c9`](https://github.com/Arrow-air/svc-scheduler/commit/83705c91a74c6615a4740f6761e9fb3597db3a58))
+
 ## [Release 0.2.0-develop.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.0-develop.0)
 
 ### ✨ Features
