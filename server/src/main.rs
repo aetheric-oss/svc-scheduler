@@ -20,16 +20,42 @@ use scheduler_grpc::{
     CancelFlightResponse, ConfirmFlightResponse, Id, QueryFlightRequest, QueryFlightResponse,
     ReadyRequest, ReadyResponse,
 };
-use svc_storage_client_grpc::client::storage_rpc_client::StorageRpcClient;
+use svc_storage_client_grpc::client::{
+    flight_plan_rpc_client::FlightPlanRpcClient, vehicle_rpc_client::VehicleRpcClient,
+    vertiport_rpc_client::VertiportRpcClient,
+};
+
 use tonic::{transport::Server, Request, Response, Status};
 
-/// GRPC client for storage service -
+/// GRPC clients for storage service -
 /// it has to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
-pub static STORAGE_CLIENT: OnceCell<StorageRpcClient<tonic::transport::Channel>> = OnceCell::new();
+pub static VEHICLE_CLIENT: OnceCell<VehicleRpcClient<tonic::transport::Channel>> = OnceCell::new();
+/// Vertiport client
+pub static VERTIPORT_CLIENT: OnceCell<VertiportRpcClient<tonic::transport::Channel>> =
+    OnceCell::new();
+/// Flight Plan client
+pub static FLIGHT_PLAN_CLIENT: OnceCell<FlightPlanRpcClient<tonic::transport::Channel>> =
+    OnceCell::new();
 
-/// shorthand function to clone storage client
-pub fn get_storage_client() -> StorageRpcClient<tonic::transport::Channel> {
-    STORAGE_CLIENT
+/// shorthand function to clone vehicle client
+pub fn get_vehicle_client() -> VehicleRpcClient<tonic::transport::Channel> {
+    VEHICLE_CLIENT
+        .get()
+        .expect("Storage Client not initialized")
+        .clone()
+}
+
+/// shorthand function to clone vertiport client
+pub fn get_vertiport_client() -> VertiportRpcClient<tonic::transport::Channel> {
+    VERTIPORT_CLIENT
+        .get()
+        .expect("Storage Client not initialized")
+        .clone()
+}
+
+/// shorthand function to clone flight plan client
+pub fn get_flight_plan_client() -> FlightPlanRpcClient<tonic::transport::Channel> {
+    FLIGHT_PLAN_CLIENT
         .get()
         .expect("Storage Client not initialized")
         .clone()
@@ -47,7 +73,13 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<QueryFlightRequest>,
     ) -> Result<Response<QueryFlightResponse>, Status> {
-        queries::query_flight(request, get_storage_client()).await
+        queries::query_flight(
+            request,
+            get_flight_plan_client(),
+            get_vehicle_client(),
+            get_vertiport_client(),
+        )
+        .await
     }
 
     ///Confirms the draft flight plan by id.
@@ -55,7 +87,7 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<Id>,
     ) -> Result<Response<ConfirmFlightResponse>, Status> {
-        queries::confirm_flight(request, get_storage_client()).await
+        queries::confirm_flight(request, get_flight_plan_client()).await
     }
 
     ///Cancels the draft flight plan by id.
@@ -82,9 +114,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
     //initialize storage client here so it can be used in other methods
     //todo change url to env variable
-    STORAGE_CLIENT
-        .set(StorageRpcClient::connect("http://[::1]:50052").await?)
+    FLIGHT_PLAN_CLIENT
+        .set(FlightPlanRpcClient::connect("http://[::1]:50052").await?)
         .unwrap();
+    VERTIPORT_CLIENT
+        .set(VertiportRpcClient::connect("http://[::1]:50052").await?)
+        .unwrap();
+    VEHICLE_CLIENT
+        .set(VehicleRpcClient::connect("http://[::1]:50052").await?)
+        .unwrap();
+
     // GRPC Server
     let grpc_port = std::env::var("DOCKER_PORT_GRPC")
         .unwrap_or_else(|_| "50051".to_string())
