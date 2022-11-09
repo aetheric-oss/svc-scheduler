@@ -72,7 +72,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           CHANGED_FILE: "CHANGELOG.md"
-          MESSAGE: "chore(ci): update changelog\n\n[skip ci]"
+          MESSAGE: "ci - update changelog\n\n[skip ci]"
         run: |
           export CONTENT=$(base64 -i ${{ env.CHANGED_FILE }})
           export SHA=$(git rev-parse ${{ github.ref_name }}:${{ env.CHANGED_FILE }})
@@ -87,7 +87,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           CHANGED_FILE: "server/Cargo.toml"
-          MESSAGE: "chore(ci): update package version\n\n[skip ci]"
+          MESSAGE: "ci - update server package version\n\n[skip ci]"
         run: |
           export CONTENT=$(base64 -i ${{ env.CHANGED_FILE }})
           export SHA=$(git rev-parse ${{ github.ref_name }}:${{ env.CHANGED_FILE }})
@@ -102,7 +102,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           CHANGED_FILE: "client-grpc/Cargo.toml"
-          MESSAGE: "chore(ci): update package version<br/><br/>[skip ci]"
+          MESSAGE: "ci - update client-grpc package version\n\n[skip ci]"
         run: |
           export CONTENT=$(base64 -i ${{ env.CHANGED_FILE }})
           export SHA=$(git rev-parse ${{ github.ref_name }}:${{ env.CHANGED_FILE }})

@@ -8,7 +8,9 @@ ENV RUSTC_BOOTSTRAP=0
 
 COPY . /usr/src/app
 
-RUN cd /usr/src/app ; cargo build --release
+# perl and build-base are needed to build openssl, see:
+# https://github.com/openssl/openssl/blob/master/INSTALL.md#prerequisites
+RUN apk -U add perl build-base ; cd /usr/src/app ; cargo build --release --features=vendored-openssl
 
 FROM --platform=$TARGETPLATFORM ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.14 AS grpc-health-probe
 
