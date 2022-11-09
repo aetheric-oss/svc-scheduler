@@ -5,12 +5,9 @@ pub mod scheduler_grpc {
     #![allow(unused_qualifications)]
     include!("grpc.rs");
 }
-///Calendar module
-pub mod calendar_utils;
 ///Queries module
 pub mod queries;
-///Router module
-pub mod router_utils;
+use router::router_state::{init_router_from_vertiports, is_router_initialized};
 
 use dotenv::dotenv;
 use once_cell::sync::OnceCell;
@@ -22,23 +19,21 @@ use scheduler_grpc::{
 };
 use svc_storage_client_grpc::client::{
     flight_plan_rpc_client::FlightPlanRpcClient, vehicle_rpc_client::VehicleRpcClient,
-    vertiport_rpc_client::VertiportRpcClient,
+    vertiport_rpc_client::VertiportRpcClient, SearchFilter,
 };
 
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{transport::Channel, transport::Server, Request, Response, Status};
 
 /// GRPC clients for storage service -
 /// it has to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
-pub static VEHICLE_CLIENT: OnceCell<VehicleRpcClient<tonic::transport::Channel>> = OnceCell::new();
+pub static VEHICLE_CLIENT: OnceCell<VehicleRpcClient<Channel>> = OnceCell::new();
 /// Vertiport client
-pub static VERTIPORT_CLIENT: OnceCell<VertiportRpcClient<tonic::transport::Channel>> =
-    OnceCell::new();
+pub static VERTIPORT_CLIENT: OnceCell<VertiportRpcClient<Channel>> = OnceCell::new();
 /// Flight Plan client
-pub static FLIGHT_PLAN_CLIENT: OnceCell<FlightPlanRpcClient<tonic::transport::Channel>> =
-    OnceCell::new();
+pub static FLIGHT_PLAN_CLIENT: OnceCell<FlightPlanRpcClient<Channel>> = OnceCell::new();
 
 /// shorthand function to clone vehicle client
-pub fn get_vehicle_client() -> VehicleRpcClient<tonic::transport::Channel> {
+pub fn get_vehicle_client() -> VehicleRpcClient<Channel> {
     VEHICLE_CLIENT
         .get()
         .expect("Storage Client not initialized")
@@ -46,7 +41,7 @@ pub fn get_vehicle_client() -> VehicleRpcClient<tonic::transport::Channel> {
 }
 
 /// shorthand function to clone vertiport client
-pub fn get_vertiport_client() -> VertiportRpcClient<tonic::transport::Channel> {
+pub fn get_vertiport_client() -> VertiportRpcClient<Channel> {
     VERTIPORT_CLIENT
         .get()
         .expect("Storage Client not initialized")
@@ -54,7 +49,7 @@ pub fn get_vertiport_client() -> VertiportRpcClient<tonic::transport::Channel> {
 }
 
 /// shorthand function to clone flight plan client
-pub fn get_flight_plan_client() -> FlightPlanRpcClient<tonic::transport::Channel> {
+pub fn get_flight_plan_client() -> FlightPlanRpcClient<Channel> {
     FLIGHT_PLAN_CLIENT
         .get()
         .expect("Storage Client not initialized")
@@ -108,6 +103,24 @@ impl SchedulerRpc for SchedulerGrpcImpl {
     }
 }
 
+async fn init_router(mut vertiport_client: VertiportRpcClient<Channel>) {
+    let vertiports = vertiport_client
+        .vertiports(Request::new(SearchFilter {
+            search_field: "".to_string(),
+            search_value: "".to_string(),
+            page_number: 0,
+            results_per_page: 50,
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .vertiports;
+    println!("Vertiports found: {}", vertiports.len());
+    if !is_router_initialized() {
+        init_router_from_vertiports(&vertiports);
+    }
+}
+
 ///Main entry point: starts gRPC Server on specified address and port
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -123,7 +136,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     VEHICLE_CLIENT
         .set(VehicleRpcClient::connect("http://[::1]:50052").await?)
         .unwrap();
-
+    // Initialize Router from vertiport data
+    init_router(get_vertiport_client()).await;
     // GRPC Server
     let grpc_port = std::env::var("DOCKER_PORT_GRPC")
         .unwrap_or_else(|_| "50051".to_string())

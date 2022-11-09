@@ -3,25 +3,25 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightRequest {
     /// is_cargo - true if cargo mission, false if people transport
-    #[prost(bool, tag="1")]
+    #[prost(bool, tag = "1")]
     pub is_cargo: bool,
     /// persons - number of people for transport
-    #[prost(uint32, optional, tag="2")]
+    #[prost(uint32, optional, tag = "2")]
     pub persons: ::core::option::Option<u32>,
     /// weight in grams
-    #[prost(uint32, optional, tag="3")]
+    #[prost(uint32, optional, tag = "3")]
     pub weight_grams: ::core::option::Option<u32>,
     /// requested preferred time of departure - if not set, then arrival time is used; if both set, then departure time is used
-    #[prost(message, optional, tag="4")]
+    #[prost(message, optional, tag = "4")]
     pub departure_time: ::core::option::Option<::prost_types::Timestamp>,
     /// requested preferred time of arrival - if not set, then departure time is used; if both set, then departure time is used
-    #[prost(message, optional, tag="5")]
+    #[prost(message, optional, tag = "5")]
     pub arrival_time: ::core::option::Option<::prost_types::Timestamp>,
     /// vertiport_depart_id
-    #[prost(string, tag="6")]
+    #[prost(string, tag = "6")]
     pub vertiport_depart_id: ::prost::alloc::string::String,
     /// vertiport_depart_id
-    #[prost(string, tag="7")]
+    #[prost(string, tag = "7")]
     pub vertiport_arrive_id: ::prost::alloc::string::String,
 }
 /// QueryFlightPlan
@@ -29,63 +29,66 @@ pub struct QueryFlightRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightPlan {
     /// id of the flight
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     /// pilot_id
-    #[prost(uint32, tag="2")]
-    pub pilot_id: u32,
-    /// aircraft_id
-    #[prost(uint32, tag="3")]
-    pub aircraft_id: u32,
+    #[prost(string, tag = "2")]
+    pub pilot_id: ::prost::alloc::string::String,
+    /// vehicle_id
+    #[prost(string, tag = "3")]
+    pub vehicle_id: ::prost::alloc::string::String,
     /// cargo
-    #[prost(uint32, repeated, tag="4")]
+    #[prost(uint32, repeated, tag = "4")]
     pub cargo: ::prost::alloc::vec::Vec<u32>,
     /// weather_conditions
-    #[prost(string, tag="5")]
+    #[prost(string, tag = "5")]
     pub weather_conditions: ::prost::alloc::string::String,
-    /// vertiport_id_departure
-    #[prost(uint32, tag="6")]
-    pub vertiport_id_departure: u32,
-    /// pad_id_departure
-    #[prost(uint32, tag="7")]
-    pub pad_id_departure: u32,
-    /// vertiport_id_destination
-    #[prost(uint32, tag="8")]
-    pub vertiport_id_destination: u32,
-    /// pad_id_destination
-    #[prost(uint32, tag="9")]
-    pub pad_id_destination: u32,
+    /// vertiport_depart_id
+    #[prost(string, tag = "6")]
+    pub vertiport_depart_id: ::prost::alloc::string::String,
+    /// pad_depart_id
+    #[prost(string, tag = "7")]
+    pub pad_depart_id: ::prost::alloc::string::String,
+    /// vertiport_arrive_id
+    #[prost(string, tag = "8")]
+    pub vertiport_arrive_id: ::prost::alloc::string::String,
+    /// pad_arrive_id
+    #[prost(string, tag = "9")]
+    pub pad_arrive_id: ::prost::alloc::string::String,
     /// estimated_departure
-    #[prost(message, optional, tag="10")]
+    #[prost(message, optional, tag = "10")]
     pub estimated_departure: ::core::option::Option<::prost_types::Timestamp>,
     /// estimated_arrival
-    #[prost(message, optional, tag="11")]
+    #[prost(message, optional, tag = "11")]
     pub estimated_arrival: ::core::option::Option<::prost_types::Timestamp>,
     /// actual_departure
-    #[prost(message, optional, tag="12")]
+    #[prost(message, optional, tag = "12")]
     pub actual_departure: ::core::option::Option<::prost_types::Timestamp>,
     /// actual_arrival
-    #[prost(message, optional, tag="13")]
+    #[prost(message, optional, tag = "13")]
     pub actual_arrival: ::core::option::Option<::prost_types::Timestamp>,
     /// flight_release_approval
-    #[prost(message, optional, tag="14")]
+    #[prost(message, optional, tag = "14")]
     pub flight_release_approval: ::core::option::Option<::prost_types::Timestamp>,
     /// flight_plan_submitted
-    #[prost(message, optional, tag="15")]
+    #[prost(message, optional, tag = "15")]
     pub flight_plan_submitted: ::core::option::Option<::prost_types::Timestamp>,
     /// flightStatus
-    #[prost(enumeration="FlightStatus", tag="16")]
+    #[prost(enumeration = "FlightStatus", tag = "16")]
     pub flight_status: i32,
     /// flightPriority
-    #[prost(enumeration="FlightPriority", tag="17")]
+    #[prost(enumeration = "FlightPriority", tag = "17")]
     pub flight_priority: i32,
+    /// estimated distance in meters
+    #[prost(uint32, tag = "18")]
+    pub estimated_distance: u32,
 }
 /// QueryFlightResponse
 #[derive(Eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightResponse {
     /// array/vector of flight items
-    #[prost(message, repeated, tag="1")]
+    #[prost(message, repeated, tag = "1")]
     pub flights: ::prost::alloc::vec::Vec<QueryFlightPlan>,
 }
 /// Id type for passing id only requests
@@ -93,7 +96,7 @@ pub struct QueryFlightResponse {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Id {
     /// id
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
 }
 /// ConfirmFlightResponse
@@ -101,13 +104,13 @@ pub struct Id {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConfirmFlightResponse {
     /// id
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     /// indicates if confirmation was successful
-    #[prost(bool, tag="2")]
+    #[prost(bool, tag = "2")]
     pub confirmed: bool,
     /// time when the flight was confirmed
-    #[prost(message, optional, tag="3")]
+    #[prost(message, optional, tag = "3")]
     pub confirmation_time: ::core::option::Option<::prost_types::Timestamp>,
 }
 /// CancelFlightResponse
@@ -115,16 +118,16 @@ pub struct ConfirmFlightResponse {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CancelFlightResponse {
     /// id
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     /// indicates if cancellation was successful
-    #[prost(bool, tag="2")]
+    #[prost(bool, tag = "2")]
     pub cancelled: bool,
     /// time when the flight was cancelled
-    #[prost(message, optional, tag="3")]
+    #[prost(message, optional, tag = "3")]
     pub cancellation_time: ::core::option::Option<::prost_types::Timestamp>,
     /// reason of cancellation
-    #[prost(string, tag="4")]
+    #[prost(string, tag = "4")]
     pub reason: ::prost::alloc::string::String,
 }
 /// Ready Request
@@ -132,14 +135,13 @@ pub struct CancelFlightResponse {
 /// No arguments
 #[derive(Eq, Copy)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ReadyRequest {
-}
+pub struct ReadyRequest {}
 /// Ready Response
 #[derive(Eq, Copy)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadyResponse {
     /// ready
-    #[prost(bool, tag="1")]
+    #[prost(bool, tag = "1")]
     pub ready: bool,
 }
 /// Flight Status Enum
