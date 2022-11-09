@@ -56,21 +56,21 @@ message QueryFlightPlan {
     //id of the flight
     string id = 1;
     //pilot_id
-    uint32 pilot_id = 2;
-    //aircraft_id
-    uint32 aircraft_id = 3;
+    string pilot_id = 2;
+    //vehicle_id
+    string vehicle_id = 3;
     //cargo
     repeated uint32 cargo = 4;
     //weather_conditions
     string weather_conditions = 5;
-    //vertiport_id_departure
-    uint32 vertiport_id_departure = 6;
-    //pad_id_departure
-    uint32 pad_id_departure = 7;
-    //vertiport_id_destination
-    uint32 vertiport_id_destination = 8;
-    //pad_id_destination
-    uint32 pad_id_destination = 9;
+    //vertiport_depart_id
+    string vertiport_depart_id = 6;
+    //pad_depart_id
+    string pad_depart_id = 7;
+    //vertiport_arrive_id
+    string vertiport_arrive_id = 8;
+    //pad_arrive_id
+    string pad_arrive_id = 9;
     //estimated_departure
     google.protobuf.Timestamp estimated_departure = 10;
     //estimated_arrival
@@ -87,6 +87,8 @@ message QueryFlightPlan {
     FlightStatus flightStatus = 16;
     //flightPriority
     FlightPriority flightPriority = 17;
+    //estimated distance in meters
+    uint32 estimated_distance = 18;
 
 }
 //QueryFlightResponse

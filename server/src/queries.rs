@@ -1,19 +1,11 @@
-use crate::router_utils::{
-    estimate_flight_time_minutes, get_node_by_id, get_route, init_router_from_vertiports,
-    is_router_initialized, Aircraft, RouteQuery, LANDING_AND_UNLOADING_TIME_MIN,
-    LOADING_AND_TAKEOFF_TIME_MIN,
-};
 use crate::scheduler_grpc::{
     CancelFlightResponse, ConfirmFlightResponse, FlightPriority, FlightStatus, Id, QueryFlightPlan,
     QueryFlightRequest, QueryFlightResponse,
 };
-use std::collections::HashMap;
-
-use crate::calendar_utils::{Calendar, Tz};
-use chrono::{Duration, NaiveDateTime, TimeZone};
 use once_cell::sync::OnceCell;
 use prost_types::Timestamp;
-use std::str::FromStr;
+use router::router_state::get_possible_flights;
+use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use svc_storage_client_grpc::client::{
@@ -50,90 +42,26 @@ pub async fn query_flight(
     mut vertiport_client: VertiportRpcClient<tonic::transport::Channel>,
 ) -> Result<Response<QueryFlightResponse>, Status> {
     let flight_request = request.into_inner();
-    // 1. Fetch vertiports from customer request
-    let vertiports = vertiport_client
-        .vertiports(Request::new(SearchFilter {
-            search_field: "".to_string(),
-            search_value: "".to_string(),
-            page_number: 0,
-            results_per_page: 0,
+    let depart_vertiport = vertiport_client
+        .vertiport_by_id(Request::new(svc_storage_client_grpc::client::Id {
+            id: flight_request.vertiport_depart_id,
         }))
-        .await?
-        .into_inner()
-        .vertiports;
-    println!("Vertiports found: {}", vertiports.len());
-    //2. Find route and cost between requested vertiports
-    if !is_router_initialized() {
-        init_router_from_vertiports(&vertiports);
-    }
-    let (route, cost) = get_route(RouteQuery {
-        from: get_node_by_id(&flight_request.vertiport_depart_id).unwrap(),
-        to: get_node_by_id(&flight_request.vertiport_arrive_id).unwrap(),
-        aircraft: Aircraft::Cargo,
-    })
-    .unwrap();
-    println!("route distance: {:?}", cost);
-    if route.is_empty() {
-        return Err(Status::not_found("Route between vertiports not found"));
-    }
-    //3. calculate blocking times for each vertiport and aircraft
-    let block_departure_vertiport_minutes = LOADING_AND_TAKEOFF_TIME_MIN;
-    let block_arrival_vertiport_minutes = LANDING_AND_UNLOADING_TIME_MIN;
-    let block_aircraft_minutes = estimate_flight_time_minutes(cost, Aircraft::Cargo);
-
-    //4. check vertiport schedules and flight plans
-    const SAMPLE_CAL: &str =
-        "DTSTART:20221020T180000Z;DURATION:PT1H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
-    let departure_vertiport_schedule = Calendar::from_str(SAMPLE_CAL).unwrap(); //TODO get from DB
-    let arrival_vertiport_schedule = Calendar::from_str(SAMPLE_CAL).unwrap(); //TODO get from DB
-
-    if flight_request.departure_time.is_none() && flight_request.arrival_time.is_none() {
-        return Err(Status::invalid_argument(
-            "Either departure_time or arrival_time must be set",
-        ));
-    }
-
-    let (departure_time, arrival_time) = if flight_request.departure_time.is_some() {
-        let departure_time = Tz::UTC.from_utc_datetime(&NaiveDateTime::from_timestamp(
-            flight_request.departure_time.as_ref().unwrap().seconds,
-            flight_request.departure_time.as_ref().unwrap().nanos as u32,
-        ));
-        (
-            departure_time,
-            departure_time + Duration::minutes(block_aircraft_minutes as i64),
-        )
-    } else {
-        let arrival_time = Tz::UTC.from_utc_datetime(&NaiveDateTime::from_timestamp(
-            flight_request.arrival_time.as_ref().unwrap().seconds,
-            flight_request.arrival_time.as_ref().unwrap().nanos as u32,
-        ));
-        (
-            arrival_time - Duration::minutes(block_aircraft_minutes as i64),
-            arrival_time,
-        )
-    };
-    let is_departure_vertiport_available = departure_vertiport_schedule.is_available_between(
-        departure_time,
-        departure_time + Duration::minutes(block_departure_vertiport_minutes as i64),
-    );
+        .await
+        .unwrap()
+        .into_inner();
+    let arrive_vertiport = vertiport_client
+        .vertiport_by_id(Request::new(svc_storage_client_grpc::client::Id {
+            id: flight_request.vertiport_arrive_id,
+        }))
+        .await
+        .unwrap()
+        .into_inner();
     let departure_vertiport_flights: Vec<FlightPlan> = vec![];
     /*todo storage_client
     .flight_plans(Request::new(FlightPlanFilter {})) //todo filter flight_plans(estimated_departure_between: ($from, $to), vertiport_id: $ID)
     .await?
     .into_inner()
     .flight_plans;*/
-
-    if !is_departure_vertiport_available || !departure_vertiport_flights.is_empty() {
-        return Err(Status::not_found("Departure vertiport not available"));
-    }
-
-    let is_arrival_vertiport_available = arrival_vertiport_schedule.is_available_between(
-        arrival_time - Duration::minutes(block_arrival_vertiport_minutes as i64),
-        arrival_time,
-    );
-    if !is_arrival_vertiport_available {
-        return Err(Status::not_found("Arrival vertiport not available"));
-    }
     let arrival_vertiport_flights: Vec<FlightPlan> = vec![];
     /* todo storage_client
     .flight_plans(Request::new(FlightPlanFilter {}))
@@ -141,7 +69,11 @@ pub async fn query_flight(
     .await?
     .into_inner()
     .flight_plans;*/
-    if !is_arrival_vertiport_available || !arrival_vertiport_flights.is_empty() {
+
+    if !departure_vertiport_flights.is_empty() {
+        return Err(Status::not_found("Departure vertiport not available"));
+    }
+    if !arrival_vertiport_flights.is_empty() {
         return Err(Status::not_found("Arrival vertiport not available"));
     }
     //5. check schedule of aircrafts
@@ -155,10 +87,7 @@ pub async fn query_flight(
         .await?
         .into_inner()
         .vehicles;
-    for _aircraft in aircrafts {
-        let aircraft_schedule = Calendar::from_str(SAMPLE_CAL).unwrap(); //TODO get from aircraft.schedule
-        let is_aircraft_available =
-            aircraft_schedule.is_available_between(departure_time, arrival_time);
+    for _aircraft in &aircrafts {
         let aircraft_flights: Vec<FlightPlan> = vec![];
         /*todo storage_client
         .flight_plans(Request::new(FlightPlanFilter {}))
@@ -166,64 +95,48 @@ pub async fn query_flight(
         .await?
         .into_inner()
         .flight_plans;*/
-        if !is_aircraft_available || !aircraft_flights.is_empty() {
+        if !aircraft_flights.is_empty() {
             return Err(Status::not_found("Aircraft not available"));
         }
     }
-    //6. TODO: check other constraints (cargo weight, number of passenger seats)
+    let flight_plans = get_possible_flights(
+        depart_vertiport,
+        arrive_vertiport,
+        flight_request.departure_time,
+        flight_request.arrival_time,
+        aircrafts,
+    )
+    .unwrap();
+    let fp = flight_plans.first().unwrap();
     //7. create draft flight plan (in memory)
     let fp_id = Uuid::new_v4().to_string();
-    unconfirmed_flight_plans().lock().unwrap().insert(
-        fp_id.clone(),
-        FlightPlanData {
-            pilot_id: "".to_string(),
-            vehicle_id: "".to_string(),
-            cargo_weight: vec![],
-            flight_distance: 0,
-            weather_conditions: "".to_string(),
-            departure_vertiport_id: "".to_string(),
-            departure_pad_id: "".to_string(),
-            destination_vertiport_id: "".to_string(),
-            destination_pad_id: "".to_string(),
-            scheduled_departure: None,
-            scheduled_arrival: None,
-            actual_departure: None,
-            actual_arrival: None,
-            flight_release_approval: None,
-            flight_plan_submitted: None,
-            approved_by: None,
-            flight_status: 0,
-            flight_priority: 0,
-        },
-    );
+    unconfirmed_flight_plans()
+        .lock()
+        .unwrap()
+        .insert(fp_id.clone(), fp.clone());
 
     //8. automatically cancel draft flight plan if not confirmed by user
     cancel_flight_after_timeout(fp_id.clone());
     //9. return response - TODO copy from storage flight plan
     let item = QueryFlightPlan {
         id: fp_id,
-        pilot_id: 1,
-        aircraft_id: 1,
+        pilot_id: "1".to_string(),
+        vehicle_id: "1".to_string(),
         cargo: [123].to_vec(),
         weather_conditions: "Sunny, no wind :)".to_string(),
-        vertiport_id_departure: 1,
-        pad_id_departure: 1,
-        vertiport_id_destination: 1,
-        pad_id_destination: 1,
-        estimated_departure: Some(Timestamp {
-            seconds: departure_time.timestamp(),
-            nanos: departure_time.timestamp_subsec_nanos() as i32,
-        }),
-        estimated_arrival: Some(Timestamp {
-            seconds: arrival_time.timestamp(),
-            nanos: arrival_time.timestamp_subsec_nanos() as i32,
-        }),
+        vertiport_depart_id: "1".to_string(),
+        pad_depart_id: "1".to_string(),
+        vertiport_arrive_id: "1".to_string(),
+        pad_arrive_id: "1".to_string(),
+        estimated_departure: fp.clone().scheduled_departure,
+        estimated_arrival: fp.clone().scheduled_arrival,
         actual_departure: None,
         actual_arrival: None,
         flight_release_approval: None,
         flight_plan_submitted: None,
         flight_status: FlightStatus::Ready as i32,
         flight_priority: FlightPriority::Low as i32,
+        estimated_distance: fp.flight_distance,
     };
     let response = QueryFlightResponse {
         flights: [item].to_vec(),
