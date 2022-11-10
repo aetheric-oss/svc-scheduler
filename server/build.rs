@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     client_config
         .build_server(false)
-        .out_dir("../client/src")
+        .out_dir("../client-grpc/src")
         .compile(&["../proto/svc-scheduler-grpc.proto"], &["../proto"])?;
 
     Ok(())

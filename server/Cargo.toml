@@ -20,7 +20,7 @@ openssl                 = "0.10"
 ordered-float           = "3.2.0"
 prost                   = "0.11"
 prost-types             = "0.11.1"
-router                  = { git = "https://github.com/Arrow-air/lib-router.git", branch = "roman/dw-212/svc-scheduler-v1" }
+router                  = { git = "https://github.com/Arrow-air/lib-router.git" }
 rrule                   = "0.10.0"
 svc-storage-client-grpc = { git = "https://github.com/Arrow-air/svc-storage.git", branch = "develop" }
 tokio                   = { version = "1.20", features = ["full"] }

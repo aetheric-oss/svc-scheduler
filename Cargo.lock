@@ -310,6 +310,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "foreign-types"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1"
+dependencies = [
+ "foreign-types-shared",
+]
+
+[[package]]
+name = "foreign-types-shared"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
+
+[[package]]
 name = "futures-channel"
 version = "0.3.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -687,6 +702,55 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86f0b0d4bf799edbc74508c1e8bf170ff5f41238e5f8225603ca7caaae2b7860"
 
 [[package]]
+name = "openssl"
+version = "0.10.42"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12fc0523e3bd51a692c8850d075d74dc062ccf251c0110668cbd921917118a13"
+dependencies = [
+ "bitflags",
+ "cfg-if",
+ "foreign-types",
+ "libc",
+ "once_cell",
+ "openssl-macros",
+ "openssl-sys",
+]
+
+[[package]]
+name = "openssl-macros"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b501e44f11665960c7e7fcf062c7d96a14ade4aa98116c004b2e37b5be7d736c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "openssl-src"
+version = "111.24.0+1.1.1s"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3498f259dab01178c6228c6b00dcef0ed2a2d5e20d648c017861227773ea4abd"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "openssl-sys"
+version = "0.9.77"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b03b84c3b2d099b81f0953422b4d4ad58761589d0229b5506356afca05a3670a"
+dependencies = [
+ "autocfg",
+ "cc",
+ "libc",
+ "openssl-src",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
 name = "ordered-float"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -820,6 +884,12 @@ name = "piston-float"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad78bf43dcf80e8f950c92b84f938a0fc7590b7f6866fbcbeca781609c115590"
+
+[[package]]
+name = "pkg-config"
+version = "0.3.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 
 [[package]]
 name = "ppv-lite86"
@@ -987,7 +1057,7 @@ dependencies = [
 [[package]]
 name = "router"
 version = "0.1.0"
-source = "git+https://github.com/Arrow-air/lib-router.git?branch=roman/dw-212/svc-scheduler-v1#ddd6eb2896165b8732d7e8a11c7e5d6c6357e93f"
+source = "git+https://github.com/Arrow-air/lib-router.git#9e14a537f5d083c62e99a68a1f650cc00894675a"
 dependencies = [
  "cargo-husky",
  "chrono",
@@ -1106,7 +1176,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "svc-scheduler"
-version = "0.2.0-develop.2"
+version = "0.2.2-develop.0"
 dependencies = [
  "cargo-husky",
  "chrono",
@@ -1114,6 +1184,7 @@ dependencies = [
  "dotenv",
  "iso8601-duration",
  "once_cell",
+ "openssl",
  "ordered-float",
  "prost",
  "prost-types",
@@ -1128,8 +1199,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "svc-scheduler-client"
-version = "0.1.0"
+name = "svc-scheduler-client-grpc"
+version = "0.2.0-develop.0"
 dependencies = [
  "chrono",
  "chrono-tz 0.8.0",
@@ -1488,6 +1559,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "vcpkg"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "vecmath"

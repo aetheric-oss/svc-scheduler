@@ -99,4 +99,3 @@
 -  **ci:** dockerfile - provisioned by terraform ([`1308db8`](https://github.com/Arrow-air/svc-scheduler/commit/1308db88c6324a6e25be45c303e6afe62d645b65))
 -  **ci:** docker-compose.yml - provisioned by terraform ([`a8cfee9`](https://github.com/Arrow-air/svc-scheduler/commit/a8cfee9e72997240591586a4fcc39db4eb5afb53))
 -  **ci:** add CHANGELOG.md and fix docker build ([`a6179da`](https://github.com/Arrow-air/svc-scheduler/commit/a6179dac227a5b6c943b869893ebbbf345960674))
-
