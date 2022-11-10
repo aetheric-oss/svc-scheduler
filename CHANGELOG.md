@@ -1,3 +1,18 @@
+## [Release 0.2.1-develop.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.1-develop.0)
+
+### 🐛 Fixes
+
+-  **grpc:** server and clients start ([`6efa909`](https://github.com/Arrow-air/svc-scheduler/commit/6efa909a1953796cb712a9f878de9f8cdd8b66ba))
+
+### 🛠 Maintenance
+
+-  **ci:** update changelog ([`0234732`](https://github.com/Arrow-air/svc-scheduler/commit/023473211a26c1ad9378c771cedeaf96251bba62))
+-  **ci:** update package version ([`719ca0b`](https://github.com/Arrow-air/svc-scheduler/commit/719ca0bdf1fad038279dce4efae9eb51e447466c))
+-  **ci:** update package version<br/><br/>[skip ci] ([`f00396f`](https://github.com/Arrow-air/svc-scheduler/commit/f00396ffc79b8466b337ea36b75c325704db980c))
+-  **ci:** .make/rust.mk - provisioned by terraform ([`ee8b85c`](https://github.com/Arrow-air/svc-scheduler/commit/ee8b85c26efe6e686aa8ca2ae9dcd931dd57f1a2))
+-  **ci:** dockerfile - provisioned by terraform ([`d6e226b`](https://github.com/Arrow-air/svc-scheduler/commit/d6e226b670bee08a79675917b77e5e41f4665ccd))
+-  **ci:** .github/workflows/release.yml - provisioned by terraform ([`e436d57`](https://github.com/Arrow-air/svc-scheduler/commit/e436d572e7561fd8996e961d5e561028adf79be6))
+
 ## [Release 0.2.0-develop.2](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.0-develop.2)
 
 ### 🛠 Maintenance
