@@ -1,3 +1,9 @@
+## [Release 0.2.2-develop.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.2-develop.0)
+
+### 🐛 Fixes
+
+-  **cargo:** add vendored-openssl feature ([`c96f498`](https://github.com/Arrow-air/svc-scheduler/commit/c96f498464f504716eb19bd2d1c44650785cef1e))
+
 ## [Release 0.2.1-develop.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.1-develop.0)
 
 ### 🐛 Fixes
