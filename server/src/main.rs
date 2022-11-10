@@ -10,7 +10,7 @@ pub mod queries;
 use router::router_state::{init_router_from_vertiports, is_router_initialized};
 
 use dotenv::dotenv;
-use once_cell::sync::OnceCell;
+use tokio::sync::OnceCell;
 
 use scheduler_grpc::scheduler_rpc_server::{SchedulerRpc, SchedulerRpcServer};
 use scheduler_grpc::{
@@ -26,11 +26,12 @@ use tonic::{transport::Channel, transport::Server, Request, Response, Status};
 
 /// GRPC clients for storage service -
 /// it has to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
-pub static VEHICLE_CLIENT: OnceCell<VehicleRpcClient<Channel>> = OnceCell::new();
+pub(crate) static VEHICLE_CLIENT: OnceCell<VehicleRpcClient<Channel>> = OnceCell::const_new();
 /// Vertiport client
-pub static VERTIPORT_CLIENT: OnceCell<VertiportRpcClient<Channel>> = OnceCell::new();
+pub(crate) static VERTIPORT_CLIENT: OnceCell<VertiportRpcClient<Channel>> = OnceCell::const_new();
 /// Flight Plan client
-pub static FLIGHT_PLAN_CLIENT: OnceCell<FlightPlanRpcClient<Channel>> = OnceCell::new();
+pub(crate) static FLIGHT_PLAN_CLIENT: OnceCell<FlightPlanRpcClient<Channel>> =
+    OnceCell::const_new();
 
 /// shorthand function to clone vehicle client
 pub fn get_vehicle_client() -> VehicleRpcClient<Channel> {
@@ -121,41 +122,102 @@ async fn init_router(mut vertiport_client: VertiportRpcClient<Channel>) {
     }
 }
 
+async fn init_grpc_clients() {
+    //initialize storage client here so it can be used in other methods
+    // Storage GRPC Server
+    let storage_grpc_port = std::env::var("STORAGE_PORT_GRPC")
+        .unwrap_or_else(|_| "50051".to_string())
+        .parse::<u16>()
+        .unwrap_or(50051);
+    let storage_grpc_host =
+        std::env::var("STORAGE_HOST_GRPC").unwrap_or_else(|_| "localhost".to_string());
+
+    let storage_full_grpc_addr =
+        format!("http://{storage_grpc_host}:{storage_grpc_port}").to_string();
+
+    match FLIGHT_PLAN_CLIENT
+        .get_or_try_init(|| async {
+            println!(
+                "Setting up connection to svc-storage flight plan on {}",
+                storage_full_grpc_addr
+            );
+            FlightPlanRpcClient::connect(storage_full_grpc_addr.clone()).await
+        })
+        .await
+    {
+        Ok(_) => (),
+        Err(e) => println!(
+            "Unable to connect to svc-storage flight plan at {}; {}",
+            storage_full_grpc_addr.clone(),
+            e
+        ),
+    };
+
+    match VERTIPORT_CLIENT
+        .get_or_try_init(|| async {
+            println!(
+                "Setting up connection to svc-storage vertiport on {}",
+                storage_full_grpc_addr
+            );
+            VertiportRpcClient::connect(storage_full_grpc_addr.clone()).await
+        })
+        .await
+    {
+        Ok(_) => (),
+        Err(e) => println!(
+            "Unable to connect to svc-storage vertiport at {}; {}",
+            storage_full_grpc_addr, e
+        ),
+    };
+
+    match VEHICLE_CLIENT
+        .get_or_try_init(|| async {
+            println!(
+                "Setting up connection to svc-storage vehicle on {}",
+                storage_full_grpc_addr
+            );
+            VehicleRpcClient::connect(storage_full_grpc_addr.clone()).await
+        })
+        .await
+    {
+        Ok(_) => (),
+        Err(e) => println!(
+            "Unable to connect to svc-storage vehicle at {}; {}",
+            storage_full_grpc_addr, e
+        ),
+    };
+}
+
 ///Main entry point: starts gRPC Server on specified address and port
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
     //initialize storage client here so it can be used in other methods
-    //todo change url to env variable
-    FLIGHT_PLAN_CLIENT
-        .set(FlightPlanRpcClient::connect("http://[::1]:50052").await?)
-        .unwrap();
-    VERTIPORT_CLIENT
-        .set(VertiportRpcClient::connect("http://[::1]:50052").await?)
-        .unwrap();
-    VEHICLE_CLIENT
-        .set(VehicleRpcClient::connect("http://[::1]:50052").await?)
-        .unwrap();
+    init_grpc_clients().await;
     // Initialize Router from vertiport data
     init_router(get_vertiport_client()).await;
+
     // GRPC Server
     let grpc_port = std::env::var("DOCKER_PORT_GRPC")
         .unwrap_or_else(|_| "50051".to_string())
         .parse::<u16>()
         .unwrap_or(50051);
-    let addr = format!("[::]:{grpc_port}").parse().unwrap();
-    println!("gRPC server running at: {}", addr);
+    let full_grpc_addr = format!("[::]:{grpc_port}").parse()?;
+
     let scheduler = SchedulerGrpcImpl::default();
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
         .set_serving::<SchedulerRpcServer<SchedulerGrpcImpl>>()
         .await;
 
+    //start server
+    println!("Starting gRPC server at: {}", full_grpc_addr);
     Server::builder()
         .add_service(health_service)
         .add_service(SchedulerRpcServer::new(scheduler))
-        .serve(addr)
+        .serve(full_grpc_addr)
         .await?;
-    println!("gRPC Server Listening at {}", addr);
+    println!("gRPC Server Listening at {}", full_grpc_addr);
+
     Ok(())
 }
