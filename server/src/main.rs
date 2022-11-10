@@ -91,7 +91,7 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<Id>,
     ) -> Result<Response<CancelFlightResponse>, Status> {
-        queries::cancel_flight(request).await
+        queries::cancel_flight(request, get_flight_plan_client()).await
     }
 
     /// Returns ready:true when service is available
