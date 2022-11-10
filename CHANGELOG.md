@@ -1,3 +1,13 @@
+## [Release 0.2.3-develop.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.3-develop.0)
+
+### 🐛 Fixes
+
+- cancel flight now will cancel draft and confirmed flight plans; error handling implemented ([`6b6afdb`](https://github.com/Arrow-air/svc-scheduler/commit/6b6afdb545007c686f831c6cb34803d23e3720b8))
+
+### 📚 Documentation
+
+- update ICD document ([`ea08032`](https://github.com/Arrow-air/svc-scheduler/commit/ea08032666b9e60112414076f10001c19e1f9f23))
+
 ## [Release 0.2.2-develop.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.2-develop.0)
 
 ### 🐛 Fixes
