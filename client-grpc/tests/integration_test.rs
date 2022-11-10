@@ -2,7 +2,7 @@
 //! More information: https://doc.rust-lang.org/book/testing-rust.html#integration-tests
 
 use std::time::SystemTime;
-use svc_scheduler_client::grpc::{
+use svc_scheduler_client_grpc::grpc::{
     scheduler_rpc_client::SchedulerRpcClient, Id, QueryFlightRequest, ReadyRequest,
 };
 
