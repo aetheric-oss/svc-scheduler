@@ -26,8 +26,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         is_cargo: true,
         persons: Some(0),
         weight_grams: Some(5000),
-        vertiport_depart_id: "a6aa2f85-afd6-4079-abc1-84e41a05b449".to_string(),
-        vertiport_arrive_id: "9d14eb4f-4ef6-4ba5-84dd-6536f98b8516".to_string(),
+        vertiport_depart_id: "a3509e85-6421-4dd1-8593-74950b88577e".to_string(),
+        vertiport_arrive_id: "99c3bd83-79ef-4044-a903-5dac6f557193".to_string(),
         departure_time: Some(Timestamp {
             seconds: departure_time,
             nanos: 0,

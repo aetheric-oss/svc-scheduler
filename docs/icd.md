@@ -41,9 +41,11 @@ See the High-Level ICD.
 
 ### gRPC Server Methods ("Services")
 
-| Service | Description |
-| ---- | ---- |
-`is_ready` | Returns `true` if server is up and running.
-`query_flight` | Takes requested departure and arrival vertiport ids and departure/arrival time window and returns next available flight draft. (as an array with one result)
-`confirm_flight` | Takes `id` of the draft flight plan returned from the `query_flight` and confirms the flight.
-`cancel_flight` | Takes `id` of the flight plan (either draft or confirmed) and cancels the flight.
+| Service          | Arguments                                                                                                                                                                                        | Description                                                                                                                                                  |
+|------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `is_ready`       | (empty)                                                                                                                                                                                          | Returns `true` if server is up and running.                                                                                                                  |
+| `query_flight`   | `bool` isCargo<br/>`uint32` persons<br/>`uint32` weight_grams<br/>`Timestamp` departure_time<br/>`Timestamp` arrival_time<br/>`string` vertiport_depart_id<br/>`string` vertiport_arrive_id<br/> | Takes requested departure and arrival vertiport ids and departure/arrival time window and returns next available flight draft. (as an array with one result) |
+| `confirm_flight` | id                                                                                                                                                                                               | Takes `id` of the draft flight plan returned from the `query_flight` and confirms the flight.                                                                |
+| `cancel_flight`  | id                                                                                                                                                                                               | Takes `id` of the flight plan (either draft or confirmed) and cancels the flight.                                                                            |
+
+
