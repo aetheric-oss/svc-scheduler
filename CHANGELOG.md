@@ -1,3 +1,16 @@
+## [Release 0.2.0-develop.2](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.0-develop.2)
+
+### 🛠 Maintenance
+
+-  **ci:** update changelog ([`7e1d768`](https://github.com/Arrow-air/svc-scheduler/commit/7e1d7683b10479673e1652c8af3a4f54a744ed1d))
+-  **ci:** update package version ([`f13049a`](https://github.com/Arrow-air/svc-scheduler/commit/f13049ae83fa18f713b95addf5c9d8555016fc5f))
+-  **ci:** update package version<br/><br/>[skip ci] ([`c3cad4f`](https://github.com/Arrow-air/svc-scheduler/commit/c3cad4f9f73dd516db82eef5524b0c3b79e354b6))
+- refactor code to lib-router, change fields on QueryFlightPlan ([`c13571d`](https://github.com/Arrow-air/svc-scheduler/commit/c13571d11c16112cb7dc3fd57afc489537322db7))
+
+### 📚 Documentation
+
+- update ICD document ([`ffe243c`](https://github.com/Arrow-air/svc-scheduler/commit/ffe243c365c3e2f90f9d4083b04af116d7fcf833))
+
 ## [Release 0.2.0-develop.1](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.0-develop.1)
 
 ### 🛠 Maintenance
