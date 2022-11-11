@@ -20,4 +20,4 @@ name = "svc_scheduler_client_grpc"
 path = "src/lib.rs"
 
 [[example]]
-name = "client"
+name = "grpc"
