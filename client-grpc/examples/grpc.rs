@@ -10,7 +10,6 @@ use chrono_tz::Tz;
 use prost_types::Timestamp;
 use scheduler_grpc::scheduler_rpc_client::SchedulerRpcClient;
 use scheduler_grpc::{Id, QueryFlightRequest};
-use std::time::SystemTime;
 use tonic::Request;
 
 /// Example svc-scheduler-client
