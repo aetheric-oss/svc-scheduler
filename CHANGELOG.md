@@ -1,3 +1,13 @@
+## [Release 0.2.4-develop.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.4-develop.0)
+
+### 🐛 Fixes
+
+- rename example ([`adbf1fa`](https://github.com/Arrow-air/svc-scheduler/commit/adbf1faf5de925bcee2ce686d6a52c52fe72c255))
+
+### 🛠 Maintenance
+
+-  **grpc:** move grpc client to client-grpc folder ([`6310fbc`](https://github.com/Arrow-air/svc-scheduler/commit/6310fbc152acd1d601d4b5b494f7b1c56435025c))
+
 ## [Release 0.2.3-develop.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.3-develop.0)
 
 ### 🐛 Fixes
