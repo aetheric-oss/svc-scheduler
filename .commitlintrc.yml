@@ -1,3 +1,8 @@
+---
+## DO NOT EDIT!
+## This file was provisioned by Terraform
+## File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/all/.commitlintrc.yml
+
 rules:
   body-leading-blank: [1, always]
   body-max-line-length: [2, always, 100]

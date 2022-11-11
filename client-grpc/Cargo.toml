@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name    = "svc-scheduler-client-grpc"
-version = "0.2.0-develop.0"
+version = "0.2.4-develop.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/scheduler/reference/manifest.html
 
@@ -20,4 +20,4 @@ name = "svc_scheduler_client_grpc"
 path = "src/lib.rs"
 
 [[example]]
-name = "client"
+name = "grpc"
