@@ -40,3 +40,5 @@ nanos
 subsec
 codeowners
 commitlintrc
+romanmandryk
+vertipads
