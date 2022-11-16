@@ -1,3 +1,13 @@
+## [Release 0.2.5-develop.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.5-develop.0)
+
+### 🐛 Fixes
+
+- use fp_id for cancel requests ([`9741f5b`](https://github.com/Arrow-air/svc-scheduler/commit/9741f5bd8d216948a450c82b42524e32f7ec4da6))
+
+### 🛠 Maintenance
+
+-  **ci:** .commitlintrc.yml - provisioned by terraform ([`beb1f18`](https://github.com/Arrow-air/svc-scheduler/commit/beb1f18561911b8c123249ff223f873946537339))
+
 ## [Release 0.2.4-develop.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.4-develop.0)
 
 ### 🐛 Fixes
