@@ -217,7 +217,7 @@ pub async fn cancel_flight(
         if found {
             storage_client
                 .update_flight_plan(Request::new(UpdateFlightPlan {
-                    id: "".to_string(),
+                    id: fp_id.clone(),
                     data: Option::from(FlightPlanData {
                         pilot_id: "".to_string(),
                         vehicle_id: "".to_string(),
