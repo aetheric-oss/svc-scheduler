@@ -1,3 +1,9 @@
+## [Release 0.2.5-develop.1](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.5-develop.1)
+
+### 📚 Documentation
+
+-  **sdd:** add sdd document ([`2e347e6`](https://github.com/Arrow-air/svc-scheduler/commit/2e347e64ffa2422f68c56f98acf9a560d329b63a))
+
 ## [Release 0.2.5-develop.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.5-develop.0)
 
 ### 🐛 Fixes
