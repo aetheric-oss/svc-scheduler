@@ -12,6 +12,9 @@ use router::router_state::{init_router_from_vertiports, is_router_initialized};
 use dotenv::dotenv;
 use tokio::sync::OnceCell;
 
+#[macro_use]
+extern crate log;
+
 use scheduler_grpc::scheduler_rpc_server::{SchedulerRpc, SchedulerRpcServer};
 use scheduler_grpc::{
     CancelFlightResponse, ConfirmFlightResponse, Id, QueryFlightRequest, QueryFlightResponse,
@@ -69,13 +72,17 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<QueryFlightRequest>,
     ) -> Result<Response<QueryFlightResponse>, Status> {
-        queries::query_flight(
+        let res = queries::query_flight(
             request,
             get_flight_plan_client(),
             get_vehicle_client(),
             get_vertiport_client(),
         )
-        .await
+        .await;
+        if res.is_err() {
+            error!("{}", res.as_ref().err().unwrap());
+        }
+        res
     }
 
     ///Confirms the draft flight plan by id.
@@ -83,7 +90,11 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<Id>,
     ) -> Result<Response<ConfirmFlightResponse>, Status> {
-        queries::confirm_flight(request, get_flight_plan_client()).await
+        let res = queries::confirm_flight(request, get_flight_plan_client()).await;
+        if res.is_err() {
+            error!("{}", res.as_ref().err().unwrap());
+        }
+        res
     }
 
     ///Cancels the draft flight plan by id.
@@ -91,7 +102,11 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<Id>,
     ) -> Result<Response<CancelFlightResponse>, Status> {
-        queries::cancel_flight(request, get_flight_plan_client()).await
+        let res = queries::cancel_flight(request, get_flight_plan_client()).await;
+        if res.is_err() {
+            error!("{}", res.as_ref().err().unwrap());
+        }
+        res
     }
 
     /// Returns ready:true when service is available
@@ -116,9 +131,12 @@ async fn init_router(mut vertiport_client: VertiportRpcClient<Channel>) {
         .unwrap()
         .into_inner()
         .vertiports;
-    println!("Vertiports found: {}", vertiports.len());
+    info!("Initializing router with {} vertiports ", vertiports.len());
     if !is_router_initialized() {
-        init_router_from_vertiports(&vertiports);
+        let res = init_router_from_vertiports(&vertiports);
+        if res.is_err() {
+            error!("Failed to initialize router: {}", res.err().unwrap());
+        }
     }
 }
 
@@ -191,7 +209,10 @@ async fn init_grpc_clients() {
 ///Main entry point: starts gRPC Server on specified address and port
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    //initialize dotenv library which reads .env file
     dotenv().ok();
+    //initialize logger
+    env_logger::init();
     //initialize storage client here so it can be used in other methods
     init_grpc_clients().await;
     // Initialize Router from vertiport data
@@ -211,13 +232,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await;
 
     //start server
-    println!("Starting gRPC server at: {}", full_grpc_addr);
+    info!("Starting gRPC server at: {}", full_grpc_addr);
     Server::builder()
         .add_service(health_service)
         .add_service(SchedulerRpcServer::new(scheduler))
         .serve(full_grpc_addr)
         .await?;
-    println!("gRPC Server Listening at {}", full_grpc_addr);
+    info!("gRPC Server Listening at {}", full_grpc_addr);
 
     Ok(())
 }
