@@ -1,3 +1,15 @@
+## [Release 0.2.5-develop.2](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.5-develop.2)
+
+### 🛠 Maintenance
+
+-  **ci:** .make/docker.mk - provisioned by terraform ([`c35d8a3`](https://github.com/Arrow-air/svc-scheduler/commit/c35d8a31f3bfd349c16d45c02a5028b25484afc9))
+-  **ci:** .make/env.mk - provisioned by terraform ([`7ec322c`](https://github.com/Arrow-air/svc-scheduler/commit/7ec322c5284a22c42d763e67aef31289f5527cce))
+-  **ci:** .env.base.tftpl - provisioned by terraform ([`0081378`](https://github.com/Arrow-air/svc-scheduler/commit/0081378990fa37f52782f130c99b52326d1aaa44))
+-  **ci:** makefile - provisioned by terraform ([`82e4020`](https://github.com/Arrow-air/svc-scheduler/commit/82e4020e983f2f99bd2723bc584f9af3ad7835b3))
+-  **ci:** .env.base - provisioned by terraform ([`20bd9b4`](https://github.com/Arrow-air/svc-scheduler/commit/20bd9b415fd6af05409393f9e467fac20d525ac1))
+-  **ci:** .make/env.mk - provisioned by terraform ([`bf8380f`](https://github.com/Arrow-air/svc-scheduler/commit/bf8380fee88f872c7440392467211c1ca0881c10))
+-  **logging:** add logging capability and messages (#15) ([`38417cc`](https://github.com/Arrow-air/svc-scheduler/commit/38417cc7d2376484eeae03a9ecb68714a7cc324b))
+
 ## [Release 0.2.5-develop.1](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.5-develop.1)
 
 ### 📚 Documentation
