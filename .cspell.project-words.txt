@@ -42,3 +42,4 @@ codeowners
 commitlintrc
 romanmandryk
 vertipads
+vertipad

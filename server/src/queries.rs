@@ -45,6 +45,10 @@ pub async fn query_flight(
     mut vertiport_client: VertiportRpcClient<tonic::transport::Channel>,
 ) -> Result<Response<QueryFlightResponse>, Status> {
     let flight_request = request.into_inner();
+    info!(
+        "query_flight with vertiport depart, arrive ids: {}, {}",
+        &flight_request.vertiport_depart_id, &flight_request.vertiport_arrive_id
+    );
     let depart_vertiport = vertiport_client
         .vertiport_by_id(Request::new(StorageId {
             id: flight_request.vertiport_depart_id,
@@ -57,6 +61,10 @@ pub async fn query_flight(
         }))
         .await?
         .into_inner();
+    debug!(
+        "depart_vertiport: {:?}, arrive_vertiport: {:?}",
+        &depart_vertiport, &arrive_vertiport
+    );
     let departure_vertiport_flights: Vec<FlightPlan> = vec![];
     /*todo storage_client
     .flight_plans(Request::new(FlightPlanFilter {})) //todo filter flight_plans(estimated_departure_between: ($from, $to), vertiport_id: $ID)
@@ -70,7 +78,11 @@ pub async fn query_flight(
     .await?
     .into_inner()
     .flight_plans;*/
-
+    debug!(
+        "departure_vertiport_flights: {}, arrival_vertiport_flights: {}",
+        &departure_vertiport_flights.len(),
+        &arrival_vertiport_flights.len()
+    );
     if !departure_vertiport_flights.is_empty() {
         return Err(Status::not_found("Departure vertiport not available"));
     }
@@ -111,9 +123,14 @@ pub async fn query_flight(
         return Err(Status::not_found("No flight plans available"));
     }
     let flight_plans = flight_plans.unwrap();
+    info!("Found  {} flight plans from router", &flight_plans.len());
     let fp = flight_plans.first().unwrap();
     //7. create draft flight plan (in memory)
     let fp_id = Uuid::new_v4().to_string();
+    info!(
+        "Adding draft flight plan with temporary id: {} with timeout {} seconds",
+        &fp_id, CANCEL_FLIGHT_SECONDS
+    );
     unconfirmed_flight_plans()
         .lock()
         .expect("Mutex Lock Error inserting flight plan into temp storage")
@@ -140,11 +157,16 @@ pub async fn query_flight(
         flight_plan_submitted: None,
         flight_status: FlightStatus::Ready as i32,
         flight_priority: FlightPriority::Low as i32,
-        estimated_distance: fp.flight_distance,
+        estimated_distance: fp.flight_distance as u32,
     };
+    debug!("query_flight response: {:?}", &item);
     let response = QueryFlightResponse {
         flights: [item].to_vec(),
     };
+    info!(
+        "query_flight returning: {} flight plans",
+        &response.flights.len()
+    );
     Ok(Response::new(response))
 }
 
@@ -163,6 +185,7 @@ fn remove_fp_by_id(id: String) -> bool {
     let found = flight_plans.get(&id).is_some();
     if found {
         flight_plans.remove(&id);
+        info!("cancel_flight with id {} removed from local cache", &id);
     }
     found
 }
@@ -173,6 +196,7 @@ pub async fn confirm_flight(
     mut storage_client: FlightPlanRpcClient<tonic::transport::Channel>,
 ) -> Result<Response<ConfirmFlightResponse>, Status> {
     let fp_id = request.into_inner().id;
+    info!("confirm_flight with id {}", &fp_id);
     let draft_fp = get_fp_by_id(fp_id.clone());
     return if draft_fp.is_none() {
         Err(Status::not_found("Flight plan not found"))
@@ -182,6 +206,7 @@ pub async fn confirm_flight(
             .await?
             .into_inner();
         let sys_time = SystemTime::now();
+        info!("confirm_flight: Flight plan with draft id: {} inserted in to storage with permanent id:{}", &fp_id, &fp.id);
         let response = ConfirmFlightResponse {
             id: fp.id,
             confirmed: true,
@@ -208,6 +233,7 @@ pub async fn cancel_flight(
     mut storage_client: FlightPlanRpcClient<tonic::transport::Channel>,
 ) -> Result<Response<CancelFlightResponse>, Status> {
     let fp_id = request.into_inner().id;
+    info!("cancel_flight with id {}", &fp_id);
     let mut found = remove_fp_by_id(fp_id.clone());
     if !found {
         let fp = storage_client
@@ -221,13 +247,13 @@ pub async fn cancel_flight(
                     data: Option::from(FlightPlanData {
                         pilot_id: "".to_string(),
                         vehicle_id: "".to_string(),
-                        cargo_weight: vec![],
+                        cargo_weight_g: vec![],
                         flight_distance: 0,
                         weather_conditions: "".to_string(),
-                        departure_vertiport_id: "".to_string(),
-                        departure_pad_id: "".to_string(),
-                        destination_vertiport_id: "".to_string(),
-                        destination_pad_id: "".to_string(),
+                        departure_vertiport_id: Some("".to_string()),
+                        departure_vertipad_id: "".to_string(),
+                        destination_vertiport_id: Some("".to_string()),
+                        destination_vertipad_id: "".to_string(),
                         scheduled_departure: None,
                         scheduled_arrival: None,
                         actual_departure: None,
@@ -243,6 +269,7 @@ pub async fn cancel_flight(
                     }),
                 }))
                 .await?;
+            info!("cancel_flight with id {} cancelled in storage", &fp_id);
         }
     }
     if found {
@@ -255,6 +282,10 @@ pub async fn cancel_flight(
         };
         Ok(Response::new(response))
     } else {
-        Err(Status::not_found("Flight plan not found"))
+        let err_msg = format!(
+            "cancel_flight with id {} not found neither in local cache nor storage",
+            &fp_id
+        );
+        Err(Status::not_found(err_msg))
     }
 }
