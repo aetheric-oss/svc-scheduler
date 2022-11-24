@@ -32,6 +32,7 @@ fn cancel_flight_after_timeout(id: String) {
             .lock()
             .expect("Mutex Lock Error removing flight plan after timeout");
         if flight_plans.get(&id).is_some() {
+            debug!("Flight plan {} was not confirmed in time, cancelling", id);
             flight_plans.remove(&id);
         };
     });
