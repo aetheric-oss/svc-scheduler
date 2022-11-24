@@ -33,3 +33,6 @@ target/
 
 # Don't add DS_Store
 .DS_Store
+
+# Logger Output
+log/
