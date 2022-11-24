@@ -212,7 +212,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //initialize dotenv library which reads .env file
     dotenv().ok();
     //initialize logger
-    env_logger::init();
+    let log_cfg: &str = "log4rs.yaml";
+    if let Err(e) = log4rs::init_file(log_cfg, Default::default()) {
+        println!("(logger) could not parse {}. {}", log_cfg, e);
+        panic!();
+    }
     //initialize storage client here so it can be used in other methods
     init_grpc_clients().await;
     // Initialize Router from vertiport data
