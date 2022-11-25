@@ -1,3 +1,9 @@
+## [Release 0.2.5-develop.3](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.5-develop.3)
+
+### 🛠 Maintenance
+
+-  **logging:** change logger to log4rs ([`e4679a0`](https://github.com/Arrow-air/svc-scheduler/commit/e4679a0dec57ac6afc2267d520a84898d8f91457))
+
 ## [Release 0.2.5-develop.2](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.5-develop.2)
 
 ### 🛠 Maintenance
