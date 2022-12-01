@@ -1,6 +1,5 @@
 /// QueryFlightRequest
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightRequest {
     /// is_cargo - true if cargo mission, false if people transport
     #[prost(bool, tag = "1")]
@@ -25,8 +24,7 @@ pub struct QueryFlightRequest {
     pub vertiport_arrive_id: ::prost::alloc::string::String,
 }
 /// QueryFlightPlan
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightPlan {
     /// id of the flight
     #[prost(string, tag = "1")]
@@ -84,24 +82,21 @@ pub struct QueryFlightPlan {
     pub estimated_distance: u32,
 }
 /// QueryFlightResponse
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightResponse {
     /// array/vector of flight items
     #[prost(message, repeated, tag = "1")]
     pub flights: ::prost::alloc::vec::Vec<QueryFlightPlan>,
 }
 /// Id type for passing id only requests
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct Id {
     /// id
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
 }
 /// ConfirmFlightResponse
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct ConfirmFlightResponse {
     /// id
     #[prost(string, tag = "1")]
@@ -114,8 +109,7 @@ pub struct ConfirmFlightResponse {
     pub confirmation_time: ::core::option::Option<::prost_types::Timestamp>,
 }
 /// CancelFlightResponse
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct CancelFlightResponse {
     /// id
     #[prost(string, tag = "1")]
@@ -133,12 +127,10 @@ pub struct CancelFlightResponse {
 /// Ready Request
 ///
 /// No arguments
-#[derive(Eq, Copy)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Copy, Clone, PartialEq, ::prost::Message)]
 pub struct ReadyRequest {}
 /// Ready Response
-#[derive(Eq, Copy)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Copy, Clone, PartialEq, ::prost::Message)]
 pub struct ReadyResponse {
     /// ready
     #[prost(bool, tag = "1")]
@@ -225,7 +217,7 @@ pub mod scheduler_rpc_server {
             request: tonic::Request<super::ReadyRequest>,
         ) -> Result<tonic::Response<super::ReadyResponse>, tonic::Status>;
     }
-    ///Scheduler service
+    /// Scheduler service
     #[derive(Debug)]
     pub struct SchedulerRpcServer<T: SchedulerRpc> {
         inner: _Inner<T>,
@@ -245,10 +237,7 @@ pub mod scheduler_rpc_server {
                 send_compression_encodings: Default::default(),
             }
         }
-        pub fn with_interceptor<F>(
-            inner: T,
-            interceptor: F,
-        ) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -276,10 +265,7 @@ pub mod scheduler_rpc_server {
         type Response = http::Response<tonic::body::BoxBody>;
         type Error = std::convert::Infallible;
         type Future = BoxFuture<Self::Response, Self::Error>;
-        fn poll_ready(
-            &mut self,
-            _cx: &mut Context<'_>,
-        ) -> Poll<Result<(), Self::Error>> {
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             Poll::Ready(Ok(()))
         }
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
@@ -288,23 +274,15 @@ pub mod scheduler_rpc_server {
                 "/grpc.SchedulerRpc/queryFlight" => {
                     #[allow(non_camel_case_types)]
                     struct queryFlightSvc<T: SchedulerRpc>(pub Arc<T>);
-                    impl<
-                        T: SchedulerRpc,
-                    > tonic::server::UnaryService<super::QueryFlightRequest>
-                    for queryFlightSvc<T> {
+                    impl<T: SchedulerRpc> tonic::server::UnaryService<super::QueryFlightRequest> for queryFlightSvc<T> {
                         type Response = super::QueryFlightResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::QueryFlightRequest>,
                         ) -> Self::Future {
                             let inner = self.0.clone();
-                            let fut = async move {
-                                (*inner).query_flight(request).await
-                            };
+                            let fut = async move { (*inner).query_flight(request).await };
                             Box::pin(fut)
                         }
                     }
@@ -315,11 +293,10 @@ pub mod scheduler_rpc_server {
                         let inner = inner.0;
                         let method = queryFlightSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            );
+                        let mut grpc = tonic::server::Grpc::new(codec).apply_compression_config(
+                            accept_compression_encodings,
+                            send_compression_encodings,
+                        );
                         let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
@@ -328,21 +305,12 @@ pub mod scheduler_rpc_server {
                 "/grpc.SchedulerRpc/confirmFlight" => {
                     #[allow(non_camel_case_types)]
                     struct confirmFlightSvc<T: SchedulerRpc>(pub Arc<T>);
-                    impl<T: SchedulerRpc> tonic::server::UnaryService<super::Id>
-                    for confirmFlightSvc<T> {
+                    impl<T: SchedulerRpc> tonic::server::UnaryService<super::Id> for confirmFlightSvc<T> {
                         type Response = super::ConfirmFlightResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::Id>,
-                        ) -> Self::Future {
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(&mut self, request: tonic::Request<super::Id>) -> Self::Future {
                             let inner = self.0.clone();
-                            let fut = async move {
-                                (*inner).confirm_flight(request).await
-                            };
+                            let fut = async move { (*inner).confirm_flight(request).await };
                             Box::pin(fut)
                         }
                     }
@@ -353,11 +321,10 @@ pub mod scheduler_rpc_server {
                         let inner = inner.0;
                         let method = confirmFlightSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            );
+                        let mut grpc = tonic::server::Grpc::new(codec).apply_compression_config(
+                            accept_compression_encodings,
+                            send_compression_encodings,
+                        );
                         let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
@@ -366,21 +333,12 @@ pub mod scheduler_rpc_server {
                 "/grpc.SchedulerRpc/cancelFlight" => {
                     #[allow(non_camel_case_types)]
                     struct cancelFlightSvc<T: SchedulerRpc>(pub Arc<T>);
-                    impl<T: SchedulerRpc> tonic::server::UnaryService<super::Id>
-                    for cancelFlightSvc<T> {
+                    impl<T: SchedulerRpc> tonic::server::UnaryService<super::Id> for cancelFlightSvc<T> {
                         type Response = super::CancelFlightResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::Id>,
-                        ) -> Self::Future {
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(&mut self, request: tonic::Request<super::Id>) -> Self::Future {
                             let inner = self.0.clone();
-                            let fut = async move {
-                                (*inner).cancel_flight(request).await
-                            };
+                            let fut = async move { (*inner).cancel_flight(request).await };
                             Box::pin(fut)
                         }
                     }
@@ -391,11 +349,10 @@ pub mod scheduler_rpc_server {
                         let inner = inner.0;
                         let method = cancelFlightSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            );
+                        let mut grpc = tonic::server::Grpc::new(codec).apply_compression_config(
+                            accept_compression_encodings,
+                            send_compression_encodings,
+                        );
                         let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
@@ -404,15 +361,9 @@ pub mod scheduler_rpc_server {
                 "/grpc.SchedulerRpc/isReady" => {
                     #[allow(non_camel_case_types)]
                     struct isReadySvc<T: SchedulerRpc>(pub Arc<T>);
-                    impl<
-                        T: SchedulerRpc,
-                    > tonic::server::UnaryService<super::ReadyRequest>
-                    for isReadySvc<T> {
+                    impl<T: SchedulerRpc> tonic::server::UnaryService<super::ReadyRequest> for isReadySvc<T> {
                         type Response = super::ReadyResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ReadyRequest>,
@@ -429,28 +380,23 @@ pub mod scheduler_rpc_server {
                         let inner = inner.0;
                         let method = isReadySvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            );
+                        let mut grpc = tonic::server::Grpc::new(codec).apply_compression_config(
+                            accept_compression_encodings,
+                            send_compression_encodings,
+                        );
                         let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)
                 }
-                _ => {
-                    Box::pin(async move {
-                        Ok(
-                            http::Response::builder()
-                                .status(200)
-                                .header("grpc-status", "12")
-                                .header("content-type", "application/grpc")
-                                .body(empty_body())
-                                .unwrap(),
-                        )
-                    })
-                }
+                _ => Box::pin(async move {
+                    Ok(http::Response::builder()
+                        .status(200)
+                        .header("grpc-status", "12")
+                        .header("content-type", "application/grpc")
+                        .body(empty_body())
+                        .unwrap())
+                }),
             }
         }
     }

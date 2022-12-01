@@ -1,6 +1,5 @@
 /// QueryFlightRequest
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightRequest {
     /// is_cargo - true if cargo mission, false if people transport
     #[prost(bool, tag = "1")]
@@ -25,8 +24,7 @@ pub struct QueryFlightRequest {
     pub vertiport_arrive_id: ::prost::alloc::string::String,
 }
 /// QueryFlightPlan
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightPlan {
     /// id of the flight
     #[prost(string, tag = "1")]
@@ -84,24 +82,21 @@ pub struct QueryFlightPlan {
     pub estimated_distance: u32,
 }
 /// QueryFlightResponse
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightResponse {
     /// array/vector of flight items
     #[prost(message, repeated, tag = "1")]
     pub flights: ::prost::alloc::vec::Vec<QueryFlightPlan>,
 }
 /// Id type for passing id only requests
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct Id {
     /// id
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
 }
 /// ConfirmFlightResponse
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct ConfirmFlightResponse {
     /// id
     #[prost(string, tag = "1")]
@@ -114,8 +109,7 @@ pub struct ConfirmFlightResponse {
     pub confirmation_time: ::core::option::Option<::prost_types::Timestamp>,
 }
 /// CancelFlightResponse
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Clone, PartialEq, ::prost::Message)]
 pub struct CancelFlightResponse {
     /// id
     #[prost(string, tag = "1")]
@@ -133,12 +127,10 @@ pub struct CancelFlightResponse {
 /// Ready Request
 ///
 /// No arguments
-#[derive(Eq, Copy)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Copy, Clone, PartialEq, ::prost::Message)]
 pub struct ReadyRequest {}
 /// Ready Response
-#[derive(Eq, Copy)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Eq, Copy, Clone, PartialEq, ::prost::Message)]
 pub struct ReadyResponse {
     /// ready
     #[prost(bool, tag = "1")]
@@ -204,8 +196,8 @@ impl FlightPriority {
 /// Generated client implementations.
 pub mod scheduler_rpc_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     ///Scheduler service
     #[derive(Debug, Clone)]
     pub struct SchedulerRpcClient<T> {
@@ -250,9 +242,8 @@ pub mod scheduler_rpc_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
-            >>::Error: Into<StdError> + Send + Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + Send + Sync,
         {
             SchedulerRpcClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -275,76 +266,56 @@ pub mod scheduler_rpc_client {
             &mut self,
             request: impl tonic::IntoRequest<super::QueryFlightRequest>,
         ) -> Result<tonic::Response<super::QueryFlightResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/queryFlight",
-            );
+            let path = http::uri::PathAndQuery::from_static("/grpc.SchedulerRpc/queryFlight");
             self.inner.unary(request.into_request(), path, codec).await
         }
         pub async fn confirm_flight(
             &mut self,
             request: impl tonic::IntoRequest<super::Id>,
         ) -> Result<tonic::Response<super::ConfirmFlightResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/confirmFlight",
-            );
+            let path = http::uri::PathAndQuery::from_static("/grpc.SchedulerRpc/confirmFlight");
             self.inner.unary(request.into_request(), path, codec).await
         }
         pub async fn cancel_flight(
             &mut self,
             request: impl tonic::IntoRequest<super::Id>,
         ) -> Result<tonic::Response<super::CancelFlightResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/cancelFlight",
-            );
+            let path = http::uri::PathAndQuery::from_static("/grpc.SchedulerRpc/cancelFlight");
             self.inner.unary(request.into_request(), path, codec).await
         }
         pub async fn is_ready(
             &mut self,
             request: impl tonic::IntoRequest<super::ReadyRequest>,
         ) -> Result<tonic::Response<super::ReadyResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/isReady",
-            );
+            let path = http::uri::PathAndQuery::from_static("/grpc.SchedulerRpc/isReady");
             self.inner.unary(request.into_request(), path, codec).await
         }
     }

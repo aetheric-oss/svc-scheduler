@@ -23,9 +23,9 @@ openssl                 = "0.10"
 ordered-float           = "3.2"
 prost                   = "0.11"
 prost-types             = "0.11"
-router                  = { git = "https://github.com/Arrow-air/lib-router.git" }
+router                  = { path = "../../lib-router" }
 rrule                   = "0.10"
-svc-storage-client-grpc = { git = "https://github.com/Arrow-air/svc-storage.git", branch = "develop" }
+svc-storage-client-grpc = { path = "../../svc-storage/client-grpc" }
 tokio                   = { version = "1.20", features = ["full"] }
 tonic                   = "0.8"
 tonic-health            = "0.7"
@@ -33,6 +33,11 @@ uuid                    = "1.2"
 
 [build-dependencies]
 tonic-build = "0.8"
+
+[dev-dependencies]
+tempfile = "3.3.0"
+tower = { version = "0.4" }
+tokio-stream = { version = "0.1.8", features = ["net"] }
 
 [dev-dependencies.cargo-husky]
 default-features = false          # Disable features which are enabled by default

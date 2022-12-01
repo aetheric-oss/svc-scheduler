@@ -290,3 +290,54 @@ pub async fn cancel_flight(
         Err(Status::not_found(err_msg))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    mod test_utils {
+        include!("test_utils.rs");
+    }
+    use super::*;
+    use test_utils::*;
+
+    #[tokio::test]
+    async fn query_flight_test() {
+        let (serve_future, mut client) = vertiport_server_and_client_stub().await;
+
+        let request_future = async {
+            let id = "1".to_string();
+            let response = client
+                .vertiport_by_id(Request::new(StorageId { id: id.clone() }))
+                .await
+                .unwrap()
+                .into_inner();
+            // Validate server response with assertions
+            assert_eq!(response.id, id);
+        };
+
+        // Wait for completion, when the client request future completes
+        tokio::select! {
+            _ = serve_future => panic!("server returned first"),
+            _ = request_future => (),
+        }
+    }
+
+    /*#[test]
+    fn test_query_flight() {
+        query_flight(
+            Request::new(QueryFlightRequest {
+                is_cargo: false,
+                persons: None,
+                weight_grams: None,
+                departure_time: None,
+                arrival_time: None,
+                vertiport_depart_id: "".to_string(),
+                vertiport_arrive_id: "".to_string(),
+            }),
+            fp_client,
+            vehicle_client,
+            vertiport_client,
+        )
+        .unwrap();
+        assert_eq!(aw!(str_len_async("x5ff")), 4);
+    }*/
+}
