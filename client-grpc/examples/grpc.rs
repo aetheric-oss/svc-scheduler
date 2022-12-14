@@ -5,8 +5,7 @@ pub mod scheduler_grpc {
     #![allow(unused_qualifications)]
     include!("../src/grpc.rs");
 }
-use chrono::{DateTime, Duration, TimeZone, Utc};
-use chrono_tz::Tz;
+use chrono::{TimeZone, Utc};
 use prost_types::Timestamp;
 use scheduler_grpc::scheduler_rpc_client::SchedulerRpcClient;
 use scheduler_grpc::{Id, QueryFlightRequest};
@@ -17,9 +16,12 @@ use tonic::Request;
 /// should receive a valid response from the server
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = SchedulerRpcClient::connect("http://[::1]:50051").await?;
+    let mut client = SchedulerRpcClient::connect("http://[::1]:50052").await?;
 
-    let departure_time = Utc.ymd(2022, 10, 25).and_hms(15, 0, 0).timestamp();
+    let departure_time = Utc
+        .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
+        .unwrap()
+        .timestamp();
 
     let request = Request::new(QueryFlightRequest {
         is_cargo: true,

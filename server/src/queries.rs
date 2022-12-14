@@ -10,11 +10,10 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use svc_storage_client_grpc::client::{
-    flight_plan_rpc_client::FlightPlanRpcClient, vehicle_rpc_client::VehicleRpcClient,
-    vertiport_rpc_client::VertiportRpcClient, FlightPlan, FlightPlanData, Id as StorageId,
-    SearchFilter, UpdateFlightPlan,
+    FlightPlan, FlightPlanData, Id as StorageId, SearchFilter, UpdateFlightPlan,
 };
 
+use crate::grpc_client_wrapper::StorageClientWrapperTrait;
 use tokio;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
@@ -44,22 +43,20 @@ fn cancel_flight_after_timeout(id: String) {
 ///Finds the first possible flight for customer location, flight type and requested time.
 pub async fn query_flight(
     request: Request<QueryFlightRequest>,
-    mut _fp_client: FlightPlanRpcClient<tonic::transport::Channel>,
-    mut vehicle_client: VehicleRpcClient<tonic::transport::Channel>,
-    mut vertiport_client: VertiportRpcClient<tonic::transport::Channel>,
+    storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
 ) -> Result<Response<QueryFlightResponse>, Status> {
     let flight_request = request.into_inner();
     info!(
         "query_flight with vertiport depart, arrive ids: {}, {}",
         &flight_request.vertiport_depart_id, &flight_request.vertiport_arrive_id
     );
-    let depart_vertiport = vertiport_client
+    let depart_vertiport = storage_client_wrapper
         .vertiport_by_id(Request::new(StorageId {
             id: flight_request.vertiport_depart_id,
         }))
         .await?
         .into_inner();
-    let arrive_vertiport = vertiport_client
+    let arrive_vertiport = storage_client_wrapper
         .vertiport_by_id(Request::new(StorageId {
             id: flight_request.vertiport_arrive_id,
         }))
@@ -94,7 +91,7 @@ pub async fn query_flight(
         return Err(Status::not_found("Arrival vertiport not available"));
     }
     //5. check schedule of aircrafts
-    let aircrafts = vehicle_client
+    let aircrafts = storage_client_wrapper
         .vehicles(Request::new(SearchFilter {
             search_field: "".to_string(),
             search_value: "".to_string(),
@@ -124,7 +121,9 @@ pub async fn query_flight(
         aircrafts,
     );
     if flight_plans.is_err() || flight_plans.as_ref().unwrap().is_empty() {
-        return Err(Status::not_found("No flight plans available"));
+        return Err(Status::not_found(
+            "No flight plans available; ".to_owned() + &flight_plans.err().unwrap(),
+        ));
     }
     let flight_plans = flight_plans.unwrap();
     info!("Found  {} flight plans from router", &flight_plans.len());
@@ -199,7 +198,7 @@ fn remove_fp_by_id(id: String) -> bool {
 ///Confirms the flight plan
 pub async fn confirm_flight(
     request: Request<Id>,
-    mut storage_client: FlightPlanRpcClient<tonic::transport::Channel>,
+    storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
 ) -> Result<Response<ConfirmFlightResponse>, Status> {
     let fp_id = request.into_inner().id;
     info!("confirm_flight with id {}", &fp_id);
@@ -207,7 +206,7 @@ pub async fn confirm_flight(
     return if draft_fp.is_none() {
         Err(Status::not_found("Flight plan not found"))
     } else {
-        let fp = storage_client
+        let fp = storage_client_wrapper
             .insert_flight_plan(Request::new(draft_fp.unwrap()))
             .await?
             .into_inner();
@@ -236,18 +235,18 @@ pub async fn confirm_flight(
 /// Cancels a draft or confirmed flight plan
 pub async fn cancel_flight(
     request: Request<Id>,
-    mut storage_client: FlightPlanRpcClient<tonic::transport::Channel>,
+    storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
 ) -> Result<Response<CancelFlightResponse>, Status> {
     let fp_id = request.into_inner().id;
     info!("cancel_flight with id {}", &fp_id);
     let mut found = remove_fp_by_id(fp_id.clone());
     if !found {
-        let fp = storage_client
+        let fp = storage_client_wrapper
             .flight_plan_by_id(Request::new(StorageId { id: fp_id.clone() }))
             .await;
         found = fp.is_ok();
         if found {
-            storage_client
+            storage_client_wrapper
                 .update_flight_plan(Request::new(UpdateFlightPlan {
                     id: fp_id.clone(),
                     data: Option::from(FlightPlanData {
@@ -293,5 +292,71 @@ pub async fn cancel_flight(
             &fp_id
         );
         Err(Status::not_found(err_msg))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    mod test_utils {
+        include!("test_utils.rs");
+    }
+
+    use super::*;
+    use chrono::{TimeZone, Utc};
+    use router::router_state::{init_router_from_vertiports, NODES};
+    use test_utils::*;
+
+    #[tokio::test]
+    async fn test_storage_client_stub() {
+        let client_wrapper = create_storage_client_stub();
+        let id = "vertiport1".to_string();
+        let response = client_wrapper
+            .vertiport_by_id(Request::new(StorageId { id: id.clone() }))
+            .await
+            .unwrap()
+            .into_inner();
+        // Validate server response with assertions
+        assert_eq!(response.id, id);
+    }
+
+    #[tokio::test]
+    async fn test_query_flight() {
+        let client_wrapper = create_storage_client_stub();
+        let timestamp = Utc
+            .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
+            .unwrap()
+            .timestamp();
+
+        let vertiports = client_wrapper
+            .vertiports(Request::new(SearchFilter {
+                search_field: "".to_string(),
+                search_value: "".to_string(),
+                page_number: 0,
+                results_per_page: 0,
+            }))
+            .await
+            .unwrap()
+            .into_inner()
+            .vertiports;
+        let init_res = init_router_from_vertiports(&vertiports);
+        assert_eq!(NODES.get().unwrap().len(), 2);
+        let res = query_flight(
+            Request::new(QueryFlightRequest {
+                is_cargo: false,
+                persons: None,
+                weight_grams: None,
+                departure_time: Some(Timestamp {
+                    seconds: timestamp,
+                    nanos: 0,
+                }),
+                arrival_time: None,
+                vertiport_depart_id: "vertiport1".to_string(),
+                vertiport_arrive_id: "vertiport2".to_string(),
+            }),
+            &client_wrapper,
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.into_inner().flights.len(), 1);
     }
 }
