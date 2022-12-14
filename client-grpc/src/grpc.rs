@@ -206,7 +206,7 @@ pub mod scheduler_rpc_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
-    ///Scheduler service
+    /// Scheduler service
     #[derive(Debug, Clone)]
     pub struct SchedulerRpcClient<T> {
         inner: tonic::client::Grpc<T>,
