@@ -119,18 +119,21 @@ impl SchedulerRpc for SchedulerGrpcImpl {
     }
 }
 
+/// Initializes router state from vertiports from storage service
 async fn init_router(mut vertiport_client: VertiportRpcClient<Channel>) {
-    let vertiports = vertiport_client
+    let vertiports_res = vertiport_client
         .vertiports(Request::new(SearchFilter {
             search_field: "".to_string(),
             search_value: "".to_string(),
             page_number: 0,
             results_per_page: 50,
         }))
-        .await
-        .unwrap()
-        .into_inner()
-        .vertiports;
+        .await;
+    if vertiports_res.is_err() {
+        error!("Failed to get vertiports from storage service");
+        panic!("Failed to get vertiports from storage service");
+    }
+    let vertiports = vertiports_res.unwrap().into_inner().vertiports;
     info!("Initializing router with {} vertiports ", vertiports.len());
     if !is_router_initialized() {
         let res = init_router_from_vertiports(&vertiports);
@@ -140,6 +143,7 @@ async fn init_router(mut vertiport_client: VertiportRpcClient<Channel>) {
     }
 }
 
+/// Initializes grpc clients for storage service
 async fn init_grpc_clients() {
     //initialize storage client here so it can be used in other methods
     // Storage GRPC Server

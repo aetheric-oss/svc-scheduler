@@ -18,9 +18,9 @@ Status | Draft
 
 Document | Description
 --- | ---
-:construction: High-Level Concept of Operations (CONOPS) | Overview of Arrow microservices.
-:construction: High-Level Interface Control Document (ICD) | Interfaces and frameworks common to all Arrow microservices.
-:construction: Requirements - `svc-scheduler` | Requirements and user stories for this microservice.
+[High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md)| Overview of Arrow microservices.
+[High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md) | Interfaces and frameworks common to all Arrow microservices.
+[Requirements - `svc-scheduler`](https://docs.google.com/spreadsheets/d/1hLGIY6v_-GWK0jljLleN9nCiaRth0uKqRwssCJGIpuo/edit#gid=0) | Requirements and user stories for this microservice.
 [Concept of Operations - `svc-scheduler`](./conops.md) | Defines the motivation and duties of this microservice.
 [Software Design Document (SDD) - `svc-scheduler`](./sdd.md) | Specifies the internal activity of this microservice.
 

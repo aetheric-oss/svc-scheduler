@@ -1,3 +1,4 @@
+//! Implementation of the queries/actions that the scheduler service can perform.
 use crate::scheduler_grpc::{
     CancelFlightResponse, ConfirmFlightResponse, FlightPriority, FlightStatus, Id, QueryFlightPlan,
     QueryFlightRequest, QueryFlightResponse,
@@ -20,11 +21,13 @@ use uuid::Uuid;
 
 const CANCEL_FLIGHT_SECONDS: u64 = 30;
 
+/// gets or creates a new hashmap of unconfirmed flight plans
 fn unconfirmed_flight_plans() -> &'static Mutex<HashMap<String, FlightPlanData>> {
     static INSTANCE: OnceCell<Mutex<HashMap<String, FlightPlanData>>> = OnceCell::new();
     INSTANCE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// spawns a thread that will cancel the flight plan after a certain amount of time (CANCEL_FLIGHT_SECONDS)
 fn cancel_flight_after_timeout(id: String) {
     tokio::spawn(async move {
         tokio::time::sleep(core::time::Duration::from_secs(CANCEL_FLIGHT_SECONDS)).await;
@@ -171,6 +174,7 @@ pub async fn query_flight(
     Ok(Response::new(response))
 }
 
+/// Gets flight plan from hash map of unconfirmed flight plans
 fn get_fp_by_id(id: String) -> Option<FlightPlanData> {
     unconfirmed_flight_plans()
         .lock()
@@ -179,6 +183,7 @@ fn get_fp_by_id(id: String) -> Option<FlightPlanData> {
         .cloned()
 }
 
+/// Removes flight plan from hash map of unconfirmed flight plans
 fn remove_fp_by_id(id: String) -> bool {
     let mut flight_plans = unconfirmed_flight_plans()
         .lock()

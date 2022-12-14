@@ -86,4 +86,4 @@ If you are building a non-end product like a library, include `Cargo.lock` in `.
 
 If you are building an end product like a command line tool, check `Cargo.lock` to the git.
 
-Read more about it [here](https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html);
+Read more about it [here](https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html).

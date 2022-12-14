@@ -43,7 +43,7 @@ The scheduler module is responsible for:
 
 ## Location
 
-This document is located under [`svc-scheduler`](https://github.com/Arrow-air/svc-scheduler) repository's [`/docs`](https://github.com/Arrow-air/svc-scheduler/tree/develop/docs) folder.
+Server-side service.
 
 ## Module Attributes
 

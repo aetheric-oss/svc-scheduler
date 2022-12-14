@@ -411,6 +411,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "geo-types"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e26879b63ac36ca5492918dc16f8c1e604b0f70f884fffbd3533f89953ab1991"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1184,7 +1193,7 @@ dependencies = [
  "rand",
  "rrule",
  "serde",
- "svc-storage-client-grpc",
+ "svc-storage-client-grpc 0.6.0-develop.0",
  "uuid",
  "vecmath",
 ]
@@ -1322,7 +1331,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "svc-scheduler"
-version = "0.2.5-develop.3"
+version = "0.1.0"
 dependencies = [
  "cargo-husky",
  "chrono",
@@ -1339,7 +1348,7 @@ dependencies = [
  "prost-types",
  "router",
  "rrule",
- "svc-storage-client-grpc",
+ "svc-storage-client-grpc 0.2.0",
  "tokio",
  "tonic",
  "tonic-build",
@@ -1349,7 +1358,7 @@ dependencies = [
 
 [[package]]
 name = "svc-scheduler-client-grpc"
-version = "0.2.5-develop.3"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-tz 0.8.0",
@@ -1357,6 +1366,21 @@ dependencies = [
  "prost-types",
  "tokio",
  "tonic",
+]
+
+[[package]]
+name = "svc-storage-client-grpc"
+version = "0.2.0"
+source = "git+https://github.com/Arrow-air/svc-storage.git?branch=main#b963ed9a43aa1dd1381697146b96ba9b9bb73ad9"
+dependencies = [
+ "geo-types",
+ "num-derive",
+ "num-traits",
+ "ordered-float 3.4.0",
+ "prost",
+ "prost-types",
+ "tonic",
+ "uuid",
 ]
 
 [[package]]
