@@ -113,6 +113,25 @@ jobs:
             --field branch="${{ github.ref_name }}" \
             --field sha="$SHA"
 
+      - name: Generate new Cargo.lock
+        run: |
+          cargo update
+
+      - name: Commit and push new Cargo.lock
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+          CHANGED_FILE: "Cargo.lock"
+          MESSAGE: "ci - update cargo.lock file\n\n[skip ci]"
+        run: |
+          export CONTENT=$(base64 -i ${{ env.CHANGED_FILE }})
+          export SHA=$(git rev-parse ${{ github.ref_name }}:${{ env.CHANGED_FILE }})
+          gh api --method PUT /repos/:owner/:repo/contents/${{ env.CHANGED_FILE }} \
+            --field message="${{ env.MESSAGE }}" \
+            --field content="$CONTENT" \
+            --field encoding="base64" \
+            --field branch="${{ github.ref_name }}" \
+            --field sha="$SHA"
+
       - name: Push New Tag
         uses: mathieudutour/github-tag-action@v6.0
         with:
