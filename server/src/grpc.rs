@@ -205,7 +205,7 @@ impl FlightPriority {
 pub mod scheduler_rpc_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    ///Generated trait containing gRPC methods that should be implemented for use with SchedulerRpcServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with SchedulerRpcServer.
     #[async_trait]
     pub trait SchedulerRpc: Send + Sync + 'static {
         async fn query_flight(
@@ -225,7 +225,7 @@ pub mod scheduler_rpc_server {
             request: tonic::Request<super::ReadyRequest>,
         ) -> Result<tonic::Response<super::ReadyResponse>, tonic::Status>;
     }
-    ///Scheduler service
+    /// Scheduler service
     #[derive(Debug)]
     pub struct SchedulerRpcServer<T: SchedulerRpc> {
         inner: _Inner<T>,
