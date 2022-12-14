@@ -5,8 +5,10 @@ pub mod scheduler_grpc {
     #![allow(unused_qualifications)]
     include!("grpc.rs");
 }
+mod grpc_client_wrapper;
 ///Queries module
 pub mod queries;
+
 use router::router_state::{init_router_from_vertiports, is_router_initialized};
 
 use dotenv::dotenv;
@@ -20,43 +22,24 @@ use scheduler_grpc::{
     CancelFlightResponse, ConfirmFlightResponse, Id, QueryFlightRequest, QueryFlightResponse,
     ReadyRequest, ReadyResponse,
 };
+use svc_storage_client_grpc::client::vertipad_rpc_client::VertipadRpcClient;
 use svc_storage_client_grpc::client::{
     flight_plan_rpc_client::FlightPlanRpcClient, vehicle_rpc_client::VehicleRpcClient,
     vertiport_rpc_client::VertiportRpcClient, SearchFilter,
 };
 
+use crate::grpc_client_wrapper::{GRPCClients, StorageClientWrapper, StorageClientWrapperTrait};
 use tonic::{transport::Channel, transport::Server, Request, Response, Status};
 
-/// GRPC clients for storage service -
-/// it has to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
-pub(crate) static VEHICLE_CLIENT: OnceCell<VehicleRpcClient<Channel>> = OnceCell::const_new();
-/// Vertiport client
-pub(crate) static VERTIPORT_CLIENT: OnceCell<VertiportRpcClient<Channel>> = OnceCell::const_new();
-/// Flight Plan client
-pub(crate) static FLIGHT_PLAN_CLIENT: OnceCell<FlightPlanRpcClient<Channel>> =
-    OnceCell::const_new();
+/// GRPC clients for storage service
+/// They have to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
 
-/// shorthand function to clone vehicle client
-pub fn get_vehicle_client() -> VehicleRpcClient<Channel> {
-    VEHICLE_CLIENT
-        .get()
-        .expect("Storage Client not initialized")
-        .clone()
-}
+pub(crate) static STORAGE_CLIENT_WRAPPER: OnceCell<StorageClientWrapper> = OnceCell::const_new();
 
-/// shorthand function to clone vertiport client
-pub fn get_vertiport_client() -> VertiportRpcClient<Channel> {
-    VERTIPORT_CLIENT
+pub(crate) fn get_storage_client_wrapper() -> &'static StorageClientWrapper {
+    STORAGE_CLIENT_WRAPPER
         .get()
-        .expect("Storage Client not initialized")
-        .clone()
-}
-
-/// shorthand function to clone flight plan client
-pub fn get_flight_plan_client() -> FlightPlanRpcClient<Channel> {
-    FLIGHT_PLAN_CLIENT
-        .get()
-        .expect("Storage Client not initialized")
+        .expect("Storage clients not initialized")
         .clone()
 }
 
@@ -72,13 +55,7 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<QueryFlightRequest>,
     ) -> Result<Response<QueryFlightResponse>, Status> {
-        let res = queries::query_flight(
-            request,
-            get_flight_plan_client(),
-            get_vehicle_client(),
-            get_vertiport_client(),
-        )
-        .await;
+        let res = queries::query_flight(request, get_storage_client_wrapper()).await;
         if res.is_err() {
             error!("{}", res.as_ref().err().unwrap());
         }
@@ -90,7 +67,7 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<Id>,
     ) -> Result<Response<ConfirmFlightResponse>, Status> {
-        let res = queries::confirm_flight(request, get_flight_plan_client()).await;
+        let res = queries::confirm_flight(request, get_storage_client_wrapper()).await;
         if res.is_err() {
             error!("{}", res.as_ref().err().unwrap());
         }
@@ -102,7 +79,7 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<Id>,
     ) -> Result<Response<CancelFlightResponse>, Status> {
-        let res = queries::cancel_flight(request, get_flight_plan_client()).await;
+        let res = queries::cancel_flight(request, get_storage_client_wrapper()).await;
         if res.is_err() {
             error!("{}", res.as_ref().err().unwrap());
         }
@@ -119,8 +96,8 @@ impl SchedulerRpc for SchedulerGrpcImpl {
     }
 }
 
-async fn init_router(mut vertiport_client: VertiportRpcClient<Channel>) {
-    let vertiports = vertiport_client
+async fn init_router() {
+    let vertiports = get_storage_client_wrapper()
         .vertiports(Request::new(SearchFilter {
             search_field: "".to_string(),
             search_value: "".to_string(),
@@ -153,57 +130,41 @@ async fn init_grpc_clients() {
     let storage_full_grpc_addr =
         format!("http://{storage_grpc_host}:{storage_grpc_port}").to_string();
 
-    match FLIGHT_PLAN_CLIENT
-        .get_or_try_init(|| async {
-            println!(
-                "Setting up connection to svc-storage flight plan on {}",
-                storage_full_grpc_addr
-            );
-            FlightPlanRpcClient::connect(storage_full_grpc_addr.clone()).await
-        })
-        .await
+    info!(
+        "Setting up connection to svc-storage clients on {}",
+        storage_full_grpc_addr.clone()
+    );
+    let flight_plan_client_res = FlightPlanRpcClient::connect(storage_full_grpc_addr.clone()).await;
+    let vehicle_client_res = VehicleRpcClient::connect(storage_full_grpc_addr.clone()).await;
+    let vertiport_client_res = VertiportRpcClient::connect(storage_full_grpc_addr.clone()).await;
+    let vertipad_client_res = VertipadRpcClient::connect(storage_full_grpc_addr.clone()).await;
+    if flight_plan_client_res.is_err()
+        || vehicle_client_res.is_err()
+        || vertiport_client_res.is_err()
+        || vertipad_client_res.is_err()
     {
-        Ok(_) => (),
-        Err(e) => println!(
-            "Unable to connect to svc-storage flight plan at {}; {}",
+        error!(
+            "Failed to connect to storage service at {}. Client errors: {} {} {} {}",
             storage_full_grpc_addr.clone(),
-            e
-        ),
-    };
-
-    match VERTIPORT_CLIENT
-        .get_or_try_init(|| async {
-            println!(
-                "Setting up connection to svc-storage vertiport on {}",
-                storage_full_grpc_addr
-            );
-            VertiportRpcClient::connect(storage_full_grpc_addr.clone()).await
-        })
-        .await
-    {
-        Ok(_) => (),
-        Err(e) => println!(
-            "Unable to connect to svc-storage vertiport at {}; {}",
-            storage_full_grpc_addr, e
-        ),
-    };
-
-    match VEHICLE_CLIENT
-        .get_or_try_init(|| async {
-            println!(
-                "Setting up connection to svc-storage vehicle on {}",
-                storage_full_grpc_addr
-            );
-            VehicleRpcClient::connect(storage_full_grpc_addr.clone()).await
-        })
-        .await
-    {
-        Ok(_) => (),
-        Err(e) => println!(
-            "Unable to connect to svc-storage vehicle at {}; {}",
-            storage_full_grpc_addr, e
-        ),
-    };
+            flight_plan_client_res.err().unwrap(),
+            vehicle_client_res.err().unwrap(),
+            vertiport_client_res.err().unwrap(),
+            vertipad_client_res.err().unwrap()
+        );
+        panic!();
+    } else {
+        let grpc_clients = GRPCClients {
+            flight_plan_client: flight_plan_client_res.unwrap(),
+            vehicle_client: vehicle_client_res.unwrap(),
+            vertiport_client: vertiport_client_res.unwrap(),
+            vertipad_client: vertipad_client_res.unwrap(),
+        };
+        STORAGE_CLIENT_WRAPPER
+            .set(StorageClientWrapper {
+                grpc_clients: Some(grpc_clients),
+            })
+            .expect("Failed to set storage client wrapper");
+    }
 }
 
 ///Main entry point: starts gRPC Server on specified address and port
@@ -220,7 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //initialize storage client here so it can be used in other methods
     init_grpc_clients().await;
     // Initialize Router from vertiport data
-    init_router(get_vertiport_client()).await;
+    init_router().await;
 
     // GRPC Server
     let grpc_port = std::env::var("DOCKER_PORT_GRPC")

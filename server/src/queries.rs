@@ -14,6 +14,7 @@ use svc_storage_client_grpc::client::{
     SearchFilter, UpdateFlightPlan,
 };
 
+use crate::grpc_client_wrapper::{StorageClientWrapper, StorageClientWrapperTrait};
 use tokio;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
@@ -41,22 +42,20 @@ fn cancel_flight_after_timeout(id: String) {
 ///Finds the first possible flight for customer location, flight type and requested time.
 pub async fn query_flight(
     request: Request<QueryFlightRequest>,
-    mut _fp_client: FlightPlanRpcClient<tonic::transport::Channel>,
-    mut vehicle_client: VehicleRpcClient<tonic::transport::Channel>,
-    mut vertiport_client: VertiportRpcClient<tonic::transport::Channel>,
+    storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
 ) -> Result<Response<QueryFlightResponse>, Status> {
     let flight_request = request.into_inner();
     info!(
         "query_flight with vertiport depart, arrive ids: {}, {}",
         &flight_request.vertiport_depart_id, &flight_request.vertiport_arrive_id
     );
-    let depart_vertiport = vertiport_client
+    let depart_vertiport = storage_client_wrapper
         .vertiport_by_id(Request::new(StorageId {
             id: flight_request.vertiport_depart_id,
         }))
         .await?
         .into_inner();
-    let arrive_vertiport = vertiport_client
+    let arrive_vertiport = storage_client_wrapper
         .vertiport_by_id(Request::new(StorageId {
             id: flight_request.vertiport_arrive_id,
         }))
@@ -91,7 +90,7 @@ pub async fn query_flight(
         return Err(Status::not_found("Arrival vertiport not available"));
     }
     //5. check schedule of aircrafts
-    let aircrafts = vehicle_client
+    let aircrafts = storage_client_wrapper
         .vehicles(Request::new(SearchFilter {
             search_field: "".to_string(),
             search_value: "".to_string(),
@@ -194,7 +193,7 @@ fn remove_fp_by_id(id: String) -> bool {
 ///Confirms the flight plan
 pub async fn confirm_flight(
     request: Request<Id>,
-    mut storage_client: FlightPlanRpcClient<tonic::transport::Channel>,
+    storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
 ) -> Result<Response<ConfirmFlightResponse>, Status> {
     let fp_id = request.into_inner().id;
     info!("confirm_flight with id {}", &fp_id);
@@ -202,7 +201,7 @@ pub async fn confirm_flight(
     return if draft_fp.is_none() {
         Err(Status::not_found("Flight plan not found"))
     } else {
-        let fp = storage_client
+        let fp = storage_client_wrapper
             .insert_flight_plan(Request::new(draft_fp.unwrap()))
             .await?
             .into_inner();
@@ -231,18 +230,18 @@ pub async fn confirm_flight(
 /// Cancels a draft or confirmed flight plan
 pub async fn cancel_flight(
     request: Request<Id>,
-    mut storage_client: FlightPlanRpcClient<tonic::transport::Channel>,
+    storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
 ) -> Result<Response<CancelFlightResponse>, Status> {
     let fp_id = request.into_inner().id;
     info!("cancel_flight with id {}", &fp_id);
     let mut found = remove_fp_by_id(fp_id.clone());
     if !found {
-        let fp = storage_client
+        let fp = storage_client_wrapper
             .flight_plan_by_id(Request::new(StorageId { id: fp_id.clone() }))
             .await;
         found = fp.is_ok();
         if found {
-            storage_client
+            storage_client_wrapper
                 .update_flight_plan(Request::new(UpdateFlightPlan {
                     id: fp_id.clone(),
                     data: Option::from(FlightPlanData {
