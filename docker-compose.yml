@@ -1,0 +1,36 @@
+---
+version: '3.6'
+services:
+  web-server:
+    container_name: ${DOCKER_NAME}-example-server
+    image: ${PACKAGE_NAME}:latest
+    ports:
+      - ${HOST_PORT_REST}:${DOCKER_PORT_REST}
+      - ${HOST_PORT_GRPC}:${DOCKER_PORT_GRPC}
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr", "localhost:${DOCKER_PORT_GRPC}"]
+      interval: 2s
+      timeout: 1s
+      retries: 3
+
+  example:
+    links:
+      - web-server
+    depends_on:
+      web-server:
+        condition: service_healthy
+    container_name: ${DOCKER_NAME}-example
+    image: ${RUST_IMAGE_NAME}:${RUST_IMAGE_TAG}
+    volumes:
+      - type: bind
+        source: "${SOURCE_PATH}/"
+        target: "/usr/src/app"
+      - type: bind
+        source: "${SOURCE_PATH}/.cargo/registry"
+        target: "/usr/local/cargo/registry"
+    environment:
+      - SERVER_HOSTNAME
+      - SERVER_PORT_GRPC
+      - SERVER_PORT_REST
+      - EXAMPLE_TARGET
+    command: cargo run --manifest-path "${CARGO_MANIFEST_PATH}" --example "${EXAMPLE_TARGET}"

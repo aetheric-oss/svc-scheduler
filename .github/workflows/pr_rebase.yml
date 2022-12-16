@@ -1,0 +1,41 @@
+## DO NOT EDIT!
+# This file was provisioned by Terraform
+# Check file validity at: https://rhysd.github.io/actionlint/
+# https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
+
+name: PR Rebase
+
+env:
+  TERM: xterm
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  rebase:
+    name: Rebase
+    if: >-
+      github.event.issue.pull_request != '' &&
+      (
+        contains(github.event.comment.body, '/autosquash') ||
+        contains(github.event.comment.body, '/fixup') ||
+        contains(github.event.comment.body, '/rebase')
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+    steps:
+      - name: Checkout the latest code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0 # otherwise, you will fail to push refs to dest repo
+      - name: Automatic Rebase
+        uses: cirrus-actions/rebase@1.7
+        with:
+          autosquash: ${{ true }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

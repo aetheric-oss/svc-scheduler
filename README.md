@@ -1,49 +1,79 @@
 ![Arrow Banner](https://github.com/Arrow-air/.github/raw/main/profile/assets/arrow_v2_twitter-banner_neu.png)
 
-# MODULE_NAME Service
-
-*TODO after cloning:*
-
-1. *Replace the repository name for each:*
+# `svc-scheduler`
 
 ![Rust
-Checks](https://github.com/arrow-air/svc-template-rust/actions/workflows/rust_ci.yml/badge.svg?branch=main)
-![Python Flake8](https://github.com/arrow-air/svc-template-rust/actions/workflows/python_ci.yml/badge.svg?branch=main)
+Checks](https://github.com/arrow-air/svc-scheduler/actions/workflows/rust_ci.yml/badge.svg?branch=main)
+![Python Flake8](https://github.com/arrow-air/svc-scheduler/actions/workflows/python_ci.yml/badge.svg?branch=main)
 ![Arrow DAO
 Discord](https://img.shields.io/discord/853833144037277726?style=plastic)
 
-2. *Rename `svc-template-rust` and `svc_template_rust` in all files*
-   - *Replace with the name of your service (e.g. `svc-scheduler`)*
-3. *Rename or remove `tmp_lib`*
-4. *Remove this and previous numbered bullets*
-
 
 ## :telescope: Overview
-*TODO: This is a high level description of this module.*
+**svc-scheduler** is responsible for scheduling, confirming and cancelling flights. 
+The service exposes two crates:
+- server - [bin] target to run gRPC server
+- client - [lib] target for other services to import and use
 
 Directory:
-- `src/`: Source Code and Unit Tests
-- `tests/`: Integration Tests
+- `server/`: Source Code and Unit Tests for scheduler-service server
+- `client-grpc/`: Source Code for scheduler-service client
+- `proto/`: Types used for gRPC messaging
+- `client/tests/`: Integration Tests
 - `docs/`: Module Documentation
 
-## Installation
+# Make
 
-Install Rust with [Rustup](https://www.rust-lang.org/tools/install).
+### Build and Test
+
+To ensure consistent build and test outputs, Arrow provides a Docker image with all required software installed to build and test Rust projects.
+Using the Makefile, you can easily test and build your code.
 
 ```bash
-# After cloning the repository
-python3 -m pip install -r requirements.txt
+# Build Locally
+make rust-build
 
-# Adds custom pre-commit hooks to .git through cargo-husky dependency
-# !! Required for developers !!
-cargo test
+# Create Deployment Container
+make build
+make docker-run
+
+# If a server is already running
+make rust-example-grpc
+
+make docker-stop
 ```
+
+### Formatting
+
+The Arrow docker image has some formatting tools installed which can fix your code formatting for you.
+Using the Makefile, you can easily run the formatters on your code.
+Make sure to commit your code before running these commands, as they might not always result in a desired outcome.
+
+```bash
+# Format TOML files
+make toml-tidy
+
+# Format Rust files
+make rust-tidy
+
+# Format Python files
+make python-tidy
+
+# Format all at once
+make tidy
+```
+
+### Other `make` Targets
+
+There are additional make targets available. You can find all possible targets by running make without a target or use `make help`
+
 
 ## :scroll: Documentation
 The following documents are relevant to this service:
-- [Concept of Operations](TODO)
-- [Requirements & User Stories](TODO)
+- [Concept of Operations](./docs/conops.md)
 - [SDD](./docs/sdd.md)
+- [ICD](./docs/icd.md)
+- [Requirements & User Stories](./docs/requirements.md)
 
 ## :busts_in_silhouette: Arrow DAO
 Learn more about us:
@@ -54,6 +84,6 @@ Learn more about us:
 ## :exclamation: Treatment of `Cargo.lock`
 If you are building a non-end product like a library, include `Cargo.lock` in `.gitignore`.
 
-If you are building an end product like a command line tool, check `Cargo.lock` to the git. 
+If you are building an end product like a command line tool, check `Cargo.lock` to the git.
 
-Read more about it [here](https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html);
+Read more about it [here](https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html).
