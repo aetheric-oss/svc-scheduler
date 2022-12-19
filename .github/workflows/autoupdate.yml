@@ -1,0 +1,17 @@
+## DO NOT EDIT!
+# This file was provisioned by Terraform
+# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-svc/.github/workflows/autoupdate.yml
+
+name: Auto-update
+
+on:
+  push:
+    branches:
+      - 'develop'
+
+jobs:
+  Auto:
+    name: Auto-update
+    runs-on: ubuntu-latest
+    steps:
+      - uses: tibdex/auto-update@v2
