@@ -1,0 +1,47 @@
+## DO NOT EDIT!
+# This file was provisioned by Terraform
+# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-svc/.github/workflows/api_docs.yml
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+name: API Documentation
+
+env:
+  TERM: xterm
+
+jobs:
+  openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Check for openapi spec
+        id: openapi_files
+        uses: andstor/file-existence-action@v2
+        with:
+          files: "openapi/*.rs"
+
+      - name: Generate & validate openapi json
+        if: steps.openapi_files.outputs.files_exists == 'true'
+        run: make rust-validate-openapi
+
+  grpc_api:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Check for proto files
+        id: grpc_api_files
+        uses: andstor/file-existence-action@v2
+        with:
+          files: "proto/*.proto"
+
+      - name: Generate grpc json file
+        if: steps.grpc_api_files.outputs.files_exists == 'true'
+        run: make rust-grpc-api
