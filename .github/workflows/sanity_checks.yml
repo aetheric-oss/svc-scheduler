@@ -9,6 +9,9 @@ env:
 
 on:
   pull_request:
+    branches:
+      - develop
+      - main
 
 jobs:
   codestyle:

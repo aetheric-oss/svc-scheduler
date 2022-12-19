@@ -12,7 +12,14 @@ services:
       interval: 2s
       timeout: 1s
       retries: 3
-
+      start_period: 30s
+    volumes:
+      - type: bind
+        source: log4rs.yaml
+        target: ${LOG_CONFIG}
+      - type: bind
+        source: logs/
+        target: /logs/
   example:
     links:
       - web-server
@@ -33,4 +40,5 @@ services:
       - SERVER_PORT_GRPC
       - SERVER_PORT_REST
       - EXAMPLE_TARGET
+      - LOG_CONFIG
     command: cargo run --manifest-path "${CARGO_MANIFEST_PATH}" --example "${EXAMPLE_TARGET}"

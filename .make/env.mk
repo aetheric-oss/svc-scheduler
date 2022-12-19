@@ -16,4 +16,3 @@ ENV_KEYS=$(shell grep -Ehv '^\s*(\#.*)?\s*$$' .env.base .env.repo 2>/dev/null | 
 $(foreach k, $(ENV_KEYS), $(eval $(shell sh -c "grep -q '^$(k)=' .env 2>/dev/null || (echo '*** NOTE: Adding missing .env key [$(k)] to your .env file!' 1>&2 ; grep -h '^$(k)=' .env.base .env.repo 2>/dev/null >> .env ; grep '^$(k)=' .env 1>&2)")))
 
 -include $(ENV_FILE)
-
