@@ -7,18 +7,15 @@ PYTHON_PATH=""
 .help-python:
 	@echo ""
 	@echo "$(SMUL)$(BOLD)$(GREEN)Python$(SGR0)"
-	@echo "  $(BOLD)python-test$(SGR0) -- Run 'yapf -r -i -vv --style google --exclude '**/.cargo/registry' .'"
-	@echo "                 to validate python files against Google style guide."
-	@echo "                 Run 'flake8 --exclude '**/.cargo/registry' .' to validate python files against flake8 style guide."
-	@echo "  $(BOLD)python-tidy$(SGR0) -- Run 'black --extend-exclude .cargo ' to fix python style formats if needed."
+	@echo "  $(BOLD)python-test$(SGR0) -- Run 'pycodestyle --exclude='**/.cargo' --exclude='**/target' .'"
+	@echo "                 to validate python files against pep8 style guide."
+	@echo "  $(BOLD)python-tidy$(SGR0) -- Run 'autopep8 --in-place --recursive --exclude='**/.cargo' --exclude='**/target' .' to fix python style formats if needed."
 
-# Python / yapf, flake8 targets
+# Python / pep8 targets
 python-test: docker-pull
-	@echo "$(CYAN)Formatting and checking Python files with Google style...$(SGR0)"
-	@$(call docker_run,yapf -r -i -vv --style google --exclude "$(PYTHON_PATH).cargo/registry" .)
-	@echo "$(CYAN)Formatting and checking Python files with flake8 style...$(SGR0)"
-	@$(call docker_run,flake8 --exclude "$(PYTHON_PATH).cargo/registry" .)
+	@echo "$(CYAN)Formatting and checking Python files with pep8 style...$(SGR0)"
+	@$(call docker_run,pycodestyle --exclude="$(PYTHON_PATH).cargo" --exclude="$(PYTHON_PATH)target" .)
 
 python-tidy: docker-pull
 	@echo "$(CYAN)Running python file formatting fixes...$(SGR0)"
-	@$(call docker_run,black --extend-exclude $(PYTHON_PATH).cargo .)
+	@$(call docker_run, autopep8 --in-place --recursive --exclude="$(PYTHON_PATH).cargo" --exclude="$(PYTHON_PATH)target" .)
