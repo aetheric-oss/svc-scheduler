@@ -36,3 +36,6 @@ target/
 
 # Logger Output
 log/
+
+# Outputs
+out/

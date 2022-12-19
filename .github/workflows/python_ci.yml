@@ -1,13 +1,14 @@
 ## DO NOT EDIT!
 # This file was provisioned by Terraform
-# Check file validity at: https://rhysd.github.io/actionlint/
-# https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
+# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/.github/workflows/python_ci.yml
 
 on:
-  push:
-    branches:
-    - main
   pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - '**.py'
 
 name: Python Checks
 
