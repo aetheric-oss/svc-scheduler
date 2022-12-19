@@ -5,7 +5,7 @@
 SHELL := /bin/bash
 
 SANITYCHECKS_IMAGE_NAME := ghcr.io/arrow-air/tools/arrow-sanitychecks
-SANITYCHECKS_IMAGE_TAG  := 0.1
+SANITYCHECKS_IMAGE_TAG  := 0.2
 
 SOURCE_PATH      ?= $(PWD)
 
