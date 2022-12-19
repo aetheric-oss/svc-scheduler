@@ -1,0 +1,36 @@
+## DO NOT EDIT!
+# This file was provisioned by Terraform
+# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/.github/workflows/rust_ci.yml
+#
+on:
+  schedule:
+    - cron: '0 4 * * *' # run at 4 AM UTC
+
+name: Nightly Build
+
+env:
+  TERM: xterm
+
+jobs:
+  # Will catch broken dependencies
+  build_and_test_debug:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: develop
+      - name: Build
+        run: make rust-build
+      - name: Test
+        run: make rust-test
+
+  # Check if any URLs no longer work
+  md-test:
+    name: Markdown Broken Link Checker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: develop
+      - run: make md-test-links
