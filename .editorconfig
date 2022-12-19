@@ -9,24 +9,20 @@ trim_trailing_whitespace = true
 insert_final_newline = true
 indent_style = space
 indent_size = 4
-[{*.md,*.mdx}]
+[{*.md,*.mdx,LICENSE*}]
 # double whitespace at end of line
 # denotes a line break in Markdown
 indent_size = off
 trim_trailing_whitespace = false
-[{*.yml,*.yaml,*.toml}]
-indent_size = 2
 [*.rs]
 trim_trailing_whitespace = false
 indent_style = space
 indent_size = 4
-[*.tf]
-indent_size = 2
 [{Makefile*,*.mk,*.sh}]
 indent_style = tab
 indent_size = 4
-[{*.tsx,*.html,*.yml,*.yaml,*.toml,*.json}]
+[{*.tsx,*.html,*.yml,*.yaml,*.toml,*.json,*.tf,*.hcl}]
 indent_size = 2
 # we might want to use https://www.npmjs.com/package/lintspaces instead, we can't lint the css and js comments atm
-[{*.js,*.css}]
+[{*.js,*.css,Cargo.lock}]
 indent_size = unset
