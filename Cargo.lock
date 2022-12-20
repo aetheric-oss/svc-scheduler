@@ -1178,7 +1178,7 @@ dependencies = [
 [[package]]
 name = "router"
 version = "0.1.0"
-source = "git+https://github.com/Arrow-air/lib-router.git#2bdac70970e4bd2e4f127c20e70748f4a756305f"
+source = "git+https://github.com/Arrow-air/lib-router.git?branch=main#55eac9c574e699758259beea1224bb0eb5e44736"
 dependencies = [
  "cargo-husky",
  "chrono",
@@ -1193,7 +1193,7 @@ dependencies = [
  "rand",
  "rrule",
  "serde",
- "svc-storage-client-grpc 0.6.0-develop.0",
+ "svc-storage-client-grpc",
  "uuid",
  "vecmath",
 ]
@@ -1331,7 +1331,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "svc-scheduler"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cargo-husky",
  "chrono",
@@ -1348,7 +1348,7 @@ dependencies = [
  "prost-types",
  "router",
  "rrule",
- "svc-storage-client-grpc 0.2.0",
+ "svc-storage-client-grpc",
  "tokio",
  "tonic",
  "tonic-build",
@@ -1358,7 +1358,7 @@ dependencies = [
 
 [[package]]
 name = "svc-scheduler-client-grpc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "chrono-tz 0.8.0",
@@ -1381,18 +1381,6 @@ dependencies = [
  "prost-types",
  "tonic",
  "uuid",
-]
-
-[[package]]
-name = "svc-storage-client-grpc"
-version = "0.6.0-develop.0"
-source = "git+https://github.com/Arrow-air/svc-storage.git?branch=develop#3a625f7174df006682bbb384c16ec482c9e907c5"
-dependencies = [
- "num-derive",
- "num-traits",
- "prost",
- "prost-types",
- "tonic",
 ]
 
 [[package]]
