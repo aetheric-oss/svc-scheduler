@@ -1,7 +1,7 @@
 //! Implementation of the queries/actions that the scheduler service can perform.
 use crate::scheduler_grpc::{
     CancelFlightResponse, ConfirmFlightResponse, FlightPriority, FlightStatus, Id, QueryFlightPlan,
-    QueryFlightRequest, QueryFlightResponse,
+    QueryFlightPlanBundle, QueryFlightRequest, QueryFlightResponse,
 };
 use once_cell::sync::OnceCell;
 use prost_types::{FieldMask, Timestamp};
@@ -116,8 +116,8 @@ pub async fn query_flight(
     let flight_plans = get_possible_flights(
         depart_vertiport,
         arrive_vertiport,
-        flight_request.departure_time,
-        flight_request.arrival_time,
+        flight_request.earliest_departure_time,
+        flight_request.latest_arrival_time,
         aircrafts,
     );
     if flight_plans.is_err() || flight_plans.as_ref().unwrap().is_empty() {
@@ -164,7 +164,11 @@ pub async fn query_flight(
     };
     debug!("query_flight response: {:?}", &item);
     let response = QueryFlightResponse {
-        flights: [item].to_vec(),
+        flights: [QueryFlightPlanBundle {
+            flight_plan: Some(item),
+            deadhead_flight_plans: vec![],
+        }]
+        .to_vec(),
     };
     info!(
         "query_flight returning: {} flight plans",

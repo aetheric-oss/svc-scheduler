@@ -17,10 +17,10 @@ message QueryFlightRequest {
     optional uint32 persons = 2;
     //weight in grams
     optional uint32 weightGrams = 3;
-    //requested preferred time of departure - if not set, then arrival time is used; if both set, then departure time is used
-    optional google.protobuf.Timestamp departureTime = 4;
-    //requested preferred time of arrival - if not set, then departure time is used; if both set, then departure time is used
-    optional google.protobuf.Timestamp arrivalTime = 5;
+    //requested earliest time of departure - beginning of the time window in which we search for a flight
+    google.protobuf.Timestamp earliestDepartureTime = 4;
+    //requested preferred time of arrival - end of the time window in which we search for a flight
+    google.protobuf.Timestamp latestArrivalTime = 5;
     //vertiport_depart_id
     string vertiport_depart_id = 6;
     //vertiport_depart_id
@@ -91,10 +91,19 @@ message QueryFlightPlan {
     uint32 estimated_distance = 18;
 
 }
+
+//QueryFlightPlanBundle includes flight plan and potential deadhead flights
+message QueryFlightPlanBundle {
+    //flight_plan
+    QueryFlightPlan flight_plan = 1;
+    //deadhead flight plans
+    repeated QueryFlightPlan deadhead_flight_plans = 2;
+}
+
 //QueryFlightResponse
 message QueryFlightResponse {
     //array/vector of flight items
-    repeated QueryFlightPlan flights = 1;
+    repeated QueryFlightPlanBundle flights = 1;
 }
 
 //Id type for passing id only requests
