@@ -11,12 +11,12 @@ pub struct QueryFlightRequest {
     /// weight in grams
     #[prost(uint32, optional, tag = "3")]
     pub weight_grams: ::core::option::Option<u32>,
-    /// requested preferred time of departure - if not set, then arrival time is used; if both set, then departure time is used
+    /// requested earliest time of departure - beginning of the time window in which we search for a flight
     #[prost(message, optional, tag = "4")]
-    pub departure_time: ::core::option::Option<::prost_types::Timestamp>,
-    /// requested preferred time of arrival - if not set, then departure time is used; if both set, then departure time is used
+    pub earliest_departure_time: ::core::option::Option<::prost_types::Timestamp>,
+    /// requested preferred time of arrival - end of the time window in which we search for a flight
     #[prost(message, optional, tag = "5")]
-    pub arrival_time: ::core::option::Option<::prost_types::Timestamp>,
+    pub latest_arrival_time: ::core::option::Option<::prost_types::Timestamp>,
     /// vertiport_depart_id
     #[prost(string, tag = "6")]
     pub vertiport_depart_id: ::prost::alloc::string::String,
@@ -83,13 +83,24 @@ pub struct QueryFlightPlan {
     #[prost(uint32, tag = "18")]
     pub estimated_distance: u32,
 }
+/// QueryFlightPlanBundle includes flight plan and potential deadhead flights
+#[derive(Eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct QueryFlightPlanBundle {
+    /// flight_plan
+    #[prost(message, optional, tag = "1")]
+    pub flight_plan: ::core::option::Option<QueryFlightPlan>,
+    /// deadhead flight plans
+    #[prost(message, repeated, tag = "2")]
+    pub deadhead_flight_plans: ::prost::alloc::vec::Vec<QueryFlightPlan>,
+}
 /// QueryFlightResponse
 #[derive(Eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightResponse {
     /// array/vector of flight items
     #[prost(message, repeated, tag = "1")]
-    pub flights: ::prost::alloc::vec::Vec<QueryFlightPlan>,
+    pub flights: ::prost::alloc::vec::Vec<QueryFlightPlanBundle>,
 }
 /// Id type for passing id only requests
 #[derive(Eq)]
@@ -205,7 +216,7 @@ impl FlightPriority {
 pub mod scheduler_rpc_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with SchedulerRpcServer.
+    ///Generated trait containing gRPC methods that should be implemented for use with SchedulerRpcServer.
     #[async_trait]
     pub trait SchedulerRpc: Send + Sync + 'static {
         async fn query_flight(
@@ -225,7 +236,7 @@ pub mod scheduler_rpc_server {
             request: tonic::Request<super::ReadyRequest>,
         ) -> Result<tonic::Response<super::ReadyResponse>, tonic::Status>;
     }
-    /// Scheduler service
+    ///Scheduler service
     #[derive(Debug)]
     pub struct SchedulerRpcServer<T: SchedulerRpc> {
         inner: _Inner<T>,
