@@ -55,6 +55,7 @@ jobs:
           nextReleaseName: "Release ${{ steps.tag_version.outputs.new_version }}"
 
       - name: Update CHANGELOG.md
+        if: ${{ env.GITHUB_REF_NAME == 'main' }}
         run: |
           cat - CHANGELOG.md > temp <<'CHANGELOG.md-EOF'
           ${{ steps.changelog.outputs.changelog }}
@@ -66,9 +67,11 @@ jobs:
         run: |
           cargo install cargo-edit
           cargo set-version ${{ steps.tag_version.outputs.new_version }}
+          cargo update
           make toml-tidy
 
       - name: Commit and push CHANGELOG.md
+        if: ${{ env.GITHUB_REF_NAME == 'main' }}
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           CHANGED_FILE: "CHANGELOG.md"
@@ -112,10 +115,6 @@ jobs:
             --field encoding="base64" \
             --field branch="${{ github.ref_name }}" \
             --field sha="$SHA"
-
-      - name: Generate new Cargo.lock
-        run: |
-          cargo update
 
       - name: Commit and push new Cargo.lock
         env:
