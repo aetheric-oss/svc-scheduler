@@ -9,6 +9,7 @@ CARGO_INCREMENTAL   ?= 1
 RUSTC_BOOTSTRAP     ?= 0
 RELEASE_TARGET      ?= x86_64-unknown-linux-musl
 PUBLISH_DRY_RUN     ?= 1
+OUTPUTS_PATH        ?= $(SOURCE_PATH)/out
 
 # function with a generic template to run docker with the required values
 # Accepts $1 = command to run, $2 = additional command flags (optional)
@@ -109,6 +110,29 @@ rust-fmt: check-cargo-registry rust-docker-pull
 rust-tidy: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running rust file formatting fixes...$(SGR0)"
 	@$(call cargo_run,fmt,--all)
+
+rust-openapi: check-cargo-registry rust-docker-pull rust-build
+	@echo "$(CYAN)Generating openapi documentation...$(SGR0)"
+	mkdir -p $(OUTPUTS_PATH)
+	@$(call cargo_run,run,-- --openapi ./out/$(PACKAGE_NAME)-openapi.json)
+
+rust-validate-openapi: rust-openapi
+	@docker run \
+		--rm \
+		-v $(OUTPUTS_PATH):/out \
+		jeanberu/swagger-cli \
+		swagger-cli validate /out/$(PACKAGE_NAME)-openapi.json
+
+rust-grpc-api:
+	@echo "$(CYAN)Generating GRPC documentation...$(SGR0)"
+	mkdir -p $(OUTPUTS_PATH)
+	@docker run \
+		--rm \
+		--user `id -u`:`id -g` \
+		-v $(SOURCE_PATH)/proto:/protos \
+		-v $(OUTPUTS_PATH):/out \
+		pseudomuto/protoc-gen-doc \
+		--doc_opt=json,$(PACKAGE_NAME)-grpc-api.json
 
 rust-test-all: rust-build rust-check rust-test rust-clippy rust-fmt
 rust-all: rust-clean rust-test-all rust-release
