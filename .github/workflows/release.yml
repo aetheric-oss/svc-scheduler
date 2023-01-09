@@ -27,11 +27,22 @@ jobs:
     concurrency:
       group: release-${{ github.head_ref || 'main' }}
     steps:
+      - name: Set up environment based on branch
+        run: |
+          if [ "$GITHUB_REF_NAME" == "main" ]
+          then
+            echo "PUBLISH_DRY_RUN=0" >> $GITHUB_ENV
+          else
+            echo "CUSTOM_RELEASE_RULES=fix:prerelease,feat:prerelease,chore:prerelease" >> $GITHUB_ENV
+            echo "PUBLISH_DRY_RUN=1" >> $GITHUB_ENV
+          fi
+
       - id: generate-token
         uses: tibdex/github-app-token@v1
         with:
           app_id: ${{ secrets.RELEASE_AUTOMATION_APP_ID }}
           private_key: ${{ secrets.RELEASE_AUTOMATION_PRIVATE_KEY }}
+
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
@@ -39,12 +50,13 @@ jobs:
           fetch-depth: 0
 
       - name: Determine new Tag
-        uses: mathieudutour/github-tag-action@v6.0
+        uses: mathieudutour/github-tag-action@v6.1
         id: tag_version
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           pre_release_branches: develop
           dry_run: true
+          custom_release_rules: "${{ env.CUSTOM_RELEASE_RULES }}"
 
       - name: Generate Changelog
         id: changelog
@@ -179,8 +191,6 @@ jobs:
           ref: ${{ github.ref_name }}
 
       - name: Build and publish client
-        env:
-          PUBLISH_DRY_RUN: 0
         run: |
           make rust-publish
 
