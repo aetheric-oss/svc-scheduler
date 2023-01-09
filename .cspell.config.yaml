@@ -20,3 +20,4 @@ ignorePaths:
   - '*.svg'
   - '*/**Makefile'
   - 'target'
+  - 'out'
