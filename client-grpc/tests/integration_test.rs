@@ -15,8 +15,8 @@ async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
         is_cargo: true,
         persons: Some(0),
         weight_grams: Some(5000),
-        departure_time: Some(prost_types::Timestamp::from(sys_time)),
-        arrival_time: None,
+        earliest_departure_time: Some(prost_types::Timestamp::from(sys_time)),
+        latest_arrival_time: None,
         vertiport_depart_id: "123".to_string(),
         vertiport_arrive_id: "456".to_string(),
     });
