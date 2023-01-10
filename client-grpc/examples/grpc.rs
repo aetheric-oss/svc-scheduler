@@ -29,15 +29,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         weight_grams: Some(5000),
         vertiport_depart_id: "a3509e85-6421-4dd1-8593-74950b88577e".to_string(),
         vertiport_arrive_id: "99c3bd83-79ef-4044-a903-5dac6f557193".to_string(),
-        departure_time: Some(Timestamp {
+        earliest_departure_time: Some(Timestamp {
             seconds: departure_time,
             nanos: 0,
         }),
-        arrival_time: None,
+        latest_arrival_time: None,
     });
 
     let response = client.query_flight(request).await?.into_inner().flights;
-    let id = (&response)[0].id.to_string();
+    let id = (&response)[0].flight_plan.as_ref().unwrap().id.to_string();
     println!("id={}", id);
     /*let response = client
     .cancel_flight(Request::new(Id {
