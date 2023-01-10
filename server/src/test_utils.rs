@@ -8,6 +8,14 @@ use svc_storage_client_grpc::client::{
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
+pub fn init_logger() {
+    let log_cfg: &str = "../log4rs.yaml";
+    if let Err(e) = log4rs::init_file(log_cfg, Default::default()) {
+        println!("(logger) could not parse {}. {}", log_cfg, e);
+        panic!();
+    }
+}
+
 #[derive(Debug)]
 pub struct StorageClientWrapperStub {
     vertiports: Vec<Vertiport>,
