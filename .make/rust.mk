@@ -142,5 +142,5 @@ rust-grpc-api:
 		pseudomuto/protoc-gen-doc \
 		--doc_opt=json,$(PACKAGE_NAME)-grpc-api.json
 
-rust-test-all: rust-build rust-check rust-test rust-clippy rust-fmt
+rust-test-all: rust-build rust-check rust-test rust-clippy rust-fmt rust-doc
 rust-all: rust-clean rust-test-all rust-release
