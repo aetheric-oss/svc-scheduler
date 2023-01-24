@@ -53,3 +53,25 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - run: make rust-clippy
+
+  # Validates the code examples in doc comments
+  doc:
+    name: Rustdoc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: make rust-doc
+
+  coverage:
+    name: Unit Test Coverage
+    runs-on: ubuntu-latest
+    env:
+      NODE_COVERALLS_DEBUG: 1
+    steps:
+      - uses: actions/checkout@v2
+      - run: make rust-coverage || true
+      - uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.github_token }}
+          path-to-lcov: coverage/lcov.info
+          base-path: .
