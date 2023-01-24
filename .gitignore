@@ -39,3 +39,7 @@ log/
 
 # Outputs
 out/
+
+# Coverage output
+coverage/
+*.profraw
