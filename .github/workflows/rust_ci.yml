@@ -69,9 +69,22 @@ jobs:
       NODE_COVERALLS_DEBUG: 1
     steps:
       - uses: actions/checkout@v2
-      - run: make rust-coverage || true
+      - run: |
+          mkdir -p coverage
+          make rust-coverage | tee coverage/ut.txt
+          echo UT_COV=$(sed '/||/,$!d' coverage/ut.txt) >> $GITHUB_ENV
       - uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.github_token }}
           path-to-lcov: coverage/lcov.info
           base-path: .
+      - uses: thollander/actions-comment-pull-request@v1
+        continue-on-error: true
+        with:
+          message: |
+            :beetle: Unit Testing Coverage :mag_right:
+
+            ${{ env.UT_COV }}
+
+            :point_right: [View in Coveralls.io](https://coveralls.io/github/${{ github.repository }}) :point_left:
+          comment_includes: ':beetle: Unit Testing Coverage :mag_right:'
