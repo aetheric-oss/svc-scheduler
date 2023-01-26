@@ -1,7 +1,7 @@
 //! Implementation of the queries/actions that the scheduler service can perform.
 use crate::scheduler_grpc::{
     CancelFlightResponse, ConfirmFlightResponse, FlightPriority, FlightStatus, Id, QueryFlightPlan,
-    QueryFlightRequest, QueryFlightResponse,
+    QueryFlightPlanBundle, QueryFlightRequest, QueryFlightResponse,
 };
 use once_cell::sync::OnceCell;
 use prost_types::{FieldMask, Timestamp};
@@ -19,6 +19,15 @@ use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
 const CANCEL_FLIGHT_SECONDS: u64 = 30;
+
+/*fn empty_filter() -> SearchFilter {
+    SearchFilter {
+        search_field: "".to_string(),
+        search_value: "".to_string(),
+        page_number: 0,
+        results_per_page: 0,
+    }
+}*/
 
 /// gets or creates a new hashmap of unconfirmed flight plans
 fn unconfirmed_flight_plans() -> &'static Mutex<HashMap<String, FlightPlanData>> {
@@ -67,14 +76,14 @@ pub async fn query_flight(
         &depart_vertiport, &arrive_vertiport
     );
     let departure_vertiport_flights: Vec<FlightPlan> = vec![];
-    /*todo storage_client
-    .flight_plans(Request::new(FlightPlanFilter {})) //todo filter flight_plans(estimated_departure_between: ($from, $to), vertiport_id: $ID)
+    /*storage_client_wrapper
+    .flight_plans(Request::new(empty_filter())) //todo filter flight_plans(estimated_departure_between: ($from, $to), vertiport_id: $ID)
     .await?
     .into_inner()
     .flight_plans;*/
     let arrival_vertiport_flights: Vec<FlightPlan> = vec![];
-    /* todo storage_client
-    .flight_plans(Request::new(FlightPlanFilter {}))
+    /*storage_client_wrapper
+    .flight_plans(Request::new(empty_filter()))
     //todo filter flight_plans(estimated_arrival_between: ($from, $to), vertiport_id: $ID)
     .await?
     .into_inner()
@@ -116,8 +125,8 @@ pub async fn query_flight(
     let flight_plans = get_possible_flights(
         depart_vertiport,
         arrive_vertiport,
-        flight_request.departure_time,
-        flight_request.arrival_time,
+        flight_request.earliest_departure_time,
+        flight_request.latest_arrival_time,
         aircrafts,
     );
     if flight_plans.is_err() || flight_plans.as_ref().unwrap().is_empty() {
@@ -127,45 +136,51 @@ pub async fn query_flight(
     }
     let flight_plans = flight_plans.unwrap();
     info!("Found  {} flight plans from router", &flight_plans.len());
-    let fp = flight_plans.first().unwrap();
-    //7. create draft flight plan (in memory)
-    let fp_id = Uuid::new_v4().to_string();
-    info!(
-        "Adding draft flight plan with temporary id: {} with timeout {} seconds",
-        &fp_id, CANCEL_FLIGHT_SECONDS
-    );
-    unconfirmed_flight_plans()
-        .lock()
-        .expect("Mutex Lock Error inserting flight plan into temp storage")
-        .insert(fp_id.clone(), fp.clone());
 
-    //8. automatically cancel draft flight plan if not confirmed by user
-    cancel_flight_after_timeout(fp_id.clone());
-    //9. return response - TODO copy from storage flight plan
-    let item = QueryFlightPlan {
-        id: fp_id,
-        pilot_id: "1".to_string(),
-        vehicle_id: "1".to_string(),
-        cargo: [123].to_vec(),
-        weather_conditions: "Sunny, no wind :)".to_string(),
-        vertiport_depart_id: "1".to_string(),
-        pad_depart_id: "1".to_string(),
-        vertiport_arrive_id: "1".to_string(),
-        pad_arrive_id: "1".to_string(),
-        estimated_departure: fp.clone().scheduled_departure,
-        estimated_arrival: fp.clone().scheduled_arrival,
-        actual_departure: None,
-        actual_arrival: None,
-        flight_release_approval: None,
-        flight_plan_submitted: None,
-        flight_status: FlightStatus::Ready as i32,
-        flight_priority: FlightPriority::Low as i32,
-        estimated_distance: fp.flight_distance as u32,
-    };
-    debug!("query_flight response: {:?}", &item);
-    let response = QueryFlightResponse {
-        flights: [item].to_vec(),
-    };
+    //7. create draft flight plans (in memory)
+    let mut flights: Vec<QueryFlightPlanBundle> = vec![];
+    for fp in &flight_plans {
+        let fp_id = Uuid::new_v4().to_string();
+        info!(
+            "Adding draft flight plan with temporary id: {} with timeout {} seconds",
+            &fp_id, CANCEL_FLIGHT_SECONDS
+        );
+        unconfirmed_flight_plans()
+            .lock()
+            .expect("Mutex Lock Error inserting flight plan into temp storage")
+            .insert(fp_id.clone(), fp.clone());
+
+        //8. automatically cancel draft flight plan if not confirmed by user
+        cancel_flight_after_timeout(fp_id.clone());
+        let item = QueryFlightPlan {
+            id: fp_id,
+            pilot_id: fp.pilot_id.clone(),
+            vehicle_id: fp.vehicle_id.clone(),
+            cargo: [123].to_vec(),
+            weather_conditions: fp.weather_conditions.clone(),
+            vertiport_depart_id: fp.departure_vertiport_id.clone().unwrap(),
+            pad_depart_id: fp.departure_vertipad_id.clone(),
+            vertiport_arrive_id: fp.destination_vertiport_id.clone().unwrap(),
+            pad_arrive_id: fp.destination_vertipad_id.clone(),
+            estimated_departure: fp.scheduled_departure.clone(),
+            estimated_arrival: fp.scheduled_arrival.clone(),
+            actual_departure: None,
+            actual_arrival: None,
+            flight_release_approval: None,
+            flight_plan_submitted: None,
+            flight_status: FlightStatus::Ready as i32,
+            flight_priority: FlightPriority::Low as i32,
+            estimated_distance: fp.flight_distance as u32,
+        };
+        debug!("flight plan: {:?}", &item);
+        flights.push(QueryFlightPlanBundle {
+            flight_plan: Some(item),
+            deadhead_flight_plans: vec![],
+        });
+    }
+
+    //9. return response
+    let response = QueryFlightResponse { flights };
     info!(
         "query_flight returning: {} flight plans",
         &response.flights.len()
@@ -321,9 +336,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_flight() {
+        init_logger();
         let client_wrapper = create_storage_client_stub();
-        let timestamp = Utc
+        let edt = Utc
             .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
+            .unwrap()
+            .timestamp();
+        let lat = Utc
+            .with_ymd_and_hms(2022, 10, 25, 16, 0, 0)
             .unwrap()
             .timestamp();
 
@@ -345,11 +365,14 @@ mod tests {
                 is_cargo: false,
                 persons: None,
                 weight_grams: None,
-                departure_time: Some(Timestamp {
-                    seconds: timestamp,
+                earliest_departure_time: Some(Timestamp {
+                    seconds: edt,
                     nanos: 0,
                 }),
-                arrival_time: None,
+                latest_arrival_time: Some(Timestamp {
+                    seconds: lat,
+                    nanos: 0,
+                }),
                 vertiport_depart_id: "vertiport1".to_string(),
                 vertiport_arrive_id: "vertiport2".to_string(),
             }),
@@ -357,6 +380,6 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(res.into_inner().flights.len(), 1);
+        assert_eq!(res.into_inner().flights.len(), 5);
     }
 }
