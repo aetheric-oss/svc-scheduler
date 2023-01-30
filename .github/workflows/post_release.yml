@@ -24,8 +24,8 @@ jobs:
     concurrency:
       group: api-docs-sync
     env:
-      AWS_S3_DOCS_REST_DEST_PATH: "/docs/documentation/services/rest/${{ github.event.repository.name }}/"
-      AWS_S3_DOCS_GRPC_DEST_PATH: "/docs/documentation/services/grpc/${{ github.event.repository.name }}/"
+      AWS_S3_DOCS_REST_DEST_PATH: "/api-docs/rest/${{ github.event.repository.name }}/"
+      AWS_S3_DOCS_GRPC_DEST_PATH: "/api-docs/grpc/${{ github.event.repository.name }}/"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -66,19 +66,19 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_WEBSITE }}:role/${{ secrets.AWS_S3_PROCESS_FILES_ROLE }}"
+          role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_WEBSITE }}:role/${{ secrets.AWS_S3_SERVICES_DOCS_ROLE }}"
           role-session-name: arrow-openapi-docs
           aws-region: "us-east-2"
       - name: Sync OpenAPI docs to S3 for processing
         if: steps.openapi_files.outputs.files_exists == 'true'
         id: openapi_sync_s3
         run: |
-          aws s3 cp ./out/${{ github.event.repository.name }}-openapi.json "s3://${{ secrets.AWS_S3_PROCESS_FILES_BUCKET }}${{ env.AWS_S3_DOCS_REST_DEST_PATH }}${BRANCHPATH}/"
+          aws s3 cp ./out/${{ github.event.repository.name }}-openapi.json "s3://${{ secrets.AWS_S3_SERVICES_DOCS_BUCKET }}${{ env.AWS_S3_DOCS_REST_DEST_PATH }}${BRANCHPATH}/openapi.json"
       - name: Sync GRPC API docs to S3 for processing
         if: steps.grpc_api_files.outputs.files_exists == 'true'
         id: grpc_api_sync_s3
         run: |
-          aws s3 cp ./out/${{ github.event.repository.name }}-grpc-api.json "s3://${{ secrets.AWS_S3_PROCESS_FILES_BUCKET }}${{ env.AWS_S3_DOCS_GRPC_DEST_PATH }}${BRANCHPATH}/"
+          aws s3 cp ./out/${{ github.event.repository.name }}-grpc-api.json "s3://${{ secrets.AWS_S3_SERVICES_DOCS_BUCKET }}${{ env.AWS_S3_DOCS_GRPC_DEST_PATH }}${BRANCHPATH}/grpc-api.json"
   docker_build:
     name: Build and push Docker image
     runs-on: ubuntu-latest
@@ -127,6 +127,45 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             PACKAGE_NAME=${{ github.event.repository.name }}
+
+  rust-docs:
+    name: Generate and sync Rust docs
+    environment: production
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    concurrency:
+      group: rust-docs-sync
+    env:
+      AWS_S3_DOCS_RUST_DEST_PATH: "/rust-docs/${{ github.event.repository.name }}/"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Gather env vars
+        run: |
+          if printf "%s" "${{ github.ref_name }}" |grep -q -- "-develop" ; then
+            echo "BRANCHPATH=develop" >> $GITHUB_ENV
+          else
+            echo "BRANCHPATH=main" >> $GITHUB_ENV
+          fi
+
+      # Generate rust docs
+      - name:
+        run: |
+          make rust-doc
+      # Login to AWS and Sync docs to AWS S3 bucket
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_WEBSITE }}:role/${{ secrets.AWS_S3_SERVICES_DOCS_ROLE }}"
+          role-session-name: arrow-rust-docs
+          aws-region: "us-east-2"
+      - name: Sync rust docs to S3 for processing
+        run: |
+          aws s3 sync ./target/doc/ "s3://${{ secrets.AWS_S3_SERVICES_DOCS_BUCKET }}${{ env.AWS_S3_DOCS_RUST_DEST_PATH }}${BRANCHPATH}/"  --delete --size-only
 
   grpc_client_release:
     name: Publish client to crates.io
