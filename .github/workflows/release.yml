@@ -5,7 +5,9 @@
 name: Tag and Release
 
 on:
-  push:
+  pull_request:
+    types:
+      - closed
     branches:
       - 'main'
       - 'develop'
@@ -15,6 +17,7 @@ env:
 
 jobs:
   prepare:
+    if: github.event.pull_request.merged == true
     name: Create Tag and Release notes
     permissions:
       contents: write
