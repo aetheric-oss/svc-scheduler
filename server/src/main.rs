@@ -22,24 +22,35 @@ use scheduler_grpc::{
     CancelFlightResponse, ConfirmFlightResponse, Id, QueryFlightRequest, QueryFlightResponse,
     ReadyRequest, ReadyResponse,
 };
+use svc_compliance_client_grpc::client::compliance_rpc_client::ComplianceRpcClient;
 use svc_storage_client_grpc::client::vertipad_rpc_client::VertipadRpcClient;
 use svc_storage_client_grpc::client::{
     flight_plan_rpc_client::FlightPlanRpcClient, vehicle_rpc_client::VehicleRpcClient,
     vertiport_rpc_client::VertiportRpcClient, SearchFilter,
 };
 
-use crate::grpc_client_wrapper::{GRPCClients, StorageClientWrapper, StorageClientWrapperTrait};
+use crate::grpc_client_wrapper::{
+    ComplianceClientWrapper, GRPCClients, StorageClientWrapper, StorageClientWrapperTrait,
+};
 use tonic::{transport::Server, Request, Response, Status};
 
 /// GRPC clients for storage service
 /// They have to be cloned before each call as per https://github.com/hyperium/tonic/issues/285
 
 pub(crate) static STORAGE_CLIENT_WRAPPER: OnceCell<StorageClientWrapper> = OnceCell::const_new();
+pub(crate) static COMPLIANCE_CLIENT_WRAPPER: OnceCell<ComplianceClientWrapper> =
+    OnceCell::const_new();
 
 pub(crate) fn get_storage_client_wrapper() -> &'static StorageClientWrapper {
     STORAGE_CLIENT_WRAPPER
         .get()
         .expect("Storage clients not initialized")
+}
+
+pub(crate) fn get_compliance_client_wrapper() -> &'static ComplianceClientWrapper {
+    COMPLIANCE_CLIENT_WRAPPER
+        .get()
+        .expect("Compliance client not initialized")
 }
 
 ///Implementation of gRPC endpoints
@@ -66,7 +77,12 @@ impl SchedulerRpc for SchedulerGrpcImpl {
         &self,
         request: Request<Id>,
     ) -> Result<Response<ConfirmFlightResponse>, Status> {
-        let res = queries::confirm_flight(request, get_storage_client_wrapper()).await;
+        let res = queries::confirm_flight(
+            request,
+            get_storage_client_wrapper(),
+            get_compliance_client_wrapper(),
+        )
+        .await;
         if res.is_err() {
             error!("{}", res.as_ref().err().unwrap());
         }
@@ -133,6 +149,17 @@ async fn init_grpc_clients() {
     let storage_full_grpc_addr =
         format!("http://{storage_grpc_host}:{storage_grpc_port}").to_string();
 
+    // Compliance GRPC Server
+    let compliance_grpc_port = std::env::var("COMPLIANCE_PORT_GRPC")
+        .unwrap_or_else(|_| "50051".to_string())
+        .parse::<u16>()
+        .unwrap_or(50051);
+    let compliance_grpc_host =
+        std::env::var("COMPLIANCE_HOST_GRPC").unwrap_or_else(|_| "localhost".to_string());
+
+    let compliance_full_grpc_addr =
+        format!("http://{compliance_grpc_host}:{compliance_grpc_port}").to_string();
+
     info!(
         "Setting up connection to svc-storage clients on {}",
         storage_full_grpc_addr.clone()
@@ -141,6 +168,8 @@ async fn init_grpc_clients() {
     let vehicle_client_res = VehicleRpcClient::connect(storage_full_grpc_addr.clone()).await;
     let vertiport_client_res = VertiportRpcClient::connect(storage_full_grpc_addr.clone()).await;
     let vertipad_client_res = VertipadRpcClient::connect(storage_full_grpc_addr.clone()).await;
+    let compliance_client_res =
+        ComplianceRpcClient::connect(compliance_full_grpc_addr.clone()).await;
     if flight_plan_client_res.is_err()
         || vehicle_client_res.is_err()
         || vertiport_client_res.is_err()
@@ -155,12 +184,20 @@ async fn init_grpc_clients() {
             vertipad_client_res.err().unwrap()
         );
         panic!();
+    } else if compliance_client_res.is_err() {
+        error!(
+            "Failed to connect to compliance service at {}. Client errors: {}",
+            storage_full_grpc_addr.clone(),
+            compliance_client_res.err().unwrap()
+        );
+        panic!();
     } else {
         let grpc_clients = GRPCClients {
             flight_plan_client: flight_plan_client_res.unwrap(),
             vehicle_client: vehicle_client_res.unwrap(),
             vertiport_client: vertiport_client_res.unwrap(),
             vertipad_client: vertipad_client_res.unwrap(),
+            compliance_client: compliance_client_res.unwrap(),
         };
         STORAGE_CLIENT_WRAPPER
             .set(StorageClientWrapper {

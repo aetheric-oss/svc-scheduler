@@ -1,4 +1,8 @@
 use async_trait::async_trait;
+use svc_compliance_client_grpc::client::compliance_rpc_client::ComplianceRpcClient;
+use svc_compliance_client_grpc::client::{
+    FlightPlanRequest, FlightPlanResponse, FlightReleaseRequest, FlightReleaseResponse,
+};
 use svc_storage_client_grpc::client::flight_plan_rpc_client::FlightPlanRpcClient;
 use svc_storage_client_grpc::client::vehicle_rpc_client::VehicleRpcClient;
 use svc_storage_client_grpc::client::vertipad_rpc_client::VertipadRpcClient;
@@ -10,8 +14,12 @@ use svc_storage_client_grpc::client::{
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 
-fn err_msg() -> Status {
+fn storage_err_msg() -> Status {
     Status::internal("Storage client not initialized")
+}
+
+fn compliance_err_msg() -> Status {
+    Status::internal("Compliance client not initialized")
 }
 
 #[derive(Debug)]
@@ -20,6 +28,7 @@ pub struct GRPCClients {
     pub vertiport_client: VertiportRpcClient<Channel>,
     pub vertipad_client: VertipadRpcClient<Channel>,
     pub vehicle_client: VehicleRpcClient<Channel>,
+    pub compliance_client: ComplianceRpcClient<Channel>,
 }
 
 #[async_trait]
@@ -46,8 +55,25 @@ pub trait StorageClientWrapperTrait {
     async fn vehicles(&self, request: Request<SearchFilter>) -> Result<Response<Vehicles>, Status>;
 }
 
+#[async_trait]
+pub trait ComplianceClientWrapperTrait {
+    async fn submit_flight_plan(
+        &self,
+        request: Request<FlightPlanRequest>,
+    ) -> Result<Response<FlightPlanResponse>, Status>;
+    async fn request_flight_release(
+        &self,
+        request: Request<FlightReleaseRequest>,
+    ) -> Result<Response<FlightReleaseResponse>, Status>;
+}
+
 #[derive(Debug)]
 pub struct StorageClientWrapper {
+    pub grpc_clients: Option<GRPCClients>,
+}
+
+#[derive(Debug)]
+pub struct ComplianceClientWrapper {
     pub grpc_clients: Option<GRPCClients>,
 }
 
@@ -60,7 +86,7 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
         let mut vertiport_client = self
             .grpc_clients
             .as_ref()
-            .ok_or_else(err_msg)
+            .ok_or_else(storage_err_msg)
             .unwrap()
             .vertiport_client
             .clone();
@@ -71,7 +97,7 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
         let mut vertiport_client = self
             .grpc_clients
             .as_ref()
-            .ok_or_else(err_msg)
+            .ok_or_else(storage_err_msg)
             .unwrap()
             .vertiport_client
             .clone();
@@ -85,7 +111,7 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
         let mut fp_client = self
             .grpc_clients
             .as_ref()
-            .ok_or_else(err_msg)
+            .ok_or_else(storage_err_msg)
             .unwrap()
             .flight_plan_client
             .clone();
@@ -99,7 +125,7 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
         let mut fp_client = self
             .grpc_clients
             .as_ref()
-            .ok_or_else(err_msg)
+            .ok_or_else(storage_err_msg)
             .unwrap()
             .flight_plan_client
             .clone();
@@ -113,7 +139,7 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
         let mut fp_client = self
             .grpc_clients
             .as_ref()
-            .ok_or_else(err_msg)
+            .ok_or_else(storage_err_msg)
             .unwrap()
             .flight_plan_client
             .clone();
@@ -127,7 +153,7 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
         let mut fp_client = self
             .grpc_clients
             .as_ref()
-            .ok_or_else(err_msg)
+            .ok_or_else(storage_err_msg)
             .unwrap()
             .flight_plan_client
             .clone();
@@ -138,10 +164,41 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
         let mut vehicle_client = self
             .grpc_clients
             .as_ref()
-            .ok_or_else(err_msg)
+            .ok_or_else(storage_err_msg)
             .unwrap()
             .vehicle_client
             .clone();
         vehicle_client.vehicles(request).await
+    }
+}
+
+#[async_trait]
+impl ComplianceClientWrapperTrait for ComplianceClientWrapper {
+    async fn submit_flight_plan(
+        &self,
+        request: Request<FlightPlanRequest>,
+    ) -> Result<Response<FlightPlanResponse>, Status> {
+        let mut compliance_client = self
+            .grpc_clients
+            .as_ref()
+            .ok_or_else(compliance_err_msg)
+            .unwrap()
+            .compliance_client
+            .clone();
+        compliance_client.submit_flight_plan(request).await
+    }
+
+    async fn request_flight_release(
+        &self,
+        request: Request<FlightReleaseRequest>,
+    ) -> Result<Response<FlightReleaseResponse>, Status> {
+        let mut compliance_client = self
+            .grpc_clients
+            .as_ref()
+            .ok_or_else(compliance_err_msg)
+            .unwrap()
+            .compliance_client
+            .clone();
+        compliance_client.request_flight_release(request).await
     }
 }
