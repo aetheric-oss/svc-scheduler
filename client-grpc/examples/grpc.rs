@@ -23,6 +23,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap()
         .timestamp();
 
+    let arrival_time = Utc
+        .with_ymd_and_hms(2022, 10, 25, 16, 0, 0)
+        .unwrap()
+        .timestamp();
+
     let request = Request::new(QueryFlightRequest {
         is_cargo: true,
         persons: Some(0),
@@ -33,7 +38,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             seconds: departure_time,
             nanos: 0,
         }),
-        latest_arrival_time: None,
+        latest_arrival_time: Some(Timestamp {
+            seconds: arrival_time,
+            nanos: 0,
+        }),
     });
 
     let response = client.query_flight(request).await?.into_inner().flights;

@@ -1,6 +1,12 @@
 /// test utils for creating gRPC client stub
-use crate::grpc_client_wrapper::{GRPCClients, StorageClientWrapperTrait};
+use crate::grpc_client_wrapper::{
+    ComplianceClientWrapperTrait, GRPCClients, StorageClientWrapperTrait,
+};
 use async_trait::async_trait;
+use std::sync::Once;
+use svc_compliance_client_grpc::client::{
+    FlightPlanRequest, FlightPlanResponse, FlightReleaseRequest, FlightReleaseResponse,
+};
 use svc_storage_client_grpc::client::{
     FlightPlan, FlightPlanData, FlightPlans, Id, SearchFilter, UpdateFlightPlan, Vehicle,
     VehicleData, Vehicles, Vertipad, VertipadData, Vertiport, VertiportData, Vertiports,
@@ -8,11 +14,43 @@ use svc_storage_client_grpc::client::{
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
+static INIT: Once = Once::new();
+
 pub fn init_logger() {
-    let log_cfg: &str = "../log4rs.yaml";
-    if let Err(e) = log4rs::init_file(log_cfg, Default::default()) {
-        println!("(logger) could not parse {}. {}", log_cfg, e);
-        panic!();
+    INIT.call_once(|| {
+        let log_cfg: &str = "../log4rs.yaml";
+        if let Err(e) = log4rs::init_file(log_cfg, Default::default()) {
+            println!("(logger) could not parse {}. {}", log_cfg, e);
+            panic!();
+        }
+    });
+}
+
+#[derive(Debug)]
+pub struct ComplianceClientWrapperStub {}
+
+#[async_trait]
+impl ComplianceClientWrapperTrait for ComplianceClientWrapperStub {
+    async fn submit_flight_plan(
+        &self,
+        _request: Request<FlightPlanRequest>,
+    ) -> Result<Response<FlightPlanResponse>, Status> {
+        Ok(Response::new(FlightPlanResponse {
+            flight_plan_id: Uuid::new_v4().to_string(),
+            submitted: true,
+            result: None,
+        }))
+    }
+
+    async fn request_flight_release(
+        &self,
+        _request: Request<FlightReleaseRequest>,
+    ) -> Result<Response<FlightReleaseResponse>, Status> {
+        Ok(Response::new(FlightReleaseResponse {
+            flight_plan_id: Uuid::new_v4().to_string(),
+            released: true,
+            result: None,
+        }))
     }
 }
 
@@ -102,6 +140,10 @@ impl StorageClientWrapperTrait for StorageClientWrapperStub {
             vehicles: self.vehicles.clone(),
         }))
     }
+}
+
+pub fn create_compliance_client_stub() -> ComplianceClientWrapperStub {
+    ComplianceClientWrapperStub {}
 }
 
 pub fn create_storage_client_stub() -> StorageClientWrapperStub {
