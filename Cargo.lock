@@ -1178,7 +1178,7 @@ dependencies = [
 [[package]]
 name = "router"
 version = "0.1.0"
-source = "git+https://github.com/Arrow-air/lib-router.git?branch=develop#09fafff11f4303b39205c48fc6ff3428132071f1"
+source = "git+https://github.com/Arrow-air/lib-router.git?branch=develop#b35c7e1da58839a8f5856c9ab5b4a4415c8ef7b6"
 dependencies = [
  "cargo-husky",
  "chrono",
@@ -1330,6 +1330,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "svc-compliance-client-grpc"
+version = "0.0.1"
+source = "git+https://github.com/Arrow-air/svc-compliance.git?branch=develop#322f614dd74249e61e6d7b9e436b7230b3e13ed6"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tonic",
+]
+
+[[package]]
 name = "svc-scheduler"
 version = "0.2.0"
 dependencies = [
@@ -1349,6 +1359,7 @@ dependencies = [
  "prost-types",
  "router",
  "rrule",
+ "svc-compliance-client-grpc",
  "svc-storage-client-grpc",
  "tokio",
  "tonic",
