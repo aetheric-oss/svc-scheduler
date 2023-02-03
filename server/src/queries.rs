@@ -9,11 +9,12 @@ use router::router_state::get_possible_flights;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
+use svc_compliance_client_grpc::client::FlightPlanRequest;
 use svc_storage_client_grpc::client::{
     FlightPlan, FlightPlanData, Id as StorageId, SearchFilter, UpdateFlightPlan,
 };
 
-use crate::grpc_client_wrapper::StorageClientWrapperTrait;
+use crate::grpc_client_wrapper::{ComplianceClientWrapperTrait, StorageClientWrapperTrait};
 use tokio;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
@@ -214,6 +215,7 @@ fn remove_fp_by_id(id: String) -> bool {
 pub async fn confirm_flight(
     request: Request<Id>,
     storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
+    compliance_client_wrapper: &(dyn ComplianceClientWrapperTrait + Send + Sync),
 ) -> Result<Response<ConfirmFlightResponse>, Status> {
     let fp_id = request.into_inner().id;
     info!("confirm_flight with id {}", &fp_id);
@@ -227,6 +229,17 @@ pub async fn confirm_flight(
             .into_inner();
         let sys_time = SystemTime::now();
         info!("confirm_flight: Flight plan with draft id: {} inserted in to storage with permanent id:{}", &fp_id, &fp.id);
+        let compliance_res = compliance_client_wrapper
+            .submit_flight_plan(Request::new(FlightPlanRequest {
+                flight_plan_id: fp.id.clone(),
+                data: "".to_string(),
+            }))
+            .await?
+            .into_inner();
+        info!(
+            "confirm_flight: Compliance response for flight plan id : {} is submitted: {}",
+            &fp.id, compliance_res.submitted
+        );
         let response = ConfirmFlightResponse {
             id: fp.id,
             confirmed: true,
@@ -318,8 +331,60 @@ mod tests {
 
     use super::*;
     use chrono::{TimeZone, Utc};
-    use router::router_state::{init_router_from_vertiports, NODES};
+    use router::router_state::{init_router_from_vertiports, is_router_initialized};
+    use std::sync::Once;
     use test_utils::*;
+
+    async fn init_router(client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync)) {
+        if is_router_initialized() {
+            return;
+        }
+        let vertiports = client_wrapper
+            .vertiports(Request::new(SearchFilter {
+                search_field: "".to_string(),
+                search_value: "".to_string(),
+                page_number: 0,
+                results_per_page: 0,
+            }))
+            .await
+            .unwrap()
+            .into_inner()
+            .vertiports;
+        let init_res = init_router_from_vertiports(&vertiports);
+    }
+
+    async fn run_query_flight(
+        storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
+    ) -> Response<QueryFlightResponse> {
+        let edt = Utc
+            .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
+            .unwrap()
+            .timestamp();
+        let lat = Utc
+            .with_ymd_and_hms(2022, 10, 25, 16, 0, 0)
+            .unwrap()
+            .timestamp();
+        query_flight(
+            Request::new(QueryFlightRequest {
+                is_cargo: false,
+                persons: None,
+                weight_grams: None,
+                earliest_departure_time: Some(Timestamp {
+                    seconds: edt,
+                    nanos: 0,
+                }),
+                latest_arrival_time: Some(Timestamp {
+                    seconds: lat,
+                    nanos: 0,
+                }),
+                vertiport_depart_id: "vertiport1".to_string(),
+                vertiport_arrive_id: "vertiport2".to_string(),
+            }),
+            storage_client_wrapper,
+        )
+        .await
+        .unwrap()
+    }
 
     #[tokio::test]
     async fn test_storage_client_stub() {
@@ -337,49 +402,43 @@ mod tests {
     #[tokio::test]
     async fn test_query_flight() {
         init_logger();
-        let client_wrapper = create_storage_client_stub();
-        let edt = Utc
-            .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
-            .unwrap()
-            .timestamp();
-        let lat = Utc
-            .with_ymd_and_hms(2022, 10, 25, 16, 0, 0)
-            .unwrap()
-            .timestamp();
-
-        let vertiports = client_wrapper
-            .vertiports(Request::new(SearchFilter {
-                search_field: "".to_string(),
-                search_value: "".to_string(),
-                page_number: 0,
-                results_per_page: 0,
-            }))
-            .await
-            .unwrap()
-            .into_inner()
-            .vertiports;
-        let init_res = init_router_from_vertiports(&vertiports);
-        assert_eq!(NODES.get().unwrap().len(), 2);
-        let res = query_flight(
-            Request::new(QueryFlightRequest {
-                is_cargo: false,
-                persons: None,
-                weight_grams: None,
-                earliest_departure_time: Some(Timestamp {
-                    seconds: edt,
-                    nanos: 0,
-                }),
-                latest_arrival_time: Some(Timestamp {
-                    seconds: lat,
-                    nanos: 0,
-                }),
-                vertiport_depart_id: "vertiport1".to_string(),
-                vertiport_arrive_id: "vertiport2".to_string(),
-            }),
-            &client_wrapper,
-        )
-        .await
-        .unwrap();
+        let storage_client_wrapper = create_storage_client_stub();
+        init_router(&storage_client_wrapper).await;
+        let res = run_query_flight(&storage_client_wrapper).await;
         assert_eq!(res.into_inner().flights.len(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_confirm_flight() {
+        init_logger();
+        let storage_client_wrapper = create_storage_client_stub();
+        let compliance_client_wrapper = create_compliance_client_stub();
+        init_router(&storage_client_wrapper).await;
+        let res = confirm_flight(
+            Request::new(Id {
+                id: "flight1".to_string(),
+            }),
+            &storage_client_wrapper,
+            &compliance_client_wrapper,
+        )
+        .await;
+        //test confirming a flight that does not exist will return an error
+        assert_eq!(res.is_err(), true);
+        let qf_res = run_query_flight(&storage_client_wrapper).await;
+        let res = confirm_flight(
+            Request::new(Id {
+                id: qf_res.into_inner().flights[0]
+                    .flight_plan
+                    .as_ref()
+                    .unwrap()
+                    .id
+                    .to_string(),
+            }),
+            &storage_client_wrapper,
+            &compliance_client_wrapper,
+        )
+        .await;
+        //test confirming a flight that does exist will return a success
+        assert_eq!(res.unwrap().into_inner().confirmed, true);
     }
 }
