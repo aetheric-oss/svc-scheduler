@@ -3,14 +3,15 @@ use svc_compliance_client_grpc::client::compliance_rpc_client::ComplianceRpcClie
 use svc_compliance_client_grpc::client::{
     FlightPlanRequest, FlightPlanResponse, FlightReleaseRequest, FlightReleaseResponse,
 };
-use svc_storage_client_grpc::client::flight_plan_rpc_client::FlightPlanRpcClient;
 use svc_storage_client_grpc::client::vehicle_rpc_client::VehicleRpcClient;
-use svc_storage_client_grpc::client::vertipad_rpc_client::VertipadRpcClient;
-use svc_storage_client_grpc::client::vertiport_rpc_client::VertiportRpcClient;
-use svc_storage_client_grpc::client::{
-    FlightPlan, FlightPlanData, FlightPlans, Id, SearchFilter, UpdateFlightPlan, Vehicles,
-    Vertiport, Vertiports,
+
+use svc_storage_client_grpc::client::{AdvancedSearchFilter, Id, SearchFilter, Vehicles};
+use svc_storage_client_grpc::flight_plan::{
+    Data as FlightPlanData, List as FlightPlans, Object as FlightPlan, Response as FPResponse,
+    UpdateObject as UpdateFlightPlan,
 };
+use svc_storage_client_grpc::vertiport::{List as Vertiports, Object as Vertiport};
+use svc_storage_client_grpc::{FlightPlanClient, VertipadClient, VertiportClient};
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 
@@ -24,9 +25,9 @@ fn compliance_err_msg() -> Status {
 
 #[derive(Debug)]
 pub struct GRPCClients {
-    pub flight_plan_client: FlightPlanRpcClient<Channel>,
-    pub vertiport_client: VertiportRpcClient<Channel>,
-    pub vertipad_client: VertipadRpcClient<Channel>,
+    pub flight_plan_client: FlightPlanClient<Channel>,
+    pub vertiport_client: VertiportClient<Channel>,
+    pub vertipad_client: VertipadClient<Channel>,
     pub vehicle_client: VehicleRpcClient<Channel>,
     pub compliance_client: ComplianceRpcClient<Channel>,
 }
@@ -35,23 +36,23 @@ pub struct GRPCClients {
 pub trait StorageClientWrapperTrait {
     async fn vertiports(
         &self,
-        request: Request<SearchFilter>,
+        request: Request<AdvancedSearchFilter>,
     ) -> Result<Response<Vertiports>, Status>;
     async fn vertiport_by_id(&self, request: Request<Id>) -> Result<Response<Vertiport>, Status>;
     async fn flight_plan_by_id(&self, request: Request<Id>)
         -> Result<Response<FlightPlan>, Status>;
     async fn flight_plans(
         &self,
-        request: Request<SearchFilter>,
+        request: Request<AdvancedSearchFilter>,
     ) -> Result<Response<FlightPlans>, Status>;
     async fn insert_flight_plan(
         &self,
         request: Request<FlightPlanData>,
-    ) -> Result<Response<FlightPlan>, Status>;
+    ) -> Result<Response<FPResponse>, Status>;
     async fn update_flight_plan(
         &self,
         request: Request<UpdateFlightPlan>,
-    ) -> Result<Response<FlightPlan>, Status>;
+    ) -> Result<Response<FPResponse>, Status>;
     async fn vehicles(&self, request: Request<SearchFilter>) -> Result<Response<Vehicles>, Status>;
 }
 
@@ -81,7 +82,7 @@ pub struct ComplianceClientWrapper {
 impl StorageClientWrapperTrait for StorageClientWrapper {
     async fn vertiports(
         &self,
-        request: Request<SearchFilter>,
+        request: Request<AdvancedSearchFilter>,
     ) -> Result<Response<Vertiports>, Status> {
         let mut vertiport_client = self
             .grpc_clients
@@ -90,7 +91,7 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
             .unwrap()
             .vertiport_client
             .clone();
-        vertiport_client.vertiports(request).await
+        vertiport_client.search(request).await
     }
 
     async fn vertiport_by_id(&self, request: Request<Id>) -> Result<Response<Vertiport>, Status> {
@@ -101,7 +102,7 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
             .unwrap()
             .vertiport_client
             .clone();
-        vertiport_client.vertiport_by_id(request).await
+        vertiport_client.get_by_id(request).await
     }
 
     async fn flight_plan_by_id(
@@ -115,12 +116,12 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
             .unwrap()
             .flight_plan_client
             .clone();
-        fp_client.flight_plan_by_id(request).await
+        fp_client.get_by_id(request).await
     }
 
     async fn flight_plans(
         &self,
-        request: Request<SearchFilter>,
+        request: Request<AdvancedSearchFilter>,
     ) -> Result<Response<FlightPlans>, Status> {
         let mut fp_client = self
             .grpc_clients
@@ -129,13 +130,13 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
             .unwrap()
             .flight_plan_client
             .clone();
-        fp_client.flight_plans(request).await
+        fp_client.search(request).await
     }
 
     async fn insert_flight_plan(
         &self,
         request: Request<FlightPlanData>,
-    ) -> Result<Response<FlightPlan>, Status> {
+    ) -> Result<Response<FPResponse>, Status> {
         let mut fp_client = self
             .grpc_clients
             .as_ref()
@@ -143,13 +144,13 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
             .unwrap()
             .flight_plan_client
             .clone();
-        fp_client.insert_flight_plan(request).await
+        fp_client.insert(request).await
     }
 
     async fn update_flight_plan(
         &self,
         request: Request<UpdateFlightPlan>,
-    ) -> Result<Response<FlightPlan>, Status> {
+    ) -> Result<Response<FPResponse>, Status> {
         let mut fp_client = self
             .grpc_clients
             .as_ref()
@@ -157,7 +158,7 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
             .unwrap()
             .flight_plan_client
             .clone();
-        fp_client.update_flight_plan(request).await
+        fp_client.update(request).await
     }
 
     async fn vehicles(&self, request: Request<SearchFilter>) -> Result<Response<Vehicles>, Status> {
