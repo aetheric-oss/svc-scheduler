@@ -17,21 +17,17 @@ use tokio::sync::OnceCell;
 #[macro_use]
 extern crate log;
 
+use crate::grpc_client_wrapper::{
+    ComplianceClientWrapper, GRPCClients, StorageClientWrapper, StorageClientWrapperTrait,
+};
 use scheduler_grpc::scheduler_rpc_server::{SchedulerRpc, SchedulerRpcServer};
 use scheduler_grpc::{
     CancelFlightResponse, ConfirmFlightResponse, Id, QueryFlightRequest, QueryFlightResponse,
     ReadyRequest, ReadyResponse,
 };
 use svc_compliance_client_grpc::client::compliance_rpc_client::ComplianceRpcClient;
-use svc_storage_client_grpc::client::vertipad_rpc_client::VertipadRpcClient;
-use svc_storage_client_grpc::client::{
-    flight_plan_rpc_client::FlightPlanRpcClient, vehicle_rpc_client::VehicleRpcClient,
-    vertiport_rpc_client::VertiportRpcClient, SearchFilter,
-};
-
-use crate::grpc_client_wrapper::{
-    ComplianceClientWrapper, GRPCClients, StorageClientWrapper, StorageClientWrapperTrait,
-};
+use svc_storage_client_grpc::client::{vehicle_rpc_client::VehicleRpcClient, AdvancedSearchFilter};
+use svc_storage_client_grpc::{FlightPlanClient, VertipadClient, VertiportClient};
 use tonic::{transport::Server, Request, Response, Status};
 
 /// GRPC clients for storage service
@@ -114,18 +110,18 @@ impl SchedulerRpc for SchedulerGrpcImpl {
 /// Initializes router state from vertiports from storage service
 async fn init_router() {
     let vertiports_res = get_storage_client_wrapper()
-        .vertiports(Request::new(SearchFilter {
-            search_field: "".to_string(),
-            search_value: "".to_string(),
+        .vertiports(Request::new(AdvancedSearchFilter {
+            filters: vec![],
             page_number: 0,
             results_per_page: 50,
+            order_by: vec![],
         }))
         .await;
     if vertiports_res.is_err() {
         error!("Failed to get vertiports from storage service");
         panic!("Failed to get vertiports from storage service");
     }
-    let vertiports = vertiports_res.unwrap().into_inner().vertiports;
+    let vertiports = vertiports_res.unwrap().into_inner().list;
     info!("Initializing router with {} vertiports ", vertiports.len());
     if !is_router_initialized() {
         let res = init_router_from_vertiports(&vertiports);
@@ -164,10 +160,10 @@ async fn init_grpc_clients() {
         "Setting up connection to svc-storage clients on {}",
         storage_full_grpc_addr.clone()
     );
-    let flight_plan_client_res = FlightPlanRpcClient::connect(storage_full_grpc_addr.clone()).await;
+    let flight_plan_client_res = FlightPlanClient::connect(storage_full_grpc_addr.clone()).await;
     let vehicle_client_res = VehicleRpcClient::connect(storage_full_grpc_addr.clone()).await;
-    let vertiport_client_res = VertiportRpcClient::connect(storage_full_grpc_addr.clone()).await;
-    let vertipad_client_res = VertipadRpcClient::connect(storage_full_grpc_addr.clone()).await;
+    let vertiport_client_res = VertiportClient::connect(storage_full_grpc_addr.clone()).await;
+    let vertipad_client_res = VertipadClient::connect(storage_full_grpc_addr.clone()).await;
     let compliance_client_res =
         ComplianceRpcClient::connect(compliance_full_grpc_addr.clone()).await;
     if flight_plan_client_res.is_err()
