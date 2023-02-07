@@ -36,6 +36,9 @@ uuid                       = "1.2"
 [build-dependencies]
 tonic-build = "0.8"
 
+[dev-dependencies]
+serial_test = "1.0.0"
+
 [dev-dependencies.cargo-husky]
 default-features = false          # Disable features which are enabled by default
 features         = ["user-hooks"]
