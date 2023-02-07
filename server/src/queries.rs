@@ -10,8 +10,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use svc_compliance_client_grpc::client::FlightPlanRequest;
-use svc_storage_client_grpc::client::{
-    FlightPlan, FlightPlanData, Id as StorageId, SearchFilter, UpdateFlightPlan,
+use svc_storage_client_grpc::client::{Id as StorageId, SearchFilter};
+use svc_storage_client_grpc::flight_plan::{
+    Data as FlightPlanData, Object as FlightPlan, UpdateObject as UpdateFlightPlan,
 };
 
 use crate::grpc_client_wrapper::{ComplianceClientWrapperTrait, StorageClientWrapperTrait};
@@ -158,7 +159,7 @@ pub async fn query_flight(
             pilot_id: fp.pilot_id.clone(),
             vehicle_id: fp.vehicle_id.clone(),
             cargo: [123].to_vec(),
-            weather_conditions: fp.weather_conditions.clone(),
+            weather_conditions: fp.weather_conditions.clone().unwrap_or_default(),
             vertiport_depart_id: fp.departure_vertiport_id.clone().unwrap(),
             pad_depart_id: fp.departure_vertipad_id.clone(),
             vertiport_arrive_id: fp.destination_vertiport_id.clone().unwrap(),
@@ -171,7 +172,7 @@ pub async fn query_flight(
             flight_plan_submitted: None,
             flight_status: FlightStatus::Ready as i32,
             flight_priority: FlightPriority::Low as i32,
-            estimated_distance: fp.flight_distance as u32,
+            estimated_distance: 0,
         };
         debug!("flight plan: {:?}", &item);
         flights.push(QueryFlightPlanBundle {
@@ -226,7 +227,9 @@ pub async fn confirm_flight(
         let fp = storage_client_wrapper
             .insert_flight_plan(Request::new(draft_fp.unwrap()))
             .await?
-            .into_inner();
+            .into_inner()
+            .object
+            .unwrap();
         let sys_time = SystemTime::now();
         info!("confirm_flight: Flight plan with draft id: {} inserted in to storage with permanent id:{}", &fp_id, &fp.id);
         let compliance_res = compliance_client_wrapper
@@ -280,9 +283,8 @@ pub async fn cancel_flight(
                     data: Option::from(FlightPlanData {
                         pilot_id: "".to_string(),
                         vehicle_id: "".to_string(),
-                        cargo_weight_g: vec![],
-                        flight_distance: 0,
-                        weather_conditions: "".to_string(),
+                        cargo_weight_grams: vec![],
+                        weather_conditions: None,
                         departure_vertiport_id: Some("".to_string()),
                         departure_vertipad_id: "".to_string(),
                         destination_vertiport_id: Some("".to_string()),
@@ -296,6 +298,7 @@ pub async fn cancel_flight(
                         approved_by: None,
                         flight_status: FlightStatus::Cancelled as i32,
                         flight_priority: 0,
+                        flight_distance_meters: 0,
                     }),
                     mask: Some(FieldMask {
                         paths: vec!["flight_status".to_string()],
