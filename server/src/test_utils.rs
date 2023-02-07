@@ -3,6 +3,8 @@ use crate::grpc_client_wrapper::{
     ComplianceClientWrapperTrait, GRPCClients, StorageClientWrapperTrait,
 };
 use async_trait::async_trait;
+use once_cell::sync::OnceCell;
+use router::router_state::{init_router_from_vertiports, is_router_initialized};
 use std::sync::Once;
 use svc_compliance_client_grpc::client::{
     FlightPlanRequest, FlightPlanResponse, FlightReleaseRequest, FlightReleaseResponse,
@@ -14,10 +16,37 @@ use svc_storage_client_grpc::client::{
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
-static INIT: Once = Once::new();
+static INIT_LOGGER: Once = Once::new();
+static INIT_ROUTER_STARTED: OnceCell<bool> = OnceCell::new();
 
+pub async fn init_router(client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync)) {
+    if is_router_initialized() {
+        debug!("init_router Already initialized");
+        return;
+    }
+    //this branch is needed to make sure that only one thread is initializing the router
+    if INIT_ROUTER_STARTED.get().is_some() {
+        debug!("init_router Some other thread is already initializing");
+        tokio::time::sleep(core::time::Duration::from_millis(1500)).await;
+        return;
+    }
+    INIT_ROUTER_STARTED.set(true).unwrap();
+    debug!("init_router Starting to initialize router");
+    let vertiports = client_wrapper
+        .vertiports(Request::new(SearchFilter {
+            search_field: "".to_string(),
+            search_value: "".to_string(),
+            page_number: 0,
+            results_per_page: 0,
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .vertiports;
+    let init_res = init_router_from_vertiports(&vertiports);
+}
 pub fn init_logger() {
-    INIT.call_once(|| {
+    INIT_LOGGER.call_once(|| {
         let log_cfg: &str = "../log4rs.yaml";
         if let Err(e) = log4rs::init_file(log_cfg, Default::default()) {
             println!("(logger) could not parse {}. {}", log_cfg, e);
