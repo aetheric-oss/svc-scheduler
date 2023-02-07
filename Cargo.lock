@@ -1272,7 +1272,7 @@ dependencies = [
  "rand",
  "rrule",
  "serde",
- "svc-storage-client-grpc",
+ "svc-storage-client-grpc 0.10.0",
  "uuid",
  "vecmath",
 ]
@@ -1471,7 +1471,7 @@ dependencies = [
  "rrule",
  "serial_test",
  "svc-compliance-client-grpc",
- "svc-storage-client-grpc",
+ "svc-storage-client-grpc 0.9.0-develop.14",
  "tokio",
  "tonic",
  "tonic-build",
@@ -1489,6 +1489,22 @@ dependencies = [
  "prost-types",
  "tokio",
  "tonic",
+]
+
+[[package]]
+name = "svc-storage-client-grpc"
+version = "0.9.0-develop.14"
+source = "git+https://github.com/Arrow-air/svc-storage.git?tag=v0.9.0-develop.14#ccf69d9d2a920585b872b7142873b1c6018d7504"
+dependencies = [
+ "geo-types",
+ "num-derive",
+ "num-traits",
+ "ordered-float 3.4.0",
+ "prost",
+ "prost-types",
+ "tonic",
+ "tonic-build",
+ "uuid",
 ]
 
 [[package]]
