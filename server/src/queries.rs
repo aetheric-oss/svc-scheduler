@@ -331,27 +331,8 @@ mod tests {
 
     use super::*;
     use chrono::{TimeZone, Utc};
-    use router::router_state::{init_router_from_vertiports, is_router_initialized};
-    use std::sync::Once;
+    use serial_test::serial;
     use test_utils::*;
-
-    async fn init_router(client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync)) {
-        if is_router_initialized() {
-            return;
-        }
-        let vertiports = client_wrapper
-            .vertiports(Request::new(SearchFilter {
-                search_field: "".to_string(),
-                search_value: "".to_string(),
-                page_number: 0,
-                results_per_page: 0,
-            }))
-            .await
-            .unwrap()
-            .into_inner()
-            .vertiports;
-        let init_res = init_router_from_vertiports(&vertiports);
-    }
 
     async fn run_query_flight(
         storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
@@ -400,6 +381,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_query_flight() {
         init_logger();
         let storage_client_wrapper = create_storage_client_stub();
@@ -409,6 +391,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_confirm_flight() {
         init_logger();
         let storage_client_wrapper = create_storage_client_stub();
