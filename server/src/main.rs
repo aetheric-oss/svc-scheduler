@@ -26,8 +26,8 @@ use scheduler_grpc::{
     ReadyRequest, ReadyResponse,
 };
 use svc_compliance_client_grpc::client::compliance_rpc_client::ComplianceRpcClient;
-use svc_storage_client_grpc::client::{vehicle_rpc_client::VehicleRpcClient, AdvancedSearchFilter};
-use svc_storage_client_grpc::{FlightPlanClient, VertipadClient, VertiportClient};
+use svc_storage_client_grpc::client::AdvancedSearchFilter;
+use svc_storage_client_grpc::{FlightPlanClient, VehicleClient, VertipadClient, VertiportClient};
 use tonic::{transport::Server, Request, Response, Status};
 
 /// GRPC clients for storage service
@@ -161,7 +161,7 @@ async fn init_grpc_clients() {
         storage_full_grpc_addr.clone()
     );
     let flight_plan_client_res = FlightPlanClient::connect(storage_full_grpc_addr.clone()).await;
-    let vehicle_client_res = VehicleRpcClient::connect(storage_full_grpc_addr.clone()).await;
+    let vehicle_client_res = VehicleClient::connect(storage_full_grpc_addr.clone()).await;
     let vertiport_client_res = VertiportClient::connect(storage_full_grpc_addr.clone()).await;
     let vertipad_client_res = VertipadClient::connect(storage_full_grpc_addr.clone()).await;
     let compliance_client_res =
