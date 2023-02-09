@@ -10,7 +10,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use svc_compliance_client_grpc::client::FlightPlanRequest;
-use svc_storage_client_grpc::client::{Id as StorageId, SearchFilter};
+use svc_storage_client_grpc::client::{
+    AdvancedSearchFilter, FilterOption, Id as StorageId, SearchFilter,
+};
 use svc_storage_client_grpc::flight_plan::{
     Data as FlightPlanData, Object as FlightPlan, UpdateObject as UpdateFlightPlan,
 };
@@ -57,19 +59,20 @@ pub async fn query_flight(
     storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
 ) -> Result<Response<QueryFlightResponse>, Status> {
     let flight_request = request.into_inner();
+    // 1. get vertiports
     info!(
         "query_flight with vertiport depart, arrive ids: {}, {}",
         &flight_request.vertiport_depart_id, &flight_request.vertiport_arrive_id
     );
     let depart_vertiport = storage_client_wrapper
         .vertiport_by_id(Request::new(StorageId {
-            id: flight_request.vertiport_depart_id,
+            id: flight_request.vertiport_depart_id.clone(),
         }))
         .await?
         .into_inner();
     let arrive_vertiport = storage_client_wrapper
         .vertiport_by_id(Request::new(StorageId {
-            id: flight_request.vertiport_arrive_id,
+            id: flight_request.vertiport_arrive_id.clone(),
         }))
         .await?
         .into_inner();
@@ -77,59 +80,44 @@ pub async fn query_flight(
         "depart_vertiport: {:?}, arrive_vertiport: {:?}",
         &depart_vertiport, &arrive_vertiport
     );
-    let departure_vertiport_flights: Vec<FlightPlan> = vec![];
-    /*storage_client_wrapper
-    .flight_plans(Request::new(empty_filter())) //todo filter flight_plans(estimated_departure_between: ($from, $to), vertiport_id: $ID)
-    .await?
-    .into_inner()
-    .flight_plans;*/
-    let arrival_vertiport_flights: Vec<FlightPlan> = vec![];
-    /*storage_client_wrapper
-    .flight_plans(Request::new(empty_filter()))
-    //todo filter flight_plans(estimated_arrival_between: ($from, $to), vertiport_id: $ID)
-    .await?
-    .into_inner()
-    .flight_plans;*/
-    debug!(
-        "departure_vertiport_flights: {}, arrival_vertiport_flights: {}",
-        &departure_vertiport_flights.len(),
-        &arrival_vertiport_flights.len()
-    );
-    if !departure_vertiport_flights.is_empty() {
-        return Err(Status::not_found("Departure vertiport not available"));
-    }
-    if !arrival_vertiport_flights.is_empty() {
-        return Err(Status::not_found("Arrival vertiport not available"));
-    }
-    //5. check schedule of aircrafts
+    //2. get all aircrafts
     let aircrafts = storage_client_wrapper
-        .vehicles(Request::new(SearchFilter {
-            search_field: "".to_string(),
-            search_value: "".to_string(),
+        .vehicles(Request::new(AdvancedSearchFilter {
+            filters: vec![],
             page_number: 0,
-            results_per_page: 50,
-        })) //todo filter associated aircrafts to dep vertiport?
+            results_per_page: 0,
+            order_by: vec![],
+        }))
         .await?
         .into_inner()
-        .vehicles;
-    for _aircraft in &aircrafts {
-        let aircraft_flights: Vec<FlightPlan> = vec![];
-        /*todo storage_client
-        .flight_plans(Request::new(FlightPlanFilter {}))
-        //todo filter flight_plans(estimated_departure_between: ($from, $to), estimated_arrival_between: ($from2, $to2) aircraft_id: $ID)
+        .list;
+    //3. get all flight plans from this time to latest departure time (including partially fitting flight plans)
+    //plans are used by lib_router to find aircraft and vertiport availability and aircraft predicted location
+    let timestamp_now = prost_types::Timestamp::from(SystemTime::now());
+    let existing_flight_plans = storage_client_wrapper
+        .flight_plans(Request::new(
+            AdvancedSearchFilter::search_between(
+                "scheduled_departure".to_owned(),
+                timestamp_now.to_string(),
+                flight_request
+                    .latest_arrival_time
+                    .clone()
+                    .unwrap()
+                    .to_string(),
+            )
+            .and_is_not_null("deleted_at".to_owned()),
+        ))
         .await?
         .into_inner()
-        .flight_plans;*/
-        if !aircraft_flights.is_empty() {
-            return Err(Status::not_found("Aircraft not available"));
-        }
-    }
+        .list;
+    //4. get all possible flight plans from router
     let flight_plans = get_possible_flights(
         depart_vertiport,
         arrive_vertiport,
         flight_request.earliest_departure_time,
         flight_request.latest_arrival_time,
         aircrafts,
+        existing_flight_plans,
     );
     if flight_plans.is_err() || flight_plans.as_ref().unwrap().is_empty() {
         return Err(Status::not_found(
@@ -139,7 +127,7 @@ pub async fn query_flight(
     let flight_plans = flight_plans.unwrap();
     info!("Found  {} flight plans from router", &flight_plans.len());
 
-    //7. create draft flight plans (in memory)
+    //5. create draft flight plans (in memory)
     let mut flights: Vec<QueryFlightPlanBundle> = vec![];
     for fp in &flight_plans {
         let fp_id = Uuid::new_v4().to_string();
@@ -152,7 +140,7 @@ pub async fn query_flight(
             .expect("Mutex Lock Error inserting flight plan into temp storage")
             .insert(fp_id.clone(), fp.clone());
 
-        //8. automatically cancel draft flight plan if not confirmed by user
+        //6. automatically cancel draft flight plan if not confirmed by user
         cancel_flight_after_timeout(fp_id.clone());
         let item = QueryFlightPlan {
             id: fp_id,
@@ -181,7 +169,7 @@ pub async fn query_flight(
         });
     }
 
-    //9. return response
+    //7. return response
     let response = QueryFlightResponse { flights };
     info!(
         "query_flight returning: {} flight plans",
@@ -341,11 +329,11 @@ mod tests {
         storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
     ) -> Response<QueryFlightResponse> {
         let edt = Utc
-            .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
+            .with_ymd_and_hms(2022, 10, 25, 11, 0, 0)
             .unwrap()
             .timestamp();
         let lat = Utc
-            .with_ymd_and_hms(2022, 10, 25, 16, 0, 0)
+            .with_ymd_and_hms(2022, 10, 25, 12, 15, 0)
             .unwrap()
             .timestamp();
         query_flight(
@@ -426,5 +414,46 @@ mod tests {
         .await;
         //test confirming a flight that does exist will return a success
         assert_eq!(res.unwrap().into_inner().confirmed, true);
+    }
+
+    ///4. destination vertiport is available for about 15 minutes, no other restrictions
+    /// - returns 2 flights (assuming 10 minutes needed for unloading, this can fit 2 flights
+    /// if first is exactly at the beginning of 15 minute gap and second is exactly after 5 minutes)
+    #[tokio::test]
+    #[serial]
+    async fn test_query_flight_4_dest_vertiport_tight_availability_should_return_one_flight() {
+        init_logger();
+        let storage_client_wrapper = create_storage_client_stub();
+        init_router(&storage_client_wrapper).await;
+
+        let edt = Utc
+            .with_ymd_and_hms(2022, 10, 25, 14, 00, 0)
+            .unwrap()
+            .timestamp();
+        let lat = Utc
+            .with_ymd_and_hms(2022, 10, 25, 15, 10, 0)
+            .unwrap()
+            .timestamp();
+        let res = query_flight(
+            Request::new(QueryFlightRequest {
+                is_cargo: false,
+                persons: None,
+                weight_grams: None,
+                earliest_departure_time: Some(Timestamp {
+                    seconds: edt,
+                    nanos: 0,
+                }),
+                latest_arrival_time: Some(Timestamp {
+                    seconds: lat,
+                    nanos: 0,
+                }),
+                vertiport_depart_id: "vertiport1".to_string(),
+                vertiport_arrive_id: "vertiport2".to_string(),
+            }),
+            &storage_client_wrapper,
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.into_inner().flights.len(), 2);
     }
 }

@@ -24,10 +24,10 @@ openssl                    = "0.10"
 ordered-float              = "3.2"
 prost                      = "0.11"
 prost-types                = "0.11"
-router                     = { path = "../../lib-router" }
+router                     = { git = "https://github.com/Arrow-air/lib-router.git", branch = "r2_advanced_scenarios" }
 rrule                      = "0.10"
 svc-compliance-client-grpc = { git = "https://github.com/Arrow-air/svc-compliance.git", branch = "develop" }
-svc-storage-client-grpc    = { path = "../../svc-storage/client-grpc" }
+svc-storage-client-grpc    = { git = "https://github.com/Arrow-air/svc-storage.git", branch = "develop" }
 tokio                      = { version = "1.20", features = ["full"] }
 tonic                      = "0.8"
 tonic-health               = "0.7"

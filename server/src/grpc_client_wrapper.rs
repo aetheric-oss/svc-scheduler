@@ -3,15 +3,15 @@ use svc_compliance_client_grpc::client::compliance_rpc_client::ComplianceRpcClie
 use svc_compliance_client_grpc::client::{
     FlightPlanRequest, FlightPlanResponse, FlightReleaseRequest, FlightReleaseResponse,
 };
-use svc_storage_client_grpc::client::vehicle_rpc_client::VehicleRpcClient;
 
-use svc_storage_client_grpc::client::{AdvancedSearchFilter, Id, SearchFilter, Vehicles};
+use svc_storage_client_grpc::client::{AdvancedSearchFilter, Id, SearchFilter};
 use svc_storage_client_grpc::flight_plan::{
     Data as FlightPlanData, List as FlightPlans, Object as FlightPlan, Response as FPResponse,
     UpdateObject as UpdateFlightPlan,
 };
+use svc_storage_client_grpc::vehicle::{List as Vehicles, Object as Vehicle};
 use svc_storage_client_grpc::vertiport::{List as Vertiports, Object as Vertiport};
-use svc_storage_client_grpc::{FlightPlanClient, VertipadClient, VertiportClient};
+use svc_storage_client_grpc::{FlightPlanClient, VehicleClient, VertipadClient, VertiportClient};
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 
@@ -28,7 +28,7 @@ pub struct GRPCClients {
     pub flight_plan_client: FlightPlanClient<Channel>,
     pub vertiport_client: VertiportClient<Channel>,
     pub vertipad_client: VertipadClient<Channel>,
-    pub vehicle_client: VehicleRpcClient<Channel>,
+    pub vehicle_client: VehicleClient<Channel>,
     pub compliance_client: ComplianceRpcClient<Channel>,
 }
 
@@ -53,7 +53,10 @@ pub trait StorageClientWrapperTrait {
         &self,
         request: Request<UpdateFlightPlan>,
     ) -> Result<Response<FPResponse>, Status>;
-    async fn vehicles(&self, request: Request<SearchFilter>) -> Result<Response<Vehicles>, Status>;
+    async fn vehicles(
+        &self,
+        request: Request<AdvancedSearchFilter>,
+    ) -> Result<Response<Vehicles>, Status>;
 }
 
 #[async_trait]
@@ -161,7 +164,10 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
         fp_client.update(request).await
     }
 
-    async fn vehicles(&self, request: Request<SearchFilter>) -> Result<Response<Vehicles>, Status> {
+    async fn vehicles(
+        &self,
+        request: Request<AdvancedSearchFilter>,
+    ) -> Result<Response<Vehicles>, Status> {
         let mut vehicle_client = self
             .grpc_clients
             .as_ref()
@@ -169,7 +175,7 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
             .unwrap()
             .vehicle_client
             .clone();
-        vehicle_client.vehicles(request).await
+        vehicle_client.search(request).await
     }
 }
 
