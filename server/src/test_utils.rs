@@ -3,19 +3,21 @@ use crate::grpc_client_wrapper::{
     ComplianceClientWrapperTrait, GRPCClients, StorageClientWrapperTrait,
 };
 use async_trait::async_trait;
+use chrono::offset::Utc;
+use chrono::TimeZone;
 use once_cell::sync::OnceCell;
+use prost_types::Timestamp;
 use router::router_state::{init_router_from_vertiports, is_router_initialized};
 use std::sync::Once;
 use svc_compliance_client_grpc::client::{
     FlightPlanRequest, FlightPlanResponse, FlightReleaseRequest, FlightReleaseResponse,
 };
-use svc_storage_client_grpc::client::{
-    AdvancedSearchFilter, Id, SearchFilter, Vehicle, VehicleData, Vehicles,
-};
+use svc_storage_client_grpc::client::{AdvancedSearchFilter, Id, SearchFilter};
 use svc_storage_client_grpc::flight_plan::{
     Data as FlightPlanData, List as FlightPlans, Object as FlightPlan, Response as FPResponse,
     UpdateObject as UpdateFlightPlan,
 };
+use svc_storage_client_grpc::vehicle::{Data as VehicleData, List as Vehicles, Object as Vehicle};
 use svc_storage_client_grpc::vertipad::{
     Data as VertipadData, List as Vertipads, Object as Vertipad,
 };
@@ -180,9 +182,12 @@ impl StorageClientWrapperTrait for StorageClientWrapperStub {
         }))
     }
 
-    async fn vehicles(&self, request: Request<SearchFilter>) -> Result<Response<Vehicles>, Status> {
+    async fn vehicles(
+        &self,
+        request: Request<AdvancedSearchFilter>,
+    ) -> Result<Response<Vehicles>, Status> {
         Ok(Response::new(Vehicles {
-            vehicles: self.vehicles.clone(),
+            list: self.vehicles.clone(),
         }))
     }
 }
@@ -215,10 +220,20 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
                 schedule: Some(sample_cal.to_string()),
             }),
         },
+        Vertiport {
+            id: "vertiport3".to_string(),
+            data: Some(VertiportData {
+                name: "".to_string(),
+                description: "".to_string(),
+                latitude: 37.73278,
+                longitude: -122.45883,
+                schedule: Some(sample_cal.to_string()),
+            }),
+        },
     ];
     let vertipads = vec![
         Vertipad {
-            id: "vertipad1".to_string(),
+            id: "vertipad11".to_string(),
             data: Some(VertipadData {
                 vertiport_id: "vertiport1".to_string(),
                 name: "".to_string(),
@@ -230,9 +245,33 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
             }),
         },
         Vertipad {
-            id: "vertipad2".to_string(),
+            id: "vertipad12".to_string(),
             data: Some(VertipadData {
                 vertiport_id: "vertiport1".to_string(),
+                name: "".to_string(),
+                latitude: 0.0,
+                longitude: 0.0,
+                enabled: false,
+                occupied: false,
+                schedule: Some(sample_cal.to_string()),
+            }),
+        },
+        Vertipad {
+            id: "vertipad21".to_string(),
+            data: Some(VertipadData {
+                vertiport_id: "vertiport2".to_string(),
+                name: "".to_string(),
+                latitude: 0.0,
+                longitude: 0.0,
+                enabled: false,
+                occupied: false,
+                schedule: Some(sample_cal.to_string()),
+            }),
+        },
+        Vertipad {
+            id: "vertipad31".to_string(),
+            data: Some(VertipadData {
+                vertiport_id: "vertiport3".to_string(),
                 name: "".to_string(),
                 latitude: 0.0,
                 longitude: 0.0,
@@ -250,12 +289,24 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
                 vehicle_id: "".to_string(),
                 cargo_weight_grams: vec![],
                 weather_conditions: None,
-                departure_vertiport_id: None,
-                departure_vertipad_id: "".to_string(),
-                destination_vertiport_id: None,
-                destination_vertipad_id: "vertipad2".to_string(),
-                scheduled_departure: None,
-                scheduled_arrival: None,
+                departure_vertiport_id: Some("vertiport1".to_string()),
+                departure_vertipad_id: "vertipad11".to_string(),
+                destination_vertiport_id: Some("vertiport2".to_string()),
+                destination_vertipad_id: "vertipad21".to_string(),
+                scheduled_departure: Some(Timestamp {
+                    seconds: Utc
+                        .with_ymd_and_hms(2022, 10, 25, 14, 20, 0)
+                        .unwrap()
+                        .timestamp(),
+                    nanos: 0,
+                }),
+                scheduled_arrival: Some(Timestamp {
+                    seconds: Utc
+                        .with_ymd_and_hms(2022, 10, 25, 14, 45, 0)
+                        .unwrap()
+                        .timestamp(),
+                    nanos: 0,
+                }),
                 actual_departure: None,
                 actual_arrival: None,
                 flight_release_approval: None,
@@ -270,21 +321,33 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
             id: "flight_plan2".to_string(),
             data: Some(FlightPlanData {
                 pilot_id: "".to_string(),
-                vehicle_id: "".to_string(),
+                vehicle_id: "vehicle1".to_string(),
                 cargo_weight_grams: vec![],
                 weather_conditions: None,
-                departure_vertiport_id: None,
-                departure_vertipad_id: "".to_string(),
-                destination_vertipad_id: "vertipad1".to_string(),
-                scheduled_departure: None,
-                scheduled_arrival: None,
+                departure_vertiport_id: Some("vertiport2".to_string()),
+                departure_vertipad_id: "vertipad21".to_string(),
+                destination_vertipad_id: "vertipad31".to_string(),
+                scheduled_departure: Some(Timestamp {
+                    seconds: Utc
+                        .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
+                        .unwrap()
+                        .timestamp(),
+                    nanos: 0,
+                }),
+                scheduled_arrival: Some(Timestamp {
+                    seconds: Utc
+                        .with_ymd_and_hms(2022, 10, 25, 15, 30, 0)
+                        .unwrap()
+                        .timestamp(),
+                    nanos: 0,
+                }),
                 actual_departure: None,
                 actual_arrival: None,
                 flight_release_approval: None,
                 flight_plan_submitted: None,
                 approved_by: None,
                 flight_status: 0,
-                destination_vertiport_id: None,
+                destination_vertiport_id: Some("vertiport3".to_string()),
                 flight_priority: 0,
                 flight_distance_meters: 0,
             }),
@@ -294,17 +357,27 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
         Vehicle {
             id: "vehicle1".to_string(),
             data: Some(VehicleData {
-                vehicle_type: 0,
-                description: "".to_string(),
+                vehicle_model_id: "".to_string(),
+                serial_number: "".to_string(),
+                registration_number: "".to_string(),
+                description: Some("".to_string()),
+                asset_group_id: None,
                 schedule: Some(sample_cal.to_string()),
+                last_maintenance: None,
+                next_maintenance: None,
             }),
         },
         Vehicle {
             id: "vehicle2".to_string(),
             data: Some(VehicleData {
-                vehicle_type: 0,
-                description: "".to_string(),
+                vehicle_model_id: "".to_string(),
+                serial_number: "".to_string(),
+                registration_number: "".to_string(),
+                description: Some("".to_string()),
+                asset_group_id: None,
                 schedule: Some(sample_cal.to_string()),
+                last_maintenance: None,
+                next_maintenance: None,
             }),
         },
     ];

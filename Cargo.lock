@@ -1257,7 +1257,7 @@ dependencies = [
 [[package]]
 name = "router"
 version = "0.1.0"
-source = "git+https://github.com/Arrow-air/lib-router.git?branch=develop#da5a03bc519b92ba069f4f5c048b1ccb8a3a545e"
+source = "git+https://github.com/Arrow-air/lib-router.git?branch=r2_advanced_scenarios#df6b1b974b8320fa13882731287087b92fd4e7fe"
 dependencies = [
  "cargo-husky",
  "chrono",
@@ -1272,7 +1272,7 @@ dependencies = [
  "rand",
  "rrule",
  "serde",
- "svc-storage-client-grpc 0.10.0",
+ "svc-storage-client-grpc",
  "uuid",
  "vecmath",
 ]
@@ -1471,7 +1471,7 @@ dependencies = [
  "rrule",
  "serial_test",
  "svc-compliance-client-grpc",
- "svc-storage-client-grpc 0.9.0-develop.14",
+ "svc-storage-client-grpc",
  "tokio",
  "tonic",
  "tonic-build",
@@ -1493,24 +1493,8 @@ dependencies = [
 
 [[package]]
 name = "svc-storage-client-grpc"
-version = "0.9.0-develop.14"
-source = "git+https://github.com/Arrow-air/svc-storage.git?tag=v0.9.0-develop.14#ccf69d9d2a920585b872b7142873b1c6018d7504"
-dependencies = [
- "geo-types",
- "num-derive",
- "num-traits",
- "ordered-float 3.4.0",
- "prost",
- "prost-types",
- "tonic",
- "tonic-build",
- "uuid",
-]
-
-[[package]]
-name = "svc-storage-client-grpc"
 version = "0.10.0"
-source = "git+https://github.com/Arrow-air/svc-storage.git?branch=main#d11eecc5e39623e3a31ed7a50d2a00f90dedeb3d"
+source = "git+https://github.com/Arrow-air/svc-storage.git?branch=develop#046b983f4df276254d2f8ffc792e740f63271187"
 dependencies = [
  "geo-types",
  "num-derive",
