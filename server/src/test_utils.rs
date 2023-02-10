@@ -352,6 +352,76 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
                 flight_distance_meters: 0,
             }),
         },
+        FlightPlan {
+            id: "flight_plan3".to_string(),
+            data: Some(FlightPlanData {
+                pilot_id: "".to_string(),
+                vehicle_id: "".to_string(),
+                cargo_weight_grams: vec![],
+                weather_conditions: None,
+                departure_vertiport_id: Some("vertiport1".to_string()),
+                departure_vertipad_id: "vertipad11".to_string(),
+                destination_vertiport_id: Some("vertiport2".to_string()),
+                destination_vertipad_id: "vertipad21".to_string(),
+                scheduled_departure: Some(Timestamp {
+                    seconds: Utc
+                        .with_ymd_and_hms(2022, 10, 26, 14, 00, 0)
+                        .unwrap()
+                        .timestamp(),
+                    nanos: 0,
+                }),
+                scheduled_arrival: Some(Timestamp {
+                    seconds: Utc
+                        .with_ymd_and_hms(2022, 10, 26, 14, 30, 0)
+                        .unwrap()
+                        .timestamp(),
+                    nanos: 0,
+                }),
+                actual_departure: None,
+                actual_arrival: None,
+                flight_release_approval: None,
+                flight_plan_submitted: None,
+                approved_by: None,
+                flight_status: 0,
+                flight_priority: 0,
+                flight_distance_meters: 0,
+            }),
+        },
+        FlightPlan {
+            id: "flight_plan4".to_string(),
+            data: Some(FlightPlanData {
+                pilot_id: "".to_string(),
+                vehicle_id: "vehicle1".to_string(),
+                cargo_weight_grams: vec![],
+                weather_conditions: None,
+                departure_vertiport_id: Some("vertiport2".to_string()),
+                departure_vertipad_id: "vertipad21".to_string(),
+                destination_vertipad_id: "vertipad31".to_string(),
+                scheduled_departure: Some(Timestamp {
+                    seconds: Utc
+                        .with_ymd_and_hms(2022, 10, 26, 14, 30, 0)
+                        .unwrap()
+                        .timestamp(),
+                    nanos: 0,
+                }),
+                scheduled_arrival: Some(Timestamp {
+                    seconds: Utc
+                        .with_ymd_and_hms(2022, 10, 26, 14, 50, 0)
+                        .unwrap()
+                        .timestamp(),
+                    nanos: 0,
+                }),
+                actual_departure: None,
+                actual_arrival: None,
+                flight_release_approval: None,
+                flight_plan_submitted: None,
+                approved_by: None,
+                flight_status: 0,
+                destination_vertiport_id: Some("vertiport3".to_string()),
+                flight_priority: 0,
+                flight_distance_meters: 0,
+            }),
+        },
     ];
     let vehicles = vec![
         Vehicle {
