@@ -121,7 +121,7 @@ pub async fn query_flight(
     );
     if flight_plans.is_err() || flight_plans.as_ref().unwrap().is_empty() {
         return Err(Status::not_found(
-            "No flight plans available; ".to_owned() + &flight_plans.err().unwrap(),
+            "No flight plans available; ".to_owned() + &flight_plans.err().unwrap_or("".to_owned()),
         ));
     }
     let flight_plans = flight_plans.unwrap();
@@ -431,9 +431,50 @@ mod tests {
             .unwrap()
             .timestamp();
         let lat = Utc
-            .with_ymd_and_hms(2022, 10, 25, 15, 10, 0)
+            .with_ymd_and_hms(2022, 10, 25, 15, 15, 0)
             .unwrap()
             .timestamp();
+        let res = query_flight(
+            Request::new(QueryFlightRequest {
+                is_cargo: false,
+                persons: None,
+                weight_grams: None,
+                earliest_departure_time: Some(Timestamp {
+                    seconds: edt,
+                    nanos: 0,
+                }),
+                latest_arrival_time: Some(Timestamp {
+                    seconds: lat,
+                    nanos: 0,
+                }),
+                vertiport_depart_id: "vertiport3".to_string(),
+                vertiport_arrive_id: "vertiport2".to_string(),
+            }),
+            &storage_client_wrapper,
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.into_inner().flights.len(), 2);
+    }
+
+    ///5. source or destination vertiport doesn't have any vertipad free for the time range
+    ///no flight plans returned
+    #[tokio::test]
+    #[serial]
+    async fn test_query_flight_5_dest_vertiport_no_availability_should_return_zero_flights() {
+        init_logger();
+        let storage_client_wrapper = create_storage_client_stub();
+        init_router(&storage_client_wrapper).await;
+
+        let edt = Utc
+            .with_ymd_and_hms(2022, 10, 26, 13, 40, 0)
+            .unwrap()
+            .timestamp();
+        let lat = Utc
+            .with_ymd_and_hms(2022, 10, 26, 14, 40, 0)
+            .unwrap()
+            .timestamp();
+
         let res = query_flight(
             Request::new(QueryFlightRequest {
                 is_cargo: false,
@@ -452,8 +493,12 @@ mod tests {
             }),
             &storage_client_wrapper,
         )
-        .await
-        .unwrap();
-        assert_eq!(res.into_inner().flights.len(), 2);
+        .await;
+        assert_eq!(
+            res.unwrap_err()
+                .message()
+                .contains("No flight plans available"),
+            true
+        );
     }
 }
