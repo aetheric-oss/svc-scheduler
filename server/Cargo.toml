@@ -1,7 +1,7 @@
 [package]
-edition = "2021"            # Allowed values are 2015, 2018, 2021
+edition = "2021"          # Allowed values are 2015, 2018, 2021
 name    = "svc-scheduler"
-version = "0.2.5-develop.9"
+version = "0.2.0"
 # Rust Editions: https://doc.rust-lang.org/edition-guide/index.html
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -24,7 +24,7 @@ openssl                    = "0.10"
 ordered-float              = "3.2"
 prost                      = "0.11"
 prost-types                = "0.11"
-router                     = { git = "https://github.com/Arrow-air/lib-router.git", branch = "r2_advanced_scenarios" }
+router                     = { git = "https://github.com/Arrow-air/lib-router.git", branch = "develop" }
 rrule                      = "0.10"
 svc-compliance-client-grpc = { git = "https://github.com/Arrow-air/svc-compliance.git", branch = "develop" }
 svc-storage-client-grpc    = { git = "https://github.com/Arrow-air/svc-storage.git", branch = "develop" }
