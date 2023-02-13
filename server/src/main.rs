@@ -26,7 +26,7 @@ use scheduler_grpc::{
     ReadyRequest, ReadyResponse,
 };
 use svc_compliance_client_grpc::client::compliance_rpc_client::ComplianceRpcClient;
-use svc_storage_client_grpc::client::AdvancedSearchFilter;
+use svc_storage_client_grpc::AdvancedSearchFilter;
 use svc_storage_client_grpc::{FlightPlanClient, VehicleClient, VertipadClient, VertiportClient};
 use tonic::{transport::Server, Request, Response, Status};
 
