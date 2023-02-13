@@ -1,5 +1,6 @@
 /// QueryFlightRequest
 #[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightRequest {
     /// is_cargo - true if cargo mission, false if people transport
@@ -26,6 +27,7 @@ pub struct QueryFlightRequest {
 }
 /// QueryFlightPlan
 #[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightPlan {
     /// id of the flight
@@ -85,6 +87,7 @@ pub struct QueryFlightPlan {
 }
 /// QueryFlightPlanBundle includes flight plan and potential deadhead flights
 #[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightPlanBundle {
     /// flight_plan
@@ -96,6 +99,7 @@ pub struct QueryFlightPlanBundle {
 }
 /// QueryFlightResponse
 #[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightResponse {
     /// array/vector of flight items
@@ -104,6 +108,7 @@ pub struct QueryFlightResponse {
 }
 /// Id type for passing id only requests
 #[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Id {
     /// id
@@ -112,6 +117,7 @@ pub struct Id {
 }
 /// ConfirmFlightResponse
 #[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConfirmFlightResponse {
     /// id
@@ -126,6 +132,7 @@ pub struct ConfirmFlightResponse {
 }
 /// CancelFlightResponse
 #[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CancelFlightResponse {
     /// id
@@ -145,10 +152,12 @@ pub struct CancelFlightResponse {
 ///
 /// No arguments
 #[derive(Eq, Copy)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadyRequest {}
 /// Ready Response
 #[derive(Eq, Copy)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadyResponse {
     /// ready
@@ -187,6 +196,18 @@ impl FlightStatus {
             FlightStatus::Draft => "DRAFT",
         }
     }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "READY" => Some(Self::Ready),
+            "BOARDING" => Some(Self::Boarding),
+            "IN_FLIGHT" => Some(Self::InFlight),
+            "FINISHED" => Some(Self::Finished),
+            "CANCELLED" => Some(Self::Cancelled),
+            "DRAFT" => Some(Self::Draft),
+            _ => None,
+        }
+    }
 }
 /// Flight Priority Enum
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -211,12 +232,21 @@ impl FlightPriority {
             FlightPriority::Emergency => "EMERGENCY",
         }
     }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "LOW" => Some(Self::Low),
+            "HIGH" => Some(Self::High),
+            "EMERGENCY" => Some(Self::Emergency),
+            _ => None,
+        }
+    }
 }
 /// Generated server implementations.
 pub mod scheduler_rpc_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    ///Generated trait containing gRPC methods that should be implemented for use with SchedulerRpcServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with SchedulerRpcServer.
     #[async_trait]
     pub trait SchedulerRpc: Send + Sync + 'static {
         async fn query_flight(
@@ -236,7 +266,7 @@ pub mod scheduler_rpc_server {
             request: tonic::Request<super::ReadyRequest>,
         ) -> Result<tonic::Response<super::ReadyResponse>, tonic::Status>;
     }
-    ///Scheduler service
+    /// Scheduler service
     #[derive(Debug)]
     pub struct SchedulerRpcServer<T: SchedulerRpc> {
         inner: _Inner<T>,
