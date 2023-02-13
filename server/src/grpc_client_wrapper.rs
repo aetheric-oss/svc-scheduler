@@ -4,13 +4,13 @@ use svc_compliance_client_grpc::client::{
     FlightPlanRequest, FlightPlanResponse, FlightReleaseRequest, FlightReleaseResponse,
 };
 
-use svc_storage_client_grpc::client::{AdvancedSearchFilter, Id, SearchFilter};
 use svc_storage_client_grpc::flight_plan::{
     Data as FlightPlanData, List as FlightPlans, Object as FlightPlan, Response as FPResponse,
     UpdateObject as UpdateFlightPlan,
 };
-use svc_storage_client_grpc::vehicle::{List as Vehicles, Object as Vehicle};
+use svc_storage_client_grpc::vehicle::List as Vehicles;
 use svc_storage_client_grpc::vertiport::{List as Vertiports, Object as Vertiport};
+use svc_storage_client_grpc::{AdvancedSearchFilter, Id};
 use svc_storage_client_grpc::{FlightPlanClient, VehicleClient, VertipadClient, VertiportClient};
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};

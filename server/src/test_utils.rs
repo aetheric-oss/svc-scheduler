@@ -1,7 +1,5 @@
 /// test utils for creating gRPC client stub
-use crate::grpc_client_wrapper::{
-    ComplianceClientWrapperTrait, GRPCClients, StorageClientWrapperTrait,
-};
+use crate::grpc_client_wrapper::{ComplianceClientWrapperTrait, StorageClientWrapperTrait};
 use async_trait::async_trait;
 use chrono::offset::Utc;
 use chrono::TimeZone;
@@ -12,19 +10,16 @@ use std::sync::Once;
 use svc_compliance_client_grpc::client::{
     FlightPlanRequest, FlightPlanResponse, FlightReleaseRequest, FlightReleaseResponse,
 };
-use svc_storage_client_grpc::client::{AdvancedSearchFilter, Id, SearchFilter};
 use svc_storage_client_grpc::flight_plan::{
     Data as FlightPlanData, List as FlightPlans, Object as FlightPlan, Response as FPResponse,
     UpdateObject as UpdateFlightPlan,
 };
 use svc_storage_client_grpc::vehicle::{Data as VehicleData, List as Vehicles, Object as Vehicle};
-use svc_storage_client_grpc::vertipad::{
-    Data as VertipadData, List as Vertipads, Object as Vertipad,
-};
+use svc_storage_client_grpc::vertipad::{Data as VertipadData, Object as Vertipad};
 use svc_storage_client_grpc::vertiport::{
     Data as VertiportData, List as Vertiports, Object as Vertiport,
 };
-use svc_storage_client_grpc::{FlightPlanClient, VertipadClient, VertiportClient};
+use svc_storage_client_grpc::{AdvancedSearchFilter, Id};
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
@@ -55,7 +50,7 @@ pub async fn init_router(client_wrapper: &(dyn StorageClientWrapperTrait + Send 
         .unwrap()
         .into_inner()
         .list;
-    let init_res = init_router_from_vertiports(&vertiports);
+    let _init_res = init_router_from_vertiports(&vertiports);
 }
 pub fn init_logger() {
     INIT_LOGGER.call_once(|| {
@@ -107,7 +102,7 @@ pub struct StorageClientWrapperStub {
 impl StorageClientWrapperTrait for StorageClientWrapperStub {
     async fn vertiports(
         &self,
-        request: Request<AdvancedSearchFilter>,
+        _request: Request<AdvancedSearchFilter>,
     ) -> Result<Response<Vertiports>, Status> {
         Ok(Response::new(Vertiports {
             list: self.vertiports.clone(),
@@ -141,7 +136,7 @@ impl StorageClientWrapperTrait for StorageClientWrapperStub {
 
     async fn flight_plans(
         &self,
-        request: Request<AdvancedSearchFilter>,
+        _request: Request<AdvancedSearchFilter>,
     ) -> Result<Response<FlightPlans>, Status> {
         Ok(Response::new(FlightPlans {
             list: self.flight_plans.clone(),
@@ -184,7 +179,7 @@ impl StorageClientWrapperTrait for StorageClientWrapperStub {
 
     async fn vehicles(
         &self,
-        request: Request<AdvancedSearchFilter>,
+        _request: Request<AdvancedSearchFilter>,
     ) -> Result<Response<Vehicles>, Status> {
         Ok(Response::new(Vehicles {
             list: self.vehicles.clone(),
@@ -286,7 +281,7 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
             id: "flight_plan1".to_string(),
             data: Some(FlightPlanData {
                 pilot_id: "".to_string(),
-                vehicle_id: "".to_string(),
+                vehicle_id: "vehicle1".to_string(),
                 cargo_weight_grams: vec![],
                 weather_conditions: None,
                 departure_vertiport_id: Some("vertiport1".to_string()),
@@ -321,7 +316,7 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
             id: "flight_plan2".to_string(),
             data: Some(FlightPlanData {
                 pilot_id: "".to_string(),
-                vehicle_id: "vehicle1".to_string(),
+                vehicle_id: "vehicle2".to_string(),
                 cargo_weight_grams: vec![],
                 weather_conditions: None,
                 departure_vertiport_id: Some("vertiport2".to_string()),
@@ -356,13 +351,13 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
             id: "flight_plan3".to_string(),
             data: Some(FlightPlanData {
                 pilot_id: "".to_string(),
-                vehicle_id: "".to_string(),
+                vehicle_id: "vehicle1".to_string(),
                 cargo_weight_grams: vec![],
                 weather_conditions: None,
-                departure_vertiport_id: Some("vertiport1".to_string()),
-                departure_vertipad_id: "vertipad11".to_string(),
-                destination_vertiport_id: Some("vertiport2".to_string()),
-                destination_vertipad_id: "vertipad21".to_string(),
+                departure_vertiport_id: Some("vertiport2".to_string()),
+                departure_vertipad_id: "vertipad21".to_string(),
+                destination_vertiport_id: Some("vertiport1".to_string()),
+                destination_vertipad_id: "vertipad11".to_string(),
                 scheduled_departure: Some(Timestamp {
                     seconds: Utc
                         .with_ymd_and_hms(2022, 10, 26, 14, 00, 0)
@@ -391,12 +386,12 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
             id: "flight_plan4".to_string(),
             data: Some(FlightPlanData {
                 pilot_id: "".to_string(),
-                vehicle_id: "vehicle1".to_string(),
+                vehicle_id: "vehicle2".to_string(),
                 cargo_weight_grams: vec![],
                 weather_conditions: None,
-                departure_vertiport_id: Some("vertiport2".to_string()),
-                departure_vertipad_id: "vertipad21".to_string(),
-                destination_vertipad_id: "vertipad31".to_string(),
+                departure_vertiport_id: Some("vertiport3".to_string()),
+                departure_vertipad_id: "vertipad31".to_string(),
+                destination_vertipad_id: "vertipad21".to_string(),
                 scheduled_departure: Some(Timestamp {
                     seconds: Utc
                         .with_ymd_and_hms(2022, 10, 26, 14, 30, 0)
@@ -417,7 +412,7 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
                 flight_plan_submitted: None,
                 approved_by: None,
                 flight_status: 0,
-                destination_vertiport_id: Some("vertiport3".to_string()),
+                destination_vertiport_id: Some("vertiport2".to_string()),
                 flight_priority: 0,
                 flight_distance_meters: 0,
             }),
@@ -435,6 +430,7 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
                 schedule: Some(sample_cal.to_string()),
                 last_maintenance: None,
                 next_maintenance: None,
+                last_vertiport_id: Some("vertiport1".to_string()),
             }),
         },
         Vehicle {
@@ -448,6 +444,21 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
                 schedule: Some(sample_cal.to_string()),
                 last_maintenance: None,
                 next_maintenance: None,
+                last_vertiport_id: Some("vertiport2".to_string()),
+            }),
+        },
+        Vehicle {
+            id: "vehicle3".to_string(),
+            data: Some(VehicleData {
+                vehicle_model_id: "".to_string(),
+                serial_number: "".to_string(),
+                registration_number: "".to_string(),
+                description: Some("".to_string()),
+                asset_group_id: None,
+                schedule: Some(sample_cal.to_string()),
+                last_maintenance: None,
+                next_maintenance: None,
+                last_vertiport_id: Some("vertiport3".to_string()),
             }),
         },
     ];

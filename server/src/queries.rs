@@ -10,12 +10,10 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use svc_compliance_client_grpc::client::FlightPlanRequest;
-use svc_storage_client_grpc::client::{
-    AdvancedSearchFilter, FilterOption, Id as StorageId, SearchFilter,
-};
 use svc_storage_client_grpc::flight_plan::{
-    Data as FlightPlanData, Object as FlightPlan, UpdateObject as UpdateFlightPlan,
+    Data as FlightPlanData, UpdateObject as UpdateFlightPlan,
 };
+use svc_storage_client_grpc::{AdvancedSearchFilter, Id as StorageId};
 
 use crate::grpc_client_wrapper::{ComplianceClientWrapperTrait, StorageClientWrapperTrait};
 use tokio;
@@ -92,7 +90,8 @@ pub async fn query_flight(
         .into_inner()
         .list;
     //3. get all flight plans from this time to latest departure time (including partially fitting flight plans)
-    //plans are used by lib_router to find aircraft and vertiport availability and aircraft predicted location
+    //- this assumes that all landed flights have updated vehicle.last_vertiport_id (otherwise we would need to look in to the past)
+    //Plans are used by lib_router to find aircraft and vertiport availability and aircraft predicted location
     let timestamp_now = prost_types::Timestamp::from(SystemTime::now());
     let existing_flight_plans = storage_client_wrapper
         .flight_plans(Request::new(
@@ -121,7 +120,8 @@ pub async fn query_flight(
     );
     if flight_plans.is_err() || flight_plans.as_ref().unwrap().is_empty() {
         return Err(Status::not_found(
-            "No flight plans available; ".to_owned() + &flight_plans.err().unwrap_or("".to_owned()),
+            "No flight plans available; ".to_owned()
+                + &flight_plans.err().unwrap_or_else(|| "".to_owned()),
         ));
     }
     let flight_plans = flight_plans.unwrap();
@@ -421,7 +421,7 @@ mod tests {
     /// if first is exactly at the beginning of 15 minute gap and second is exactly after 5 minutes)
     #[tokio::test]
     #[serial]
-    async fn test_query_flight_4_dest_vertiport_tight_availability_should_return_one_flight() {
+    async fn test_query_flight_4_dest_vertiport_tight_availability_should_return_two_flights() {
         init_logger();
         let storage_client_wrapper = create_storage_client_stub();
         init_router(&storage_client_wrapper).await;
@@ -500,5 +500,46 @@ mod tests {
                 .contains("No flight plans available"),
             true
         );
+    }
+
+    ///6. vertiports are available but aircrafts are not at the vertiport for the requested time
+    /// but at least one aircraft is IN FLIGHT to requested vertiport for that time and has availability for a next flight.
+    /// 	- skips all unavailable time slots (4) and returns only time slots from when aircraft is available (1)
+    #[tokio::test]
+    #[serial]
+    async fn test_query_flight_6_no_aircraft_at_vertiport() {
+        init_logger();
+        let storage_client_wrapper = create_storage_client_stub();
+        init_router(&storage_client_wrapper).await;
+        let edt = Utc
+            .with_ymd_and_hms(2022, 10, 26, 14, 10, 0)
+            .unwrap()
+            .timestamp();
+        let lat = Utc
+            .with_ymd_and_hms(2022, 10, 26, 15, 20, 0)
+            .unwrap()
+            .timestamp();
+
+        let res = query_flight(
+            Request::new(QueryFlightRequest {
+                is_cargo: false,
+                persons: None,
+                weight_grams: None,
+                earliest_departure_time: Some(Timestamp {
+                    seconds: edt,
+                    nanos: 0,
+                }),
+                latest_arrival_time: Some(Timestamp {
+                    seconds: lat,
+                    nanos: 0,
+                }),
+                vertiport_depart_id: "vertiport1".to_string(),
+                vertiport_arrive_id: "vertiport3".to_string(),
+            }),
+            &storage_client_wrapper,
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.into_inner().flights.len(), 1);
     }
 }
