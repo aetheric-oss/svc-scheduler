@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .type_attribute("ReadyRequest", "#[derive(Eq, Copy)]")
         .type_attribute("ReadyResponse", "#[derive(Eq, Copy)]")
         .type_attribute("QueryFlightRequest", "#[derive(Eq)]")
-        .type_attribute("QueryFlightPlanBundle", "#[derive(Eq)]");
+        .type_attribute("Itinerary", "#[derive(Eq)]");
     let client_config = server_config.clone();
 
     server_config
