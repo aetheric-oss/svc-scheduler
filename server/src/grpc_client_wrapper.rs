@@ -8,11 +8,15 @@ use svc_storage_client_grpc::flight_plan::{
     Data as FlightPlanData, List as FlightPlans, Object as FlightPlan, Response as FPResponse,
     UpdateObject as UpdateFlightPlan,
 };
+use svc_storage_client_grpc::itinerary;
 use svc_storage_client_grpc::vehicle::List as Vehicles;
 use svc_storage_client_grpc::vertipad::List as Vertipads;
 use svc_storage_client_grpc::vertiport::{List as Vertiports, Object as Vertiport};
-use svc_storage_client_grpc::{AdvancedSearchFilter, Id};
-use svc_storage_client_grpc::{FlightPlanClient, VehicleClient, VertipadClient, VertiportClient};
+use svc_storage_client_grpc::{AdvancedSearchFilter, Id, IdList};
+use svc_storage_client_grpc::{
+    FlightPlanClient, ItineraryClient, ItineraryFlightPlanLinkClient, VehicleClient,
+    VertipadClient, VertiportClient,
+};
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 
@@ -31,6 +35,8 @@ pub struct GRPCClients {
     pub vertipad_client: VertipadClient<Channel>,
     pub vehicle_client: VehicleClient<Channel>,
     pub compliance_client: ComplianceRpcClient<Channel>,
+    pub itinerary_client: ItineraryClient<Channel>,
+    pub itinerary_fp_link_client: ItineraryFlightPlanLinkClient<Channel>,
 }
 
 #[async_trait]
@@ -62,6 +68,35 @@ pub trait StorageClientWrapperTrait {
         &self,
         request: Request<AdvancedSearchFilter>,
     ) -> Result<Response<Vertipads>, Status>;
+
+    //
+    // Itinerary Operations
+    //
+    async fn itinerary_by_id(
+        &self,
+        request: Request<Id>,
+    ) -> Result<Response<itinerary::Object>, Status>;
+    async fn insert_itinerary(
+        &self,
+        request: Request<itinerary::Data>,
+    ) -> Result<Response<itinerary::Response>, Status>;
+    async fn update_itinerary(
+        &self,
+        request: Request<itinerary::UpdateObject>,
+    ) -> Result<Response<itinerary::Response>, Status>;
+
+    //
+    // Itinerary/Flight Plan Link Operations
+    //
+    async fn link_flight_plan(
+        &self,
+        request: Request<itinerary::ItineraryFlightPlans>,
+    ) -> Result<Response<()>, Status>;
+
+    async fn get_itinerary_flight_plan_ids(
+        &self,
+        request: Request<Id>,
+    ) -> Result<Response<IdList>, Status>;
 }
 
 #[async_trait]
@@ -195,6 +230,76 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
             .vertipad_client
             .clone();
         vertipad_client.search(request).await
+    }
+
+    async fn itinerary_by_id(
+        &self,
+        request: Request<Id>,
+    ) -> Result<Response<itinerary::Object>, Status> {
+        let mut client = self
+            .grpc_clients
+            .as_ref()
+            .ok_or_else(storage_err_msg)
+            .unwrap()
+            .itinerary_client
+            .clone();
+        client.get_by_id(request).await
+    }
+
+    async fn insert_itinerary(
+        &self,
+        request: Request<itinerary::Data>,
+    ) -> Result<Response<itinerary::Response>, Status> {
+        let mut client = self
+            .grpc_clients
+            .as_ref()
+            .ok_or_else(storage_err_msg)
+            .unwrap()
+            .itinerary_client
+            .clone();
+        client.insert(request).await
+    }
+
+    async fn update_itinerary(
+        &self,
+        request: Request<itinerary::UpdateObject>,
+    ) -> Result<Response<itinerary::Response>, Status> {
+        let mut client = self
+            .grpc_clients
+            .as_ref()
+            .ok_or_else(storage_err_msg)
+            .unwrap()
+            .itinerary_client
+            .clone();
+        client.update(request).await
+    }
+
+    async fn link_flight_plan(
+        &self,
+        request: Request<itinerary::ItineraryFlightPlans>,
+    ) -> Result<Response<()>, Status> {
+        let mut client = self
+            .grpc_clients
+            .as_ref()
+            .ok_or_else(storage_err_msg)
+            .unwrap()
+            .itinerary_fp_link_client
+            .clone();
+        client.link(request).await
+    }
+
+    async fn get_itinerary_flight_plan_ids(
+        &self,
+        request: Request<Id>,
+    ) -> Result<Response<IdList>, Status> {
+        let mut client = self
+            .grpc_clients
+            .as_ref()
+            .ok_or_else(storage_err_msg)
+            .unwrap()
+            .itinerary_fp_link_client
+            .clone();
+        client.get_linked_ids(request).await
     }
 }
 
