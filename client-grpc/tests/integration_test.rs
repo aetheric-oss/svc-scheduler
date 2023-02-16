@@ -3,7 +3,8 @@
 
 use std::time::SystemTime;
 use svc_scheduler_client_grpc::grpc::{
-    scheduler_rpc_client::SchedulerRpcClient, Id, QueryFlightRequest, ReadyRequest,
+    scheduler_rpc_client::SchedulerRpcClient, ConfirmItineraryRequest, Id, QueryFlightRequest,
+    ReadyRequest,
 };
 
 #[tokio::test]
@@ -23,19 +24,19 @@ async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
 
     let response = client.query_flight(request).await?;
     //println!("RESPONSE={:?}", response.into_inner());
-    assert_eq!(response.into_inner().flights.len(), 1);
+    assert_eq!(response.into_inner().itineraries.len(), 1);
     Ok(())
 }
 
 #[tokio::test]
 #[ignore = "integration test env not yet implemented"]
-async fn test_cancel_flight() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_cancel_itinerary() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = SchedulerRpcClient::connect("http://[::1]:50051").await?;
     let request = tonic::Request::new(Id {
         id: "1234".to_string(),
     });
 
-    let response = client.cancel_flight(request).await?;
+    let response = client.cancel_itinerary(request).await?;
     //println!("RESPONSE={:?}", response.into_inner());
     assert_eq!(response.into_inner().cancelled, true);
     Ok(())
@@ -43,13 +44,14 @@ async fn test_cancel_flight() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::test]
 #[ignore = "integration test env not yet implemented"]
-async fn test_confirm_flight() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_confirm_itinerary() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = SchedulerRpcClient::connect("http://[::1]:50051").await?;
-    let request = tonic::Request::new(Id {
+    let request = tonic::Request::new(ConfirmItineraryRequest {
         id: "1234".to_string(),
+        user_id: "".to_string(),
     });
 
-    let response = client.confirm_flight(request).await?;
+    let response = client.confirm_itinerary(request).await?;
     //println!("RESPONSE={:?}", response.into_inner());
     assert_eq!(response.into_inner().confirmed, true);
     Ok(())

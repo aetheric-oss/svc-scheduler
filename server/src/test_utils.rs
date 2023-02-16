@@ -14,6 +14,7 @@ use svc_storage_client_grpc::flight_plan::{
     Data as FlightPlanData, List as FlightPlans, Object as FlightPlan, Response as FPResponse,
     UpdateObject as UpdateFlightPlan,
 };
+use svc_storage_client_grpc::itinerary;
 use svc_storage_client_grpc::vehicle::{Data as VehicleData, List as Vehicles, Object as Vehicle};
 use svc_storage_client_grpc::vertipad::{
     Data as VertipadData, List as Vertipads, Object as Vertipad,
@@ -21,7 +22,7 @@ use svc_storage_client_grpc::vertipad::{
 use svc_storage_client_grpc::vertiport::{
     Data as VertiportData, List as Vertiports, Object as Vertiport,
 };
-use svc_storage_client_grpc::{AdvancedSearchFilter, Id};
+use svc_storage_client_grpc::{AdvancedSearchFilter, Id, IdList};
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
@@ -140,6 +141,8 @@ pub struct StorageClientWrapperStub {
     vertipads: Vec<Vertipad>,
     flight_plans: Vec<FlightPlan>,
     vehicles: Vec<Vehicle>,
+    itineraries: Vec<itinerary::Object>,
+    itinerary_flight_plans: std::collections::HashMap<String, Vec<String>>
 }
 
 #[async_trait]
@@ -250,6 +253,83 @@ impl StorageClientWrapperTrait for StorageClientWrapperStub {
             .cloned()
             .collect();
         Ok(Response::new(Vertipads { list: vertipads }))
+    }
+    
+    async fn insert_itinerary(
+        &self,
+        request: Request<itinerary::Data>,
+    ) -> Result<Response<itinerary::Response>, Status> {
+        let object = itinerary::Object {
+            id: Uuid::new_v4().to_string(),
+            data: Some(request.into_inner()),
+        };
+
+        Ok(Response::new(itinerary::Response {
+            validation_result: None,
+            object: Some(object),
+        }))
+    }
+
+    async fn update_itinerary(
+        &self,
+        request: Request<itinerary::UpdateObject>,
+    ) -> Result<Response<itinerary::Response>, Status> {
+        let update = request.into_inner();
+        let id = update.id;
+        let mut object = self
+            .itineraries
+            .iter()
+            .find(|v| v.id == id)
+            .ok_or_else(|| Status::not_found("Itinerary not found"))?
+            .clone();
+        object.data = update.data;
+        Ok(Response::new(itinerary::Response {
+            validation_result: None,
+            object: Some(object),
+        }))
+    }
+
+    async fn itinerary_by_id(
+        &self,
+        request: Request<Id>,
+    ) -> Result<Response<itinerary::Object>, Status> {
+        let id = request.into_inner().id;
+        let object = self
+            .itineraries
+            .iter()
+            .find(|v| v.id == id)
+            .ok_or_else(|| Status::not_found("Itineraries not found"))?
+            .clone();
+        Ok(Response::new(object))
+    }
+
+    async fn link_flight_plan(
+        &self,
+        request: Request<itinerary::ItineraryFlightPlans>
+    ) -> Result<Response<()>, Status> {
+        let request = request.into_inner();
+        let _itinerary_id = request.id;
+        if let Some(_others) = request.other_id_list {
+            // TODO requires mut self
+            // self.itinerary_flight_plans.insert(itinerary_id, others.ids);
+        }
+        Ok(Response::new(()))
+    }
+
+    async fn get_itinerary_flight_plan_ids(
+        &self,
+        request: Request<Id>
+    ) -> Result<Response<IdList>, Status> {
+        let request = request.into_inner();
+        let itinerary_id = request.id;
+
+        let Some(ids) = self.itinerary_flight_plans.get(&itinerary_id) else {
+            return Err(Status::internal("Could not get linked flight plans for itinerary."));
+        };
+
+        Ok(Response::new(IdList {
+            ids: ids.to_vec()
+        }))
     }
 }
 
@@ -491,10 +571,31 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
         },
     ];
 
+    let itineraries: Vec<itinerary::Object> = vec![
+        itinerary::Object {
+            id: "itinerary1".to_string(),
+            data: Some(itinerary::Data {
+                user_id: "123".to_string(),
+                status: itinerary::ItineraryStatus::Active as i32
+            })
+        }
+    ];
+
+    let mut itinerary_flight_plans = std::collections::HashMap::new();
+    itinerary_flight_plans.insert(
+        itineraries[0].id.clone(),
+        vec![
+            flight_plans[0].id.clone(),
+            flight_plans[1].id.clone()
+        ]
+    );
+
     StorageClientWrapperStub {
         vertiports,
         vertipads,
         flight_plans,
         vehicles,
+        itineraries,
+        itinerary_flight_plans
     }
 }

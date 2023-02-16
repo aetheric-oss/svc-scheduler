@@ -25,6 +25,17 @@ pub struct QueryFlightRequest {
     #[prost(string, tag = "7")]
     pub vertiport_arrive_id: ::prost::alloc::string::String,
 }
+/// Confirms an itinerary by ID
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConfirmItineraryRequest {
+    /// The ID of the itinerary being confirmed
+    #[prost(string, tag = "1")]
+    pub id: ::prost::alloc::string::String,
+    /// The ID of the user confirming the itinerary
+    #[prost(string, tag = "2")]
+    pub user_id: ::prost::alloc::string::String,
+}
 /// QueryFlightPlan
 #[derive(Eq)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -85,16 +96,19 @@ pub struct QueryFlightPlan {
     #[prost(uint32, tag = "18")]
     pub estimated_distance: u32,
 }
-/// QueryFlightPlanBundle includes flight plan and potential deadhead flights
+/// Itinerary includes id, flight plan and potential deadhead flights
 #[derive(Eq)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct QueryFlightPlanBundle {
+pub struct Itinerary {
+    /// itinerary id
+    #[prost(string, tag = "1")]
+    pub id: ::prost::alloc::string::String,
     /// flight_plan
-    #[prost(message, optional, tag = "1")]
+    #[prost(message, optional, tag = "2")]
     pub flight_plan: ::core::option::Option<QueryFlightPlan>,
     /// deadhead flight plans
-    #[prost(message, repeated, tag = "2")]
+    #[prost(message, repeated, tag = "3")]
     pub deadhead_flight_plans: ::prost::alloc::vec::Vec<QueryFlightPlan>,
 }
 /// QueryFlightResponse
@@ -102,25 +116,15 @@ pub struct QueryFlightPlanBundle {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightResponse {
-    /// array/vector of flight items
+    /// array/vector of itineraries items
     #[prost(message, repeated, tag = "1")]
-    pub flights: ::prost::alloc::vec::Vec<QueryFlightPlanBundle>,
+    pub itineraries: ::prost::alloc::vec::Vec<Itinerary>,
 }
-/// Id type for passing id only requests
-#[derive(Eq)]
+/// ConfirmItineraryResponse
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Id {
-    /// id
-    #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
-}
-/// ConfirmFlightResponse
-#[derive(Eq)]
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ConfirmFlightResponse {
-    /// id
+pub struct ConfirmItineraryResponse {
+    /// id of the itinerary
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     /// indicates if confirmation was successful
@@ -130,12 +134,11 @@ pub struct ConfirmFlightResponse {
     #[prost(message, optional, tag = "3")]
     pub confirmation_time: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// CancelFlightResponse
-#[derive(Eq)]
+/// CancelItineraryResponse
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CancelFlightResponse {
-    /// id
+pub struct CancelItineraryResponse {
+    /// id of the itinerary
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     /// indicates if cancellation was successful
@@ -147,6 +150,13 @@ pub struct CancelFlightResponse {
     /// reason of cancellation
     #[prost(string, tag = "4")]
     pub reason: ::prost::alloc::string::String,
+}
+#[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Id {
+    #[prost(string, tag = "1")]
+    pub id: ::prost::alloc::string::String,
 }
 /// Ready Request
 ///
@@ -331,10 +341,10 @@ pub mod scheduler_rpc_client {
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
-        pub async fn confirm_flight(
+        pub async fn confirm_itinerary(
             &mut self,
-            request: impl tonic::IntoRequest<super::Id>,
-        ) -> Result<tonic::Response<super::ConfirmFlightResponse>, tonic::Status> {
+            request: impl tonic::IntoRequest<super::ConfirmItineraryRequest>,
+        ) -> Result<tonic::Response<super::ConfirmItineraryResponse>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -346,14 +356,14 @@ pub mod scheduler_rpc_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/confirmFlight",
+                "/grpc.SchedulerRpc/confirmItinerary",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
-        pub async fn cancel_flight(
+        pub async fn cancel_itinerary(
             &mut self,
             request: impl tonic::IntoRequest<super::Id>,
-        ) -> Result<tonic::Response<super::CancelFlightResponse>, tonic::Status> {
+        ) -> Result<tonic::Response<super::CancelItineraryResponse>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -365,7 +375,7 @@ pub mod scheduler_rpc_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/cancelFlight",
+                "/grpc.SchedulerRpc/cancelItinerary",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
