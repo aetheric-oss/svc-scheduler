@@ -8,7 +8,7 @@ pub mod scheduler_grpc {
 use chrono::{TimeZone, Utc};
 use prost_types::Timestamp;
 use scheduler_grpc::scheduler_rpc_client::SchedulerRpcClient;
-use scheduler_grpc::{Id, QueryFlightRequest};
+use scheduler_grpc::{ConfirmItineraryRequest, QueryFlightRequest};
 use tonic::Request;
 
 /// Example svc-scheduler-client
@@ -44,17 +44,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     });
 
-    let response = client.query_flight(request).await?.into_inner().flights;
-    let id = (&response)[0].flight_plan.as_ref().unwrap().id.to_string();
-    println!("id={}", id);
+    let response = client.query_flight(request).await?.into_inner().itineraries;
+    let itinerary_id = (&response)[0].id.clone();
+    println!("itinerary id={}", itinerary_id);
+
+    let response = client
+        .confirm_itinerary(Request::new(ConfirmItineraryRequest {
+            id: itinerary_id,
+            user_id: "".to_string(),
+        }))
+        .await?;
+
+    println!("RESPONSE={:?}", &response);
+
     /*let response = client
     .cancel_flight(Request::new(Id {
         id: "b32c8a28-bfb4-4fe9-8819-e119e18991c0".to_string(),
     }))
     .await?;*/
-    let response = client.confirm_flight(Request::new(Id { id })).await?;
-
-    println!("RESPONSE={:?}", &response);
 
     Ok(())
 }
