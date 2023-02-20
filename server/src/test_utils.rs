@@ -63,7 +63,7 @@ pub fn init_logger() {
     });
 }
 
-fn get_timestamp_from_utc_date(date: &str) -> Timestamp {
+pub fn get_timestamp_from_utc_date(date: &str) -> Timestamp {
     let dt = Utc.datetime_from_str(date, "%Y-%m-%d %H:%M:%S").unwrap();
     Timestamp {
         seconds: dt.timestamp(),
@@ -358,6 +358,30 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
             "vertiport1",
             "2022-10-26 13:30:00",
             "2022-10-26 14:50:00",
+        ),
+        create_flight_plan(
+            "flight_plan6",
+            "vehicle1",
+            "vertiport1",
+            "vertiport2",
+            "2022-10-27 12:00:00",
+            "2022-10-27 13:00:00",
+        ),
+        create_flight_plan(
+            "flight_plan7",
+            "vehicle2",
+            "vertiport2",
+            "vertiport3",
+            "2022-10-27 12:00:00",
+            "2022-10-27 13:00:00",
+        ),
+        create_flight_plan(
+            "flight_plan8",
+            "vehicle3",
+            "vertiport3",
+            "vertiport1",
+            "2022-10-27 12:00:00",
+            "2022-10-27 12:20:00",
         ),
     ];
     let vehicles = vec![

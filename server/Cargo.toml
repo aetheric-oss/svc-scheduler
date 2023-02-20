@@ -24,7 +24,7 @@ openssl                    = "0.10"
 ordered-float              = "3.2"
 prost                      = "0.11"
 prost-types                = "0.11"
-router                     = { git = "https://github.com/Arrow-air/lib-router.git", branch = "develop" }
+router                     = { git = "https://github.com/Arrow-air/lib-router.git", branch = "roman/r2_advanced_scenarios" }
 rrule                      = "0.10"
 svc-compliance-client-grpc = { git = "https://github.com/Arrow-air/svc-compliance.git", branch = "develop" }
 svc-storage-client-grpc    = { git = "https://github.com/Arrow-air/svc-storage.git", branch = "develop" }
