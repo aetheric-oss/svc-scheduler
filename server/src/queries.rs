@@ -156,10 +156,10 @@ pub async fn query_flight(
 
         //6. automatically cancel draft flight plan if not confirmed by user
         cancel_flight_after_timeout(fp_id.clone());
-        let item = create_scheduler_fp_from_storage_fp(fp_id, &fp);
+        let item = create_scheduler_fp_from_storage_fp(fp_id, fp);
         let deadhead_flight_plans = deadhead_fps
             .iter()
-            .map(|fp| create_scheduler_fp_from_storage_fp(Uuid::new_v4().to_string(), &fp))
+            .map(|fp| create_scheduler_fp_from_storage_fp(Uuid::new_v4().to_string(), fp))
             .collect();
         debug!("flight plan: {:?}", &item);
         flights.push(QueryFlightPlanBundle {
@@ -540,5 +540,58 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(res.into_inner().flights.len(), 1);
+    }
+
+    /// 7. vertiports are available but aircrafts are not at the vertiport for the requested time
+    /// but at least one aircraft is PARKED at other vertiport for the "requested time - N minutes"
+    #[tokio::test]
+    #[serial]
+    async fn test_query_flight_7_deadhead_flight_of_parked_vehicle() {
+        init_logger();
+        let storage_client_wrapper = create_storage_client_stub();
+        init_router(&storage_client_wrapper).await;
+        let res = query_flight(
+            Request::new(QueryFlightRequest {
+                is_cargo: false,
+                persons: None,
+                weight_grams: None,
+                earliest_departure_time: Some(get_timestamp_from_utc_date("2022-10-26 16:00:00")),
+                latest_arrival_time: Some(get_timestamp_from_utc_date("2022-10-26 16:30:00")),
+                vertiport_depart_id: "vertiport3".to_string(),
+                vertiport_arrive_id: "vertiport1".to_string(),
+            }),
+            &storage_client_wrapper,
+        )
+        .await
+        .unwrap()
+        .into_inner();
+
+        assert_eq!(res.flights.len(), 1);
+    }
+
+    /// 8. vertiports are available but aircrafts are not at the vertiport for the requested time
+    /// but at least one aircraft is EN ROUTE to other vertiport for the "requested time - N minutes - M minutes"
+    #[tokio::test]
+    #[serial]
+    async fn test_query_flight_8_deadhead_flight_of_in_flight_vehicle() {
+        init_logger();
+        let storage_client_wrapper = create_storage_client_stub();
+        init_router(&storage_client_wrapper).await;
+        let res = query_flight(
+            Request::new(QueryFlightRequest {
+                is_cargo: false,
+                persons: None,
+                weight_grams: None,
+                earliest_departure_time: Some(get_timestamp_from_utc_date("2022-10-27 12:30:00")),
+                latest_arrival_time: Some(get_timestamp_from_utc_date("2022-10-27 13:30:00")),
+                vertiport_depart_id: "vertiport2".to_string(),
+                vertiport_arrive_id: "vertiport1".to_string(),
+            }),
+            &storage_client_wrapper,
+        )
+        .await
+        .unwrap()
+        .into_inner();
+        assert_eq!(res.flights.len(), 1);
     }
 }
