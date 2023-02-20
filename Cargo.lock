@@ -1239,7 +1239,6 @@ dependencies = [
 [[package]]
 name = "router"
 version = "0.1.0"
-source = "git+https://github.com/Arrow-air/lib-router.git?branch=develop#0c788415d139237560d3109c57089237b36e9f44"
 dependencies = [
  "cargo-husky",
  "chrono",

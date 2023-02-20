@@ -52,6 +52,7 @@ pub async fn init_router(client_wrapper: &(dyn StorageClientWrapperTrait + Send 
         .list;
     let _init_res = init_router_from_vertiports(&vertiports);
 }
+
 pub fn init_logger() {
     INIT_LOGGER.call_once(|| {
         let log_cfg: &str = "../log4rs.yaml";
@@ -60,6 +61,47 @@ pub fn init_logger() {
             panic!();
         }
     });
+}
+
+fn get_timestamp_from_utc_date(date: &str) -> Timestamp {
+    let dt = Utc.datetime_from_str(date, "%Y-%m-%d %H:%M:%S").unwrap();
+    Timestamp {
+        seconds: dt.timestamp(),
+        nanos: dt.timestamp_subsec_nanos() as i32,
+    }
+}
+
+fn create_flight_plan(
+    flight_plan_id: &str,
+    vehicle_id: &str,
+    departure_vertiport_id: &str,
+    arrival_vertiport_id: &str,
+    departure_time_str: &str,
+    arrival_time_str: &str,
+) -> FlightPlan {
+    FlightPlan {
+        id: flight_plan_id.parse().unwrap(),
+        data: Some(FlightPlanData {
+            pilot_id: "".to_string(),
+            vehicle_id: vehicle_id.clone().parse().unwrap(),
+            cargo_weight_grams: vec![],
+            weather_conditions: None,
+            departure_vertiport_id: Some(departure_vertiport_id.clone().parse().unwrap()),
+            destination_vertiport_id: Some(arrival_vertiport_id.clone().parse().unwrap()),
+            scheduled_departure: Some(get_timestamp_from_utc_date(departure_time_str)),
+            scheduled_arrival: Some(get_timestamp_from_utc_date(arrival_time_str)),
+            actual_departure: None,
+            actual_arrival: None,
+            flight_release_approval: None,
+            flight_plan_submitted: None,
+            approved_by: None,
+            flight_status: 0,
+            flight_priority: 0,
+            departure_vertipad_id: departure_vertiport_id.to_owned() + &*"_n".to_string(),
+            destination_vertipad_id: arrival_vertiport_id.to_owned() + &*"_n".to_string(),
+            flight_distance_meters: 0,
+        }),
+    }
 }
 
 #[derive(Debug)]
@@ -277,146 +319,46 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
         },
     ];
     let flight_plans = vec![
-        FlightPlan {
-            id: "flight_plan1".to_string(),
-            data: Some(FlightPlanData {
-                pilot_id: "".to_string(),
-                vehicle_id: "vehicle1".to_string(),
-                cargo_weight_grams: vec![],
-                weather_conditions: None,
-                departure_vertiport_id: Some("vertiport1".to_string()),
-                departure_vertipad_id: "vertipad11".to_string(),
-                destination_vertiport_id: Some("vertiport2".to_string()),
-                destination_vertipad_id: "vertipad21".to_string(),
-                scheduled_departure: Some(Timestamp {
-                    seconds: Utc
-                        .with_ymd_and_hms(2022, 10, 25, 14, 20, 0)
-                        .unwrap()
-                        .timestamp(),
-                    nanos: 0,
-                }),
-                scheduled_arrival: Some(Timestamp {
-                    seconds: Utc
-                        .with_ymd_and_hms(2022, 10, 25, 14, 45, 0)
-                        .unwrap()
-                        .timestamp(),
-                    nanos: 0,
-                }),
-                actual_departure: None,
-                actual_arrival: None,
-                flight_release_approval: None,
-                flight_plan_submitted: None,
-                approved_by: None,
-                flight_status: 0,
-                flight_priority: 0,
-                flight_distance_meters: 0,
-            }),
-        },
-        FlightPlan {
-            id: "flight_plan2".to_string(),
-            data: Some(FlightPlanData {
-                pilot_id: "".to_string(),
-                vehicle_id: "vehicle2".to_string(),
-                cargo_weight_grams: vec![],
-                weather_conditions: None,
-                departure_vertiport_id: Some("vertiport2".to_string()),
-                departure_vertipad_id: "vertipad21".to_string(),
-                destination_vertipad_id: "vertipad31".to_string(),
-                scheduled_departure: Some(Timestamp {
-                    seconds: Utc
-                        .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
-                        .unwrap()
-                        .timestamp(),
-                    nanos: 0,
-                }),
-                scheduled_arrival: Some(Timestamp {
-                    seconds: Utc
-                        .with_ymd_and_hms(2022, 10, 25, 15, 30, 0)
-                        .unwrap()
-                        .timestamp(),
-                    nanos: 0,
-                }),
-                actual_departure: None,
-                actual_arrival: None,
-                flight_release_approval: None,
-                flight_plan_submitted: None,
-                approved_by: None,
-                flight_status: 0,
-                destination_vertiport_id: Some("vertiport3".to_string()),
-                flight_priority: 0,
-                flight_distance_meters: 0,
-            }),
-        },
-        FlightPlan {
-            id: "flight_plan3".to_string(),
-            data: Some(FlightPlanData {
-                pilot_id: "".to_string(),
-                vehicle_id: "vehicle1".to_string(),
-                cargo_weight_grams: vec![],
-                weather_conditions: None,
-                departure_vertiport_id: Some("vertiport2".to_string()),
-                departure_vertipad_id: "vertipad21".to_string(),
-                destination_vertiport_id: Some("vertiport1".to_string()),
-                destination_vertipad_id: "vertipad11".to_string(),
-                scheduled_departure: Some(Timestamp {
-                    seconds: Utc
-                        .with_ymd_and_hms(2022, 10, 26, 14, 00, 0)
-                        .unwrap()
-                        .timestamp(),
-                    nanos: 0,
-                }),
-                scheduled_arrival: Some(Timestamp {
-                    seconds: Utc
-                        .with_ymd_and_hms(2022, 10, 26, 14, 30, 0)
-                        .unwrap()
-                        .timestamp(),
-                    nanos: 0,
-                }),
-                actual_departure: None,
-                actual_arrival: None,
-                flight_release_approval: None,
-                flight_plan_submitted: None,
-                approved_by: None,
-                flight_status: 0,
-                flight_priority: 0,
-                flight_distance_meters: 0,
-            }),
-        },
-        FlightPlan {
-            id: "flight_plan4".to_string(),
-            data: Some(FlightPlanData {
-                pilot_id: "".to_string(),
-                vehicle_id: "vehicle2".to_string(),
-                cargo_weight_grams: vec![],
-                weather_conditions: None,
-                departure_vertiport_id: Some("vertiport3".to_string()),
-                departure_vertipad_id: "vertipad31".to_string(),
-                destination_vertipad_id: "vertipad21".to_string(),
-                scheduled_departure: Some(Timestamp {
-                    seconds: Utc
-                        .with_ymd_and_hms(2022, 10, 26, 14, 30, 0)
-                        .unwrap()
-                        .timestamp(),
-                    nanos: 0,
-                }),
-                scheduled_arrival: Some(Timestamp {
-                    seconds: Utc
-                        .with_ymd_and_hms(2022, 10, 26, 14, 50, 0)
-                        .unwrap()
-                        .timestamp(),
-                    nanos: 0,
-                }),
-                actual_departure: None,
-                actual_arrival: None,
-                flight_release_approval: None,
-                flight_plan_submitted: None,
-                approved_by: None,
-                flight_status: 0,
-                destination_vertiport_id: Some("vertiport2".to_string()),
-                flight_priority: 0,
-                flight_distance_meters: 0,
-            }),
-        },
+        create_flight_plan(
+            "flight_plan1",
+            "vehicle1",
+            "vertiport1",
+            "vertiport2",
+            "2022-10-25 14:20:00",
+            "2022-10-25 14:45:00",
+        ),
+        create_flight_plan(
+            "flight_plan2",
+            "vehicle2",
+            "vertiport2",
+            "vertiport3",
+            "2022-10-25 15:00:00",
+            "2022-10-25 15:30:00",
+        ),
+        create_flight_plan(
+            "flight_plan3",
+            "vehicle1",
+            "vertiport2",
+            "vertiport1",
+            "2022-10-26 14:00:00",
+            "2022-10-26 14:30:00",
+        ),
+        create_flight_plan(
+            "flight_plan4",
+            "vehicle2",
+            "vertiport3",
+            "vertiport2",
+            "2022-10-26 13:30:00",
+            "2022-10-26 14:50:00",
+        ),
+        create_flight_plan(
+            "flight_plan5",
+            "vehicle3",
+            "vertiport3",
+            "vertiport1",
+            "2022-10-26 13:30:00",
+            "2022-10-26 14:50:00",
+        ),
     ];
     let vehicles = vec![
         Vehicle {
