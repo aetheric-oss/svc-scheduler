@@ -11,13 +11,14 @@ on:
     branches:
       - 'main'
       - 'develop'
+  workflow_dispatch:
 
 env:
   TERM: xterm
 
 jobs:
   prepare:
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     name: Create Tag and Release notes
     permissions:
       contents: write
