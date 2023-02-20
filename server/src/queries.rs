@@ -22,14 +22,28 @@ use uuid::Uuid;
 
 const CANCEL_FLIGHT_SECONDS: u64 = 30;
 
-/*fn empty_filter() -> SearchFilter {
-    SearchFilter {
-        search_field: "".to_string(),
-        search_value: "".to_string(),
-        page_number: 0,
-        results_per_page: 0,
+fn create_scheduler_fp_from_storage_fp(fp_id: String, fp: &FlightPlanData) -> QueryFlightPlan {
+    QueryFlightPlan {
+        id: fp_id,
+        pilot_id: fp.pilot_id.clone(),
+        vehicle_id: fp.vehicle_id.clone(),
+        cargo: [123].to_vec(),
+        weather_conditions: fp.weather_conditions.clone().unwrap_or_default(),
+        vertiport_depart_id: fp.departure_vertiport_id.clone().unwrap(),
+        pad_depart_id: fp.departure_vertipad_id.clone(),
+        vertiport_arrive_id: fp.destination_vertiport_id.clone().unwrap(),
+        pad_arrive_id: fp.destination_vertipad_id.clone(),
+        estimated_departure: fp.scheduled_departure.clone(),
+        estimated_arrival: fp.scheduled_arrival.clone(),
+        actual_departure: None,
+        actual_arrival: None,
+        flight_release_approval: None,
+        flight_plan_submitted: None,
+        flight_status: FlightStatus::Ready as i32,
+        flight_priority: FlightPriority::Low as i32,
+        estimated_distance: 0,
     }
-}*/
+}
 
 /// gets or creates a new hashmap of unconfirmed flight plans
 fn unconfirmed_flight_plans() -> &'static Mutex<HashMap<String, FlightPlanData>> {
@@ -129,7 +143,7 @@ pub async fn query_flight(
 
     //5. create draft flight plans (in memory)
     let mut flights: Vec<QueryFlightPlanBundle> = vec![];
-    for fp in &flight_plans {
+    for (fp, deadhead_fps) in &flight_plans {
         let fp_id = Uuid::new_v4().to_string();
         info!(
             "Adding draft flight plan with temporary id: {} with timeout {} seconds",
@@ -142,30 +156,15 @@ pub async fn query_flight(
 
         //6. automatically cancel draft flight plan if not confirmed by user
         cancel_flight_after_timeout(fp_id.clone());
-        let item = QueryFlightPlan {
-            id: fp_id,
-            pilot_id: fp.pilot_id.clone(),
-            vehicle_id: fp.vehicle_id.clone(),
-            cargo: [123].to_vec(),
-            weather_conditions: fp.weather_conditions.clone().unwrap_or_default(),
-            vertiport_depart_id: fp.departure_vertiport_id.clone().unwrap(),
-            pad_depart_id: fp.departure_vertipad_id.clone(),
-            vertiport_arrive_id: fp.destination_vertiport_id.clone().unwrap(),
-            pad_arrive_id: fp.destination_vertipad_id.clone(),
-            estimated_departure: fp.scheduled_departure.clone(),
-            estimated_arrival: fp.scheduled_arrival.clone(),
-            actual_departure: None,
-            actual_arrival: None,
-            flight_release_approval: None,
-            flight_plan_submitted: None,
-            flight_status: FlightStatus::Ready as i32,
-            flight_priority: FlightPriority::Low as i32,
-            estimated_distance: 0,
-        };
+        let item = create_scheduler_fp_from_storage_fp(fp_id, &fp);
+        let deadhead_flight_plans = deadhead_fps
+            .iter()
+            .map(|fp| create_scheduler_fp_from_storage_fp(Uuid::new_v4().to_string(), &fp))
+            .collect();
         debug!("flight plan: {:?}", &item);
         flights.push(QueryFlightPlanBundle {
             flight_plan: Some(item),
-            deadhead_flight_plans: vec![],
+            deadhead_flight_plans,
         });
     }
 
@@ -329,7 +328,7 @@ mod tests {
         storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
     ) -> Response<QueryFlightResponse> {
         let edt = Utc
-            .with_ymd_and_hms(2022, 10, 25, 11, 0, 0)
+            .with_ymd_and_hms(2022, 10, 25, 11, 20, 0)
             .unwrap()
             .timestamp();
         let lat = Utc
@@ -427,7 +426,7 @@ mod tests {
         init_router(&storage_client_wrapper).await;
 
         let edt = Utc
-            .with_ymd_and_hms(2022, 10, 25, 14, 00, 0)
+            .with_ymd_and_hms(2022, 10, 25, 14, 20, 0)
             .unwrap()
             .timestamp();
         let lat = Utc
@@ -467,7 +466,7 @@ mod tests {
         init_router(&storage_client_wrapper).await;
 
         let edt = Utc
-            .with_ymd_and_hms(2022, 10, 26, 13, 40, 0)
+            .with_ymd_and_hms(2022, 10, 26, 14, 00, 0)
             .unwrap()
             .timestamp();
         let lat = Utc
@@ -488,8 +487,8 @@ mod tests {
                     seconds: lat,
                     nanos: 0,
                 }),
-                vertiport_depart_id: "vertiport1".to_string(),
-                vertiport_arrive_id: "vertiport2".to_string(),
+                vertiport_depart_id: "vertiport2".to_string(),
+                vertiport_arrive_id: "vertiport1".to_string(),
             }),
             &storage_client_wrapper,
         )
@@ -512,11 +511,11 @@ mod tests {
         let storage_client_wrapper = create_storage_client_stub();
         init_router(&storage_client_wrapper).await;
         let edt = Utc
-            .with_ymd_and_hms(2022, 10, 26, 14, 10, 0)
+            .with_ymd_and_hms(2022, 10, 26, 14, 15, 0)
             .unwrap()
             .timestamp();
         let lat = Utc
-            .with_ymd_and_hms(2022, 10, 26, 15, 20, 0)
+            .with_ymd_and_hms(2022, 10, 26, 15, 00, 0)
             .unwrap()
             .timestamp();
 
