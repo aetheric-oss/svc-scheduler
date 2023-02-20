@@ -73,7 +73,7 @@ rust-release: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo build --release...$(SGR0)"
 	@$(call cargo_run,build,--release --target $(RELEASE_TARGET))
 
-rust-publish: check-cargo-registry rust-docker-pull
+rust-publish: rust-build
 	@echo "$(CYAN)Running cargo publish --package $(PUBLISH_PACKAGE_NAME)...$(SGR0)"
 ifeq ("$(PUBLISH_DRY_RUN)", "0")
 	@echo $(call cargo_run,publish,--package $(PUBLISH_PACKAGE_NAME) --target $(RELEASE_TARGET))
