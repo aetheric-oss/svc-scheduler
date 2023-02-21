@@ -10,28 +10,37 @@ version = "0.2.5-develop.15"
 vendored-openssl = ['openssl/vendored']
 
 [dependencies]
-async-trait                = "0.1"
-cargo-husky                = "1"
-chrono                     = "0.4"
-chrono-tz                  = "0.6"
-dotenv                     = "0.15"
-env_logger                 = "0.9"
-iso8601-duration           = "0.1"
-log                        = "0.4"
-log4rs                     = "1.2"
-once_cell                  = "1.15"
-openssl                    = "0.10"
-ordered-float              = "3.2"
-prost                      = "0.11"
-prost-types                = "0.11"
-router                     = { git = "https://github.com/Arrow-air/lib-router.git", branch = "roman/r2_advanced_scenarios" }
-rrule                      = "0.10"
-svc-compliance-client-grpc = { git = "https://github.com/Arrow-air/svc-compliance.git", branch = "develop" }
-svc-storage-client-grpc    = { git = "https://github.com/Arrow-air/svc-storage.git", branch = "develop" }
-tokio                      = { version = "1.20", features = ["full"] }
-tonic                      = "0.8"
-tonic-health               = "0.7"
-uuid                       = "1.2"
+async-trait      = "0.1"
+cargo-husky      = "1"
+chrono           = "0.4"
+chrono-tz        = "0.8"
+dotenv           = "0.15"
+env_logger       = "0.10"
+iso8601-duration = "0.1"
+log              = "0.4"
+log4rs           = "1.2"
+once_cell        = "1.15"
+openssl          = "0.10"
+ordered-float    = "3.2"
+prost            = "0.11"
+prost-types      = "0.11"
+rrule            = "0.10"
+tokio            = { version = "1.20", features = ["full"] }
+tonic            = "0.8"
+tonic-health     = "0.8"
+uuid             = "1.2"
+
+[dependencies.router]
+branch = "develop"
+git    = "https://github.com/Arrow-air/lib-router.git"
+
+[dependencies.svc-compliance-client-grpc]
+branch = "develop"
+git    = "https://github.com/Arrow-air/svc-compliance.git"
+
+[dependencies.svc-storage-client-grpc]
+git = "https://github.com/Arrow-air/svc-storage.git"
+tag = "v0.9.0-develop.14"
 
 [build-dependencies]
 tonic-build = "0.8"
