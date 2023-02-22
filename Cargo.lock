@@ -1483,7 +1483,7 @@ dependencies = [
 
 [[package]]
 name = "svc-scheduler"
-version = "0.2.5-develop.10"
+version = "0.2.5-develop.11"
 dependencies = [
  "async-trait",
  "cargo-husky",
@@ -1513,7 +1513,7 @@ dependencies = [
 
 [[package]]
 name = "svc-scheduler-client-grpc"
-version = "0.2.5-develop.10"
+version = "0.2.5-develop.11"
 dependencies = [
  "chrono",
  "chrono-tz 0.8.1",
