@@ -9,6 +9,7 @@ use svc_storage_client_grpc::flight_plan::{
     UpdateObject as UpdateFlightPlan,
 };
 use svc_storage_client_grpc::vehicle::List as Vehicles;
+use svc_storage_client_grpc::vertipad::List as Vertipads;
 use svc_storage_client_grpc::vertiport::{List as Vertiports, Object as Vertiport};
 use svc_storage_client_grpc::{AdvancedSearchFilter, Id};
 use svc_storage_client_grpc::{FlightPlanClient, VehicleClient, VertipadClient, VertiportClient};
@@ -57,6 +58,10 @@ pub trait StorageClientWrapperTrait {
         &self,
         request: Request<AdvancedSearchFilter>,
     ) -> Result<Response<Vehicles>, Status>;
+    async fn vertipads(
+        &self,
+        request: Request<AdvancedSearchFilter>,
+    ) -> Result<Response<Vertipads>, Status>;
 }
 
 #[async_trait]
@@ -176,6 +181,20 @@ impl StorageClientWrapperTrait for StorageClientWrapper {
             .vehicle_client
             .clone();
         vehicle_client.search(request).await
+    }
+
+    async fn vertipads(
+        &self,
+        request: Request<AdvancedSearchFilter>,
+    ) -> Result<Response<Vertipads>, Status> {
+        let mut vertipad_client = self
+            .grpc_clients
+            .as_ref()
+            .ok_or_else(storage_err_msg)
+            .unwrap()
+            .vertipad_client
+            .clone();
+        vertipad_client.search(request).await
     }
 }
 
