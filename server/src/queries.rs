@@ -92,6 +92,28 @@ pub async fn query_flight(
         "depart_vertiport: {:?}, arrive_vertiport: {:?}",
         &depart_vertiport, &arrive_vertiport
     );
+    let depart_vertipads = storage_client_wrapper
+        .vertipads(Request::new(
+            AdvancedSearchFilter::search_equals(
+                "vertiport_id".to_owned(),
+                flight_request.vertiport_depart_id.clone(),
+            )
+            .and_is_not_null("deleted_at".to_owned()),
+        ))
+        .await?
+        .into_inner()
+        .list;
+    let arrive_vertipads = storage_client_wrapper
+        .vertipads(Request::new(
+            AdvancedSearchFilter::search_equals(
+                "vertiport_id".to_owned(),
+                flight_request.vertiport_arrive_id.clone(),
+            )
+            .and_is_not_null("deleted_at".to_owned()),
+        ))
+        .await?
+        .into_inner()
+        .list;
     //2. get all aircrafts
     let aircrafts = storage_client_wrapper
         .vehicles(Request::new(AdvancedSearchFilter {
@@ -127,6 +149,8 @@ pub async fn query_flight(
     let flight_plans = get_possible_flights(
         depart_vertiport,
         arrive_vertiport,
+        depart_vertipads,
+        arrive_vertipads,
         flight_request.earliest_departure_time,
         flight_request.latest_arrival_time,
         aircrafts,
@@ -538,8 +562,10 @@ mod tests {
             &storage_client_wrapper,
         )
         .await
-        .unwrap();
-        assert_eq!(res.into_inner().flights.len(), 1);
+        .unwrap()
+        .into_inner();
+        assert_eq!(res.flights.len(), 1);
+        assert_eq!(res.flights[0].deadhead_flight_plans.len(), 0);
     }
 
     /// 7. vertiports are available but aircrafts are not at the vertiport for the requested time
@@ -565,8 +591,8 @@ mod tests {
         .await
         .unwrap()
         .into_inner();
-
         assert_eq!(res.flights.len(), 1);
+        assert_eq!(res.flights[0].deadhead_flight_plans.len(), 1);
     }
 
     /// 8. vertiports are available but aircrafts are not at the vertiport for the requested time
@@ -593,5 +619,35 @@ mod tests {
         .unwrap()
         .into_inner();
         assert_eq!(res.flights.len(), 1);
+        assert_eq!(res.flights[0].deadhead_flight_plans.len(), 1);
+    }
+
+    /// 9. destination vertiport is not available because of capacity
+    /// - if at requested time all pads are occupied and at least one is parked (not loading/unloading),
+    /// extra flight plan should be created to move idle aircraft to the nearest unoccupied vertiport (or to preferred vertiport in hub and spoke model)
+    #[tokio::test]
+    #[serial]
+    async fn test_query_flight_9_deadhead_destination_flight_no_capacity_at_destination_vertiport()
+    {
+        init_logger();
+        let storage_client_wrapper = create_storage_client_stub();
+        init_router(&storage_client_wrapper).await;
+        let res = query_flight(
+            Request::new(QueryFlightRequest {
+                is_cargo: false,
+                persons: None,
+                weight_grams: None,
+                earliest_departure_time: Some(get_timestamp_from_utc_date("2022-10-27 15:10:00")),
+                latest_arrival_time: Some(get_timestamp_from_utc_date("2022-10-27 16:00:00")),
+                vertiport_depart_id: "vertiport2".to_string(),
+                vertiport_arrive_id: "vertiport4".to_string(),
+            }),
+            &storage_client_wrapper,
+        )
+        .await
+        .unwrap()
+        .into_inner();
+        assert_eq!(res.flights.len(), 1);
+        assert_eq!(res.flights[0].deadhead_flight_plans.len(), 1);
     }
 }
