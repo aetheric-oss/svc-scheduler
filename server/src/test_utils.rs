@@ -15,7 +15,9 @@ use svc_storage_client_grpc::flight_plan::{
     UpdateObject as UpdateFlightPlan,
 };
 use svc_storage_client_grpc::vehicle::{Data as VehicleData, List as Vehicles, Object as Vehicle};
-use svc_storage_client_grpc::vertipad::{Data as VertipadData, Object as Vertipad};
+use svc_storage_client_grpc::vertipad::{
+    Data as VertipadData, List as Vertipads, Object as Vertipad,
+};
 use svc_storage_client_grpc::vertiport::{
     Data as VertiportData, List as Vertiports, Object as Vertiport,
 };
@@ -227,6 +229,28 @@ impl StorageClientWrapperTrait for StorageClientWrapperStub {
             list: self.vehicles.clone(),
         }))
     }
+
+    async fn vertipads(
+        &self,
+        request: Request<AdvancedSearchFilter>,
+    ) -> Result<Response<Vertipads>, Status> {
+        let filters = request.into_inner().filters;
+        let filter = filters.iter().find(|f| f.search_field == "vertiport_id");
+        let vertiport_id = match filter {
+            Some(f) => f.search_value.clone()[0].clone(),
+            None => "".to_string(),
+        };
+        let vertipads = self
+            .vertipads
+            .clone()
+            .iter()
+            .filter(|v| {
+                vertiport_id.is_empty() || v.data.as_ref().unwrap().vertiport_id == vertiport_id
+            })
+            .cloned()
+            .collect();
+        Ok(Response::new(Vertipads { list: vertipads }))
+    }
 }
 
 pub fn create_compliance_client_stub() -> ComplianceClientWrapperStub {
@@ -267,22 +291,20 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
                 schedule: Some(sample_cal.to_string()),
             }),
         },
+        Vertiport {
+            id: "vertiport4".to_string(),
+            data: Some(VertiportData {
+                name: "".to_string(),
+                description: "".to_string(),
+                latitude: 37.93278,
+                longitude: -122.25883,
+                schedule: Some(sample_cal.to_string()),
+            }),
+        },
     ];
     let vertipads = vec![
         Vertipad {
             id: "vertipad11".to_string(),
-            data: Some(VertipadData {
-                vertiport_id: "vertiport1".to_string(),
-                name: "".to_string(),
-                latitude: 0.0,
-                longitude: 0.0,
-                enabled: false,
-                occupied: false,
-                schedule: Some(sample_cal.to_string()),
-            }),
-        },
-        Vertipad {
-            id: "vertipad12".to_string(),
             data: Some(VertipadData {
                 vertiport_id: "vertiport1".to_string(),
                 name: "".to_string(),
@@ -309,6 +331,30 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
             id: "vertipad31".to_string(),
             data: Some(VertipadData {
                 vertiport_id: "vertiport3".to_string(),
+                name: "".to_string(),
+                latitude: 0.0,
+                longitude: 0.0,
+                enabled: false,
+                occupied: false,
+                schedule: Some(sample_cal.to_string()),
+            }),
+        },
+        Vertipad {
+            id: "vertipad41".to_string(),
+            data: Some(VertipadData {
+                vertiport_id: "vertiport4".to_string(),
+                name: "".to_string(),
+                latitude: 0.0,
+                longitude: 0.0,
+                enabled: false,
+                occupied: false,
+                schedule: Some(sample_cal.to_string()),
+            }),
+        },
+        Vertipad {
+            id: "vertipad42".to_string(),
+            data: Some(VertipadData {
+                vertiport_id: "vertiport4".to_string(),
                 name: "".to_string(),
                 latitude: 0.0,
                 longitude: 0.0,
@@ -382,6 +428,22 @@ pub fn create_storage_client_stub() -> StorageClientWrapperStub {
             "vertiport1",
             "2022-10-27 12:00:00",
             "2022-10-27 12:20:00",
+        ),
+        create_flight_plan(
+            "flight_plan9",
+            "vehicle3",
+            "vertiport1",
+            "vertiport4",
+            "2022-10-27 14:00:00",
+            "2022-10-27 15:00:00",
+        ),
+        create_flight_plan(
+            "flight_plan10",
+            "vehicle2",
+            "vertiport2",
+            "vertiport4",
+            "2022-10-27 15:00:00",
+            "2022-10-27 15:50:00",
         ),
     ];
     let vehicles = vec![
