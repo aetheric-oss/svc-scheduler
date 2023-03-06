@@ -98,7 +98,7 @@ pub async fn query_flight(
                 "vertiport_id".to_owned(),
                 flight_request.vertiport_depart_id.clone(),
             )
-            .and_is_not_null("deleted_at".to_owned()),
+            .and_is_null("deleted_at".to_owned()),
         ))
         .await?
         .into_inner()
@@ -109,7 +109,7 @@ pub async fn query_flight(
                 "vertiport_id".to_owned(),
                 flight_request.vertiport_arrive_id.clone(),
             )
-            .and_is_not_null("deleted_at".to_owned()),
+            .and_is_null("deleted_at".to_owned()),
         ))
         .await?
         .into_inner()
@@ -140,7 +140,7 @@ pub async fn query_flight(
                     .unwrap()
                     .to_string(),
             )
-            .and_is_not_null("deleted_at".to_owned()),
+            .and_is_null("deleted_at".to_owned()),
         ))
         .await?
         .into_inner()
