@@ -9,6 +9,8 @@ mod grpc_client_wrapper;
 ///Queries module
 pub mod queries;
 
+use std::thread::sleep;
+
 use router::router_state::{init_router_from_vertiports, is_router_initialized};
 
 use dotenv::dotenv;
@@ -137,6 +139,33 @@ async fn init_router() {
     }
 }
 
+/// The GRPC Server for this service
+async fn grpc_server() {
+    // GRPC Server
+    let grpc_port = std::env::var("DOCKER_PORT_GRPC")
+        .unwrap_or_else(|_| "50051".to_string())
+        .parse::<u16>()
+        .unwrap_or(50051);
+    let full_grpc_addr = format!("[::]:{grpc_port}").parse().unwrap();
+
+    let scheduler = SchedulerGrpcImpl::default();
+    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+    health_reporter
+        .set_serving::<SchedulerRpcServer<SchedulerGrpcImpl>>()
+        .await;
+
+    //start server
+    info!("Starting gRPC server at: {}", full_grpc_addr);
+    Server::builder()
+        .add_service(health_service)
+        .add_service(SchedulerRpcServer::new(scheduler))
+        .serve(full_grpc_addr)
+        .await
+        .unwrap();
+
+    info!("gRPC Server Listening at {}", full_grpc_addr);
+}
+
 /// Initializes grpc clients for storage service
 async fn init_grpc_clients() {
     //initialize storage client here so it can be used in other methods
@@ -231,32 +260,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("(logger) could not parse {}. {}", log_cfg, e);
         panic!();
     }
+
     //initialize storage client here so it can be used in other methods
     init_grpc_clients().await;
-    // Initialize Router from vertiport data
-    init_router().await;
 
-    // GRPC Server
-    let grpc_port = std::env::var("DOCKER_PORT_GRPC")
-        .unwrap_or_else(|_| "50051".to_string())
-        .parse::<u16>()
-        .unwrap_or(50051);
-    let full_grpc_addr = format!("[::]:{grpc_port}").parse()?;
+    // Spawn the loop for the router re-initialization
+    tokio::spawn(async move {
+        let duration = std::time::Duration::new(10, 0);
+        loop {
+            init_router().await;
 
-    let scheduler = SchedulerGrpcImpl::default();
-    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
-    health_reporter
-        .set_serving::<SchedulerRpcServer<SchedulerGrpcImpl>>()
-        .await;
+            // TODO R3: On trigger from svc-assets or svc-storage
+            sleep(duration);
+        }
+    });
 
-    //start server
-    info!("Starting gRPC server at: {}", full_grpc_addr);
-    Server::builder()
-        .add_service(health_service)
-        .add_service(SchedulerRpcServer::new(scheduler))
-        .serve(full_grpc_addr)
-        .await?;
-    info!("gRPC Server Listening at {}", full_grpc_addr);
+    // Spawn the GRPC server for this service
+    let _ = tokio::spawn(grpc_server()).await;
 
     Ok(())
 }
