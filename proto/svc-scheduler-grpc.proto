@@ -139,7 +139,9 @@ message CancelItineraryResponse{
     string reason = 4;
 }
 
+// Identification (typically UUID)
 message Id {
+    // The ID of the itinerary or flight plan
     string id = 1;
 }
 

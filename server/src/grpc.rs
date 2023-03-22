@@ -151,10 +151,12 @@ pub struct CancelItineraryResponse {
     #[prost(string, tag = "4")]
     pub reason: ::prost::alloc::string::String,
 }
+/// Identification (typically UUID)
 #[derive(Eq)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Id {
+    /// The ID of the itinerary or flight plan
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
 }
