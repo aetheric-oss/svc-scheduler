@@ -48,3 +48,6 @@ appenders
 tftpl
 openapi
 tempfile
+Stuckee
+Mandryk
+rideshares
