@@ -35,5 +35,3 @@
 - update ICD document ([`9ab61f6`](https://github.com/Arrow-air/svc-scheduler/commit/9ab61f60c0a93f8f6a3768d21c927dff1024e370))
 -  **sdd:** add sdd document ([`f899a89`](https://github.com/Arrow-air/svc-scheduler/commit/f899a89d820b4e5c2a817a4c5929cca98ed6a403))
 - update readme file ([`a0fb10c`](https://github.com/Arrow-air/svc-scheduler/commit/a0fb10c3ae5e9e94ba798bc3dfc6acab1740d5bc))
-
-

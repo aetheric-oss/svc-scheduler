@@ -13,25 +13,26 @@ vendored-openssl = ['openssl/vendored']
 async-trait      = "0.1"
 cargo-husky      = "1"
 chrono           = "0.4"
-chrono-tz        = "0.8"
+chrono-tz        = "0.6"
 dotenv           = "0.15"
 env_logger       = "0.10"
 iso8601-duration = "0.1"
 log              = "0.4"
 once_cell        = "1.15"
 openssl          = "0.10"
-ordered-float    = "3.2"
+ordered-float    = { version = "3.2", features = ["serde"] }
+petgraph         = "0.6"
 prost            = "0.11"
 prost-types      = "0.11"
+quaternion       = "0.4"
+rand             = "0.8"
 rrule            = "0.10"
+serde            = { version = "1.0", features = ["derive"] }
 tokio            = { version = "1.20", features = ["full"] }
 tonic            = "0.8"
 tonic-health     = "0.8"
 uuid             = "1.2"
-
-[dependencies.router]
-branch = "develop"
-git    = "https://github.com/Arrow-air/lib-router.git"
+vecmath          = "1.0"
 
 [dependencies.svc-compliance-client-grpc]
 branch = "develop"
