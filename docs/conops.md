@@ -33,34 +33,34 @@ As an additional source of complexity, passengers may plan minutes, hours, or da
 
 ```mermaid
 flowchart LR
-	subgraph Server Domain
-		direction LR
-		subgraph gate [Public Gateway]
-			direction LR
-			rideshare[svc-rideshare]
-			cargo[svc-cargo]
-			charter[svc-charter]
-		end
-		subgraph Core Network
-		subgraph p [ ]
-			subgraph schedule [svc-scheduler]
-				direction LR
-				api{GRPC API}
-				logic((logic))
-				rout(lib-router)
+  subgraph Server Domain
+    direction LR
+    subgraph gate [Public Gateway]
+      direction LR
+      rideshare[svc-rideshare]
+      cargo[svc-cargo]
+      charter[svc-charter]
+    end
+    subgraph Core Network
+    subgraph p [ ]
+      subgraph schedule [svc-scheduler]
+        direction LR
+        api{GRPC API}
+        logic((logic))
+        rout(lib-router)
 
-				api <--> logic
-				logic <-- Aircraft Selection --> rout
-			end
-			storage[svc-storage]
-			compliance[svc-compliance]
-		end
-		end
-	end
+        api <--> logic
+        logic <-- Aircraft Selection --> rout
+      end
+      storage[svc-storage]
+      compliance[svc-compliance]
+    end
+    end
+  end
 
-	gate <-- Create<br>Modify<br>Cancel<br>Confirm --> api
-	logic <-- Aircraft<br>Vertiports --> storage
-	logic <-- Flight Plan Submission<br>Dispatch Approval--> compliance
+  gate <-- Create<br>Modify<br>Cancel<br>Confirm --> api
+  logic <-- Aircraft<br>Vertiports --> storage
+  logic <-- Flight Plan Submission<br>Dispatch Approval--> compliance
 
 classDef subgraph_padding fill:none,stroke:none
 class p subgraph_padding
@@ -161,8 +161,8 @@ Vertiports have:
 - Operational status (open/closed)
 - Permissions (private, emergency-only)
 - Coordinates
-	- Static coordinates
-	- Location stream (moving platforms)
+  - Static coordinates
+  - Location stream (moving platforms)
 - One or more **vertipads**
 
 #### 9.0.3 Vertipads
