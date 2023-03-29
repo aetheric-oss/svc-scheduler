@@ -1,11 +1,11 @@
 //! Implementation of the queries/actions that the scheduler service can perform.
+use crate::router_utils::router_state::get_possible_flights;
 use crate::scheduler_grpc::{
     CancelItineraryResponse, ConfirmItineraryRequest, ConfirmItineraryResponse, FlightPriority,
     FlightStatus, Id, Itinerary, QueryFlightPlan, QueryFlightRequest, QueryFlightResponse,
 };
 use once_cell::sync::OnceCell;
 use prost_types::{FieldMask, Timestamp};
-use router::router_state::get_possible_flights;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
