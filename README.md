@@ -10,6 +10,13 @@ Checks](https://github.com/arrow-air/svc-scheduler/actions/workflows/rust_ci.yml
 ![Arrow DAO
 Discord](https://img.shields.io/discord/853833144037277726?style=plastic)
 
+:rotating_light: **Note**: As per
+[R3](https://docs.google.com/presentation/d/1KYa-a9F-RBgj4sVITcBiJZp7bz4BVqNMEdfdER8O0Hw/edit#slide=id.g16d7f2e36fd_0_7)
+objective, the [lib-router](https://github.com/Arrow-air/lib-router) repository is decommissioned and
+recombined with this repository. The core components of the `lib-router`
+repository can be found in the `server/src` directory.
+
+The documentation of the `lib-router` can be found [here](https://github.com/Arrow-air/lib-router/tree/develop/docs).
 
 ## :telescope: Overview
 **svc-scheduler** is responsible for scheduling, confirming and cancelling flights. 
