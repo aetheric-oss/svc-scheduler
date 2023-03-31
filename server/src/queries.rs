@@ -1,5 +1,5 @@
 //! Implementation of the queries/actions that the scheduler service can perform.
-use crate::router_utils::router_state::get_possible_flights;
+use crate::router::router_utils::router_state::get_possible_flights;
 use crate::scheduler_grpc::{
     CancelItineraryResponse, ConfirmItineraryRequest, ConfirmItineraryResponse, FlightPriority,
     FlightStatus, Id, Itinerary, QueryFlightPlan, QueryFlightRequest, QueryFlightResponse,

@@ -9,25 +9,11 @@ mod grpc_client_wrapper;
 ///Queries module
 pub mod queries;
 
-mod router_types {
-    pub mod edge;
-    pub mod location;
-    pub mod node;
-    pub mod router;
-    pub mod status;
-}
-
-mod router_utils {
-    pub mod generator;
-    pub mod graph;
-    pub mod haversine;
-    pub mod router_state;
-    pub mod schedule;
-}
+pub mod router;
 
 use std::thread::sleep;
 
-use router_utils::router_state::{init_router_from_vertiports, is_router_initialized};
+use router::router_utils::router_state::{init_router_from_vertiports, is_router_initialized};
 
 use dotenv::dotenv;
 use tokio::sync::OnceCell;
