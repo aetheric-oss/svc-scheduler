@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use super::location;
 use super::status;
-use crate::router_utils::haversine;
+use crate::router::router_utils::haversine;
 use core::hash::Hash;
 
 /// Since Rust doesn't allow for inheritance, we need to use `trait` as

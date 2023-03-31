@@ -1,6 +1,8 @@
 /// test utils for creating gRPC client stub
 use crate::grpc_client_wrapper::{ComplianceClientWrapperTrait, StorageClientWrapperTrait};
-use crate::router_utils::router_state::{init_router_from_vertiports, is_router_initialized};
+use crate::router::router_utils::router_state::{
+    init_router_from_vertiports, is_router_initialized,
+};
 use async_trait::async_trait;
 use chrono::offset::Utc;
 use chrono::TimeZone;
