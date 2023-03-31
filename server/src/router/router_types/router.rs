@@ -16,12 +16,12 @@ pub mod engine {
     use ordered_float::OrderedFloat;
     use petgraph::{algo::astar, graph::NodeIndex, stable_graph::StableDiGraph};
 
-    use crate::router_types::{
+    use crate::router::router_types::{
         edge::Edge,
         node::{AsNode, Node},
     };
 
-    use crate::router_utils::{graph::build_edges, haversine};
+    use crate::router::router_utils::{graph::build_edges, haversine};
 
     /// Error types for the router engine.
     ///
@@ -259,14 +259,14 @@ pub mod engine {
 
 #[cfg(test)]
 mod router_tests {
-    use crate::router_types::{
+    use crate::router::router_types::{
         location::Location,
         node::{AsNode, Node},
         router::engine::Algorithm,
         router::engine::Router,
     };
 
-    use crate::router_utils::{
+    use crate::router::router_utils::{
         generator::{generate_nodes, generate_nodes_near},
         haversine,
     };
@@ -345,7 +345,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -356,7 +356,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -367,7 +367,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -378,7 +378,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
         ];
@@ -447,7 +447,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -458,7 +458,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -469,7 +469,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -480,7 +480,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
         ];
@@ -522,7 +522,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -533,7 +533,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -544,7 +544,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -555,7 +555,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
         ];
@@ -568,7 +568,7 @@ mod router_tests {
                 altitude_meters: OrderedFloat(0.0),
             },
             forward_to: None,
-            status: crate::router_types::status::Status::Ok,
+            status: crate::router::router_types::status::Status::Ok,
             schedule: None,
         };
 
@@ -599,7 +599,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -610,7 +610,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -621,7 +621,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
             Node {
@@ -632,7 +632,7 @@ mod router_tests {
                     altitude_meters: OrderedFloat(0.0),
                 },
                 forward_to: None,
-                status: crate::router_types::status::Status::Ok,
+                status: crate::router::router_types::status::Status::Ok,
                 schedule: None,
             },
         ];

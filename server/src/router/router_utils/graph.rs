@@ -2,7 +2,7 @@
 
 use ordered_float::OrderedFloat;
 
-use crate::router_types::{edge::Edge, node::AsNode};
+use crate::router::router_types::{edge::Edge, node::AsNode};
 
 /// Build edges among nodes.
 ///
@@ -54,7 +54,7 @@ pub fn build_edges(
 
 #[cfg(test)]
 mod tests {
-    use crate::router_utils::{
+    use crate::router::router_utils::{
         generator::{generate_location, generate_nodes_near},
         haversine,
     };

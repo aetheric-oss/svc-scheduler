@@ -2,7 +2,7 @@
 use ordered_float::OrderedFloat;
 use serde::Serialize;
 
-use crate::router_types::node::Node;
+use crate::router::router_types::node::Node;
 
 /// An edge is a connection between two nodes.
 /// The cost represents the "weight" of the edge.
