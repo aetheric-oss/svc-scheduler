@@ -1,6 +1,6 @@
 //! A number of methods to generate random data for testing.
 
-use crate::router_types::{location::Location, node::Node, status};
+use crate::router::router_types::{location::Location, node::Node, status};
 use ordered_float::OrderedFloat;
 use quaternion::Quaternion;
 use rand::{rngs::ThreadRng, Rng};
@@ -195,7 +195,7 @@ fn gen_around_location(
 
 #[cfg(test)]
 mod tests {
-    use crate::router_utils::haversine;
+    use crate::router::router_utils::haversine;
 
     use super::*;
 

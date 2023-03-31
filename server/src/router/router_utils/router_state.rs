@@ -1,11 +1,11 @@
 //! Stores the state of the router
-use crate::router_types::{
+use crate::router::router_types::{
     location::Location,
     node::Node,
     router::engine::{Algorithm, Router},
     status,
 };
-use crate::router_utils::{generator::generate_nodes_near, haversine, schedule::Calendar};
+use crate::router::router_utils::{generator::generate_nodes_near, haversine, schedule::Calendar};
 use chrono::{DateTime, Duration, NaiveDateTime, TimeZone};
 use once_cell::sync::OnceCell;
 use ordered_float::OrderedFloat;
@@ -1136,7 +1136,7 @@ mod router_tests {
         get_nearby_nodes, get_nearest_vertiports, get_route, init_router, Aircraft,
         NearbyLocationQuery, RouteQuery, SAN_FRANCISCO,
     };
-    use crate::router_types::{location::Location, node::Node};
+    use crate::router::router_types::{location::Location, node::Node};
     use once_cell::sync::OnceCell;
     use ordered_float::OrderedFloat;
 

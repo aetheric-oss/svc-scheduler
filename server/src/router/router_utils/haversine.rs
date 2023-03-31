@@ -6,7 +6,7 @@
 //!
 //! **Distance is returned in kilometers**.
 
-use crate::router_types::location::Location;
+use crate::router::router_types::location::Location;
 
 /// Calculate the distance between two points on a sphere.
 ///
