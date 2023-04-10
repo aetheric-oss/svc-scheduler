@@ -3,12 +3,13 @@ package grpc;
 import "google/protobuf/timestamp.proto";
 
 //Scheduler service
-service SchedulerRpc {
+service RpcService {
     rpc queryFlight (QueryFlightRequest) returns (QueryFlightResponse);
     rpc confirmItinerary (ConfirmItineraryRequest) returns (ConfirmItineraryResponse);
     rpc cancelItinerary (Id) returns (CancelItineraryResponse);
     rpc isReady (ReadyRequest) returns (ReadyResponse);
 }
+
 // QueryFlightRequest
 message QueryFlightRequest {
     //is_cargo - true if cargo mission, false if people transport

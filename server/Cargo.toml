@@ -10,10 +10,12 @@ version = "0.2.5-develop.15"
 vendored-openssl = ['openssl/vendored']
 
 [dependencies]
+anyhow           = "1.0"
 async-trait      = "0.1"
 cargo-husky      = "1"
 chrono           = "0.4"
 chrono-tz        = "0.6"
+config           = "0.13"
 dotenv           = "0.15"
 env_logger       = "0.10"
 iso8601-duration = "0.1"
@@ -35,12 +37,12 @@ uuid             = "1.2"
 vecmath          = "1.0"
 
 [dependencies.svc-compliance-client-grpc]
-branch = "develop"
-git    = "https://github.com/Arrow-air/svc-compliance.git"
+git = "https://github.com/Arrow-air/svc-compliance.git"
+tag = "v0.1.0"
 
 [dependencies.svc-storage-client-grpc]
 git = "https://github.com/Arrow-air/svc-storage.git"
-tag = "v0.9.0-develop.14"
+tag = "v0.10.0"
 
 [dependencies.log4rs]
 features = [

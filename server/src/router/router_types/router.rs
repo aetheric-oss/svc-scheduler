@@ -84,14 +84,14 @@ pub mod engine {
             constraint_function: fn(&dyn AsNode, &dyn AsNode) -> f32,
             cost_function: fn(&dyn AsNode, &dyn AsNode) -> f32,
         ) -> Router {
-            info!("[1/4] Initializing the router engine...");
-            info!("[2/4] Building edges...");
+            router_info!("[1/4] Initializing the router engine...");
+            router_info!("[2/4] Building edges...");
 
             let edges = build_edges(nodes, constraint, constraint_function, cost_function);
             let mut node_indices = HashMap::new();
             let mut graph = StableDiGraph::new();
 
-            info!("[3/4] Building the graph...");
+            router_info!("[3/4] Building the graph...");
             for edge in &edges {
                 let from_index = *node_indices
                     .entry(edge.from)
@@ -102,7 +102,7 @@ pub mod engine {
                 graph.add_edge(from_index, to_index, edge.cost);
             }
 
-            info!("[4/4] Finalizing the router setup...");
+            router_info!("[4/4] Finalizing the router setup...");
             for node in nodes {
                 if !node_indices.contains_key(node.as_node()) {
                     let index = graph.add_node(node.as_node());
@@ -110,7 +110,7 @@ pub mod engine {
                 }
             }
 
-            info!("✨Done! Router engine is ready to use.");
+            router_info!("✨Done! Router engine is ready to use.");
             Router {
                 graph,
                 node_indices,
@@ -121,13 +121,13 @@ pub mod engine {
         /// Get the NodeIndex struct for a given node. The NodeIndex
         /// struct is used to reference things in the graph.
         pub fn get_node_index(&self, node: &Node) -> Option<NodeIndex> {
-            debug!("Node: {:?}", node);
+            router_debug!("Node: {:?}", node);
             self.node_indices.get(node).cloned()
         }
 
         /// Get a node by NodeIndex.
         pub fn get_node_by_id(&self, index: NodeIndex) -> Option<&Node> {
-            debug!("Node id: {:?}", index);
+            router_debug!("Node id: {:?}", index);
             if self.graph.contains_node(index) {
                 Some(self.graph[index])
             } else {
@@ -137,7 +137,7 @@ pub mod engine {
 
         /// Return the number of edges in the graph.
         pub fn get_edge_count(&self) -> usize {
-            debug!("Edge count: {}", self.graph.edge_count());
+            router_debug!("Edge count: {}", self.graph.edge_count());
             self.graph.edge_count()
         }
 
@@ -170,9 +170,11 @@ pub mod engine {
             algorithm: Algorithm,
             heuristic_function: Option<fn(NodeIndex) -> f32>,
         ) -> StdResult<(f32, Vec<NodeIndex>), RouterError> {
-            debug!(
+            router_debug!(
                 "Finding shortest path from {:?} to {:?} using algorithm {:?}",
-                from.location, to.location, algorithm
+                from.location,
+                to.location,
+                algorithm
             );
 
             let Some(from_index) = self.get_node_index(from) else {
@@ -219,39 +221,39 @@ pub mod engine {
         ///
         /// If the path is invalid, -1.0 is returned.
         pub fn get_total_distance(&self, path: &Vec<NodeIndex>) -> StdResult<f32, RouterError> {
-            info!("Computing total distance of path");
+            router_info!("Computing total distance of path");
             let mut total_distance = 0.0;
             for i in 0..path.len() - 1 {
                 let node_from = self.get_node_by_id(path[i]);
                 let node_to = self.get_node_by_id(path[i + 1]);
 
                 let Some(node_from) = node_from else {
-                    error!("'From' node is not found.");
+                    router_error!("'From' node is not found.");
                     return Err(RouterError::InvalidNodesInPath);
                 };
 
                 let Some(node_to) = node_to else {
-                    error!("'To' node is not found.");
+                    router_error!("'To' node is not found.");
                     return Err(RouterError::InvalidNodesInPath);
                 };
 
                 total_distance += haversine::distance(&node_from.location, &node_to.location);
             }
-            debug!("Total distance: {}", total_distance);
+            router_debug!("Total distance: {}", total_distance);
             Ok(total_distance)
         }
 
         /// Get the number of nodes in the graph.
         pub fn get_node_count(&self) -> usize {
-            info!("Getting node count");
-            debug!("Node count: {}", self.graph.node_count());
+            router_info!("Getting node count");
+            router_debug!("Node count: {}", self.graph.node_count());
             self.graph.node_count()
         }
 
         /// Get all the edges in the graph.
         pub fn get_edges<'a>(&self) -> &'a Vec<Edge> {
-            info!("Getting all edges");
-            debug!("Edges: {:?}", self.edges);
+            router_info!("Getting all edges");
+            router_debug!("Edges: {:?}", self.edges);
             &self.edges
         }
     }

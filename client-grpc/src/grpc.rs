@@ -255,16 +255,16 @@ impl FlightPriority {
     }
 }
 /// Generated client implementations.
-pub mod scheduler_rpc_client {
+pub mod rpc_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
     /// Scheduler service
     #[derive(Debug, Clone)]
-    pub struct SchedulerRpcClient<T> {
+    pub struct RpcServiceClient<T> {
         inner: tonic::client::Grpc<T>,
     }
-    impl SchedulerRpcClient<tonic::transport::Channel> {
+    impl RpcServiceClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
@@ -275,7 +275,7 @@ pub mod scheduler_rpc_client {
             Ok(Self::new(conn))
         }
     }
-    impl<T> SchedulerRpcClient<T>
+    impl<T> RpcServiceClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
@@ -293,7 +293,7 @@ pub mod scheduler_rpc_client {
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
-        ) -> SchedulerRpcClient<InterceptedService<T, F>>
+        ) -> RpcServiceClient<InterceptedService<T, F>>
         where
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
@@ -307,7 +307,7 @@ pub mod scheduler_rpc_client {
                 http::Request<tonic::body::BoxBody>,
             >>::Error: Into<StdError> + Send + Sync,
         {
-            SchedulerRpcClient::new(InterceptedService::new(inner, interceptor))
+            RpcServiceClient::new(InterceptedService::new(inner, interceptor))
         }
         /// Compress requests with the given encoding.
         ///
@@ -339,7 +339,7 @@ pub mod scheduler_rpc_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/queryFlight",
+                "/grpc.RpcService/queryFlight",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
@@ -358,7 +358,7 @@ pub mod scheduler_rpc_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/confirmItinerary",
+                "/grpc.RpcService/confirmItinerary",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
@@ -377,7 +377,7 @@ pub mod scheduler_rpc_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/cancelItinerary",
+                "/grpc.RpcService/cancelItinerary",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
@@ -395,9 +395,7 @@ pub mod scheduler_rpc_client {
                     )
                 })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/isReady",
-            );
+            let path = http::uri::PathAndQuery::from_static("/grpc.RpcService/isReady");
             self.inner.unary(request.into_request(), path, codec).await
         }
     }

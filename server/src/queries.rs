@@ -1,21 +1,31 @@
 //! Implementation of the queries/actions that the scheduler service can perform.
-use crate::router::router_utils::router_state::get_possible_flights;
-use crate::scheduler_grpc::{
+
+use crate::grpc::server::grpc_server::{
     CancelItineraryResponse, ConfirmItineraryRequest, ConfirmItineraryResponse, FlightPriority,
     FlightStatus, Id, Itinerary, QueryFlightPlan, QueryFlightRequest, QueryFlightResponse,
 };
+use crate::router::router_utils::router_state::get_possible_flights;
+use crate::router::router_utils::router_state::{
+    init_router_from_vertiports, is_router_initialized,
+};
+
+use svc_compliance_client_grpc::client::FlightPlanRequest;
+use svc_storage_client_grpc::{
+    resources::{
+        flight_plan::{self, Data as FlightPlanData},
+        itinerary,
+    },
+    AdvancedSearchFilter, Id as StorageId, IdList,
+};
+
+use crate::grpc::client::{ComplianceClientWrapperTrait, StorageClientWrapperTrait};
+
+use log::{debug, error, info, warn};
 use once_cell::sync::OnceCell;
 use prost_types::{FieldMask, Timestamp};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::SystemTime;
-use svc_compliance_client_grpc::client::FlightPlanRequest;
-use svc_storage_client_grpc::resources::flight_plan::{self, Data as FlightPlanData};
-use svc_storage_client_grpc::resources::itinerary;
-use svc_storage_client_grpc::{AdvancedSearchFilter, Id as StorageId, IdList};
-
-use crate::grpc_client_wrapper::{ComplianceClientWrapperTrait, StorageClientWrapperTrait};
-use tokio;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
@@ -255,8 +265,37 @@ async fn create_itinerary(
 }
 
 //-------------------------------------------------------------------
-// REST API Functions
+// API Functions
 //-------------------------------------------------------------------
+
+/// Initializes the router from vertiports in the database.
+/// TODO(R3): The routing may be moved to a SQL Graph Database.
+///          This function will be removed in that case.
+pub async fn init_router(storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync)) {
+    let result = storage_client_wrapper
+        .vertiports(Request::new(AdvancedSearchFilter {
+            filters: vec![],
+            page_number: 0,
+            results_per_page: 50,
+            order_by: vec![],
+        }))
+        .await;
+
+    let Ok(vertiports) = result else {
+        let error_msg = "Failed to get vertiports from storage service".to_string();
+        debug!("{}: {:?}", error_msg, result.unwrap_err());
+        panic!("{}", error_msg);
+    };
+
+    let vertiports = vertiports.into_inner().list;
+    info!("Initializing router with {} vertiports ", vertiports.len());
+    if !is_router_initialized() {
+        let res = init_router_from_vertiports(&vertiports);
+        if res.is_err() {
+            error!("Failed to initialize router: {}", res.err().unwrap());
+        }
+    }
+}
 
 /// Finds the first possible flight for customer location, flight type and requested time.
 pub async fn query_flight(
@@ -656,7 +695,7 @@ mod tests {
     async fn test_query_flight() {
         init_logger();
         let storage_client_wrapper = create_storage_client_stub();
-        init_router(&storage_client_wrapper).await;
+        test_utils::init_router(&storage_client_wrapper).await;
         let res = run_query_flight(&storage_client_wrapper).await;
         assert_eq!(res.into_inner().itineraries.len(), 5);
     }
@@ -667,7 +706,7 @@ mod tests {
         init_logger();
         let storage_client_wrapper = create_storage_client_stub();
         let compliance_client_wrapper = create_compliance_client_stub();
-        init_router(&storage_client_wrapper).await;
+        test_utils::init_router(&storage_client_wrapper).await;
         let res = confirm_itinerary(
             Request::new(ConfirmItineraryRequest {
                 id: "itinerary1".to_string(),
@@ -701,7 +740,7 @@ mod tests {
     async fn test_query_flight_4_dest_vertiport_tight_availability_should_return_two_flights() {
         init_logger();
         let storage_client_wrapper = create_storage_client_stub();
-        init_router(&storage_client_wrapper).await;
+        test_utils::init_router(&storage_client_wrapper).await;
 
         let edt = Utc
             .with_ymd_and_hms(2022, 10, 25, 14, 20, 0)
@@ -741,7 +780,7 @@ mod tests {
     async fn test_query_flight_5_dest_vertiport_no_availability_should_return_zero_flights() {
         init_logger();
         let storage_client_wrapper = create_storage_client_stub();
-        init_router(&storage_client_wrapper).await;
+        test_utils::init_router(&storage_client_wrapper).await;
 
         let edt = Utc
             .with_ymd_and_hms(2022, 10, 26, 14, 00, 0)
@@ -787,7 +826,7 @@ mod tests {
     async fn test_query_flight_6_no_aircraft_at_vertiport() {
         init_logger();
         let storage_client_wrapper = create_storage_client_stub();
-        init_router(&storage_client_wrapper).await;
+        test_utils::init_router(&storage_client_wrapper).await;
         let edt = Utc
             .with_ymd_and_hms(2022, 10, 26, 14, 15, 0)
             .unwrap()
@@ -830,7 +869,7 @@ mod tests {
     async fn test_query_flight_7_deadhead_flight_of_parked_vehicle() {
         init_logger();
         let storage_client_wrapper = create_storage_client_stub();
-        init_router(&storage_client_wrapper).await;
+        test_utils::init_router(&storage_client_wrapper).await;
         let res = query_flight(
             Request::new(QueryFlightRequest {
                 is_cargo: false,
@@ -858,7 +897,7 @@ mod tests {
     async fn test_query_flight_8_deadhead_flight_of_in_flight_vehicle() {
         init_logger();
         let storage_client_wrapper = create_storage_client_stub();
-        init_router(&storage_client_wrapper).await;
+        test_utils::init_router(&storage_client_wrapper).await;
         let res = query_flight(
             Request::new(QueryFlightRequest {
                 is_cargo: false,
@@ -887,7 +926,7 @@ mod tests {
     {
         init_logger();
         let storage_client_wrapper = create_storage_client_stub();
-        init_router(&storage_client_wrapper).await;
+        test_utils::init_router(&storage_client_wrapper).await;
         let res = query_flight(
             Request::new(QueryFlightRequest {
                 is_cargo: false,
