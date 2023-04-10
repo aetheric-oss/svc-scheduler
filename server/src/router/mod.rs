@@ -1,5 +1,8 @@
 //! Router module
 
+#[macro_use]
+pub mod macros;
+
 /// Types of the router.
 pub mod router_types {
     pub mod edge;

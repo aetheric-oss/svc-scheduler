@@ -16,13 +16,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     server_config
         .build_client(false)
-        .out_dir("src/")
-        .compile(&["../proto/svc-scheduler-grpc.proto"], &["../proto"])?;
+        .compile(&["../proto/grpc.proto"], &["../proto"])?;
 
     client_config
         .build_server(false)
         .out_dir("../client-grpc/src")
-        .compile(&["../proto/svc-scheduler-grpc.proto"], &["../proto"])?;
+        .compile(&["../proto/grpc.proto"], &["../proto"])?;
 
     Ok(())
 }

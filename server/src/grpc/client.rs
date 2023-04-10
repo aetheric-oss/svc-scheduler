@@ -1,24 +1,43 @@
-use async_trait::async_trait;
-use svc_compliance_client_grpc::client::compliance_rpc_client::ComplianceRpcClient;
 use svc_compliance_client_grpc::client::{
-    FlightPlanRequest, FlightPlanResponse, FlightReleaseRequest, FlightReleaseResponse,
+    compliance_rpc_client::ComplianceRpcClient, FlightPlanRequest, FlightPlanResponse,
+    FlightReleaseRequest, FlightReleaseResponse,
 };
 
-use svc_storage_client_grpc::flight_plan::{
-    Data as FlightPlanData, List as FlightPlans, Object as FlightPlan, Response as FPResponse,
-    UpdateObject as UpdateFlightPlan,
-};
-use svc_storage_client_grpc::itinerary;
-use svc_storage_client_grpc::vehicle::List as Vehicles;
-use svc_storage_client_grpc::vertipad::List as Vertipads;
-use svc_storage_client_grpc::vertiport::{List as Vertiports, Object as Vertiport};
-use svc_storage_client_grpc::{AdvancedSearchFilter, Id, IdList};
 use svc_storage_client_grpc::{
-    FlightPlanClient, ItineraryClient, ItineraryFlightPlanLinkClient, VehicleClient,
-    VertipadClient, VertiportClient,
+    flight_plan::{
+        Data as FlightPlanData, List as FlightPlans, Object as FlightPlan, Response as FPResponse,
+        UpdateObject as UpdateFlightPlan,
+    },
+    itinerary,
+    vehicle::List as Vehicles,
+    vertipad::List as Vertipads,
+    vertiport::{List as Vertiports, Object as Vertiport},
+    AdvancedSearchFilter, FlightPlanClient, Id, IdList, ItineraryClient,
+    ItineraryFlightPlanLinkClient, VehicleClient, VertipadClient, VertiportClient,
 };
-use tonic::transport::Channel;
-use tonic::{Request, Response, Status};
+
+use async_trait::async_trait;
+use tokio::sync::OnceCell;
+use tonic::{transport::Channel, Request, Response, Status};
+
+/// GRPC clients for storage service
+/// They have to be cloned before each call as per <https://github.com/hyperium/tonic/issues/285>
+
+pub(crate) static STORAGE_CLIENT_WRAPPER: OnceCell<StorageClientWrapper> = OnceCell::const_new();
+pub(crate) static COMPLIANCE_CLIENT_WRAPPER: OnceCell<ComplianceClientWrapper> =
+    OnceCell::const_new();
+
+pub(crate) fn get_storage_client_wrapper() -> &'static StorageClientWrapper {
+    STORAGE_CLIENT_WRAPPER
+        .get()
+        .expect("Storage clients not initialized")
+}
+
+pub(crate) fn get_compliance_client_wrapper() -> &'static ComplianceClientWrapper {
+    COMPLIANCE_CLIENT_WRAPPER
+        .get()
+        .expect("Compliance client not initialized")
+}
 
 fn storage_err_msg() -> Status {
     Status::internal("Storage client not initialized")
@@ -26,6 +45,79 @@ fn storage_err_msg() -> Status {
 
 fn compliance_err_msg() -> Status {
     Status::internal("Compliance client not initialized")
+}
+
+/// Initializes grpc clients for storage service
+pub async fn init_clients(config: crate::config::Config) {
+    //initialize storage client here so it can be used in other methods
+    // Storage GRPC Server
+    let storage_grpc_port = config.storage_port_grpc;
+    let storage_grpc_host = config.storage_host_grpc;
+    let storage_full_grpc_addr =
+        format!("http://{storage_grpc_host}:{storage_grpc_port}").to_string();
+
+    // Compliance GRPC Server
+    let compliance_grpc_port = config.compliance_port_grpc;
+    let compliance_grpc_host = config.compliance_host_grpc;
+    let compliance_full_grpc_addr =
+        format!("http://{compliance_grpc_host}:{compliance_grpc_port}").to_string();
+
+    grpc_info!(
+        "Setting up connection to svc-storage clients on {}",
+        storage_full_grpc_addr.clone()
+    );
+
+    let flight_plan_client_res = FlightPlanClient::connect(storage_full_grpc_addr.clone()).await;
+    let vehicle_client_res = VehicleClient::connect(storage_full_grpc_addr.clone()).await;
+    let vertiport_client_res = VertiportClient::connect(storage_full_grpc_addr.clone()).await;
+    let vertipad_client_res = VertipadClient::connect(storage_full_grpc_addr.clone()).await;
+    let itinerary_client_res = ItineraryClient::connect(storage_full_grpc_addr.clone()).await;
+    let itinerary_fp_client_res =
+        ItineraryFlightPlanLinkClient::connect(storage_full_grpc_addr.clone()).await;
+
+    let compliance_client_res =
+        ComplianceRpcClient::connect(compliance_full_grpc_addr.clone()).await;
+    if flight_plan_client_res.is_err()
+        || vehicle_client_res.is_err()
+        || vertiport_client_res.is_err()
+        || vertipad_client_res.is_err()
+        || itinerary_client_res.is_err()
+        || itinerary_fp_client_res.is_err()
+    {
+        grpc_error!(
+            "Failed to connect to storage service at {}. Client errors: {} {} {} {} {} {}",
+            storage_full_grpc_addr.clone(),
+            flight_plan_client_res.err().unwrap(),
+            vehicle_client_res.err().unwrap(),
+            vertiport_client_res.err().unwrap(),
+            vertipad_client_res.err().unwrap(),
+            itinerary_client_res.err().unwrap(),
+            itinerary_fp_client_res.err().unwrap()
+        );
+        panic!();
+    } else if compliance_client_res.is_err() {
+        grpc_error!(
+            "Failed to connect to compliance service at {}. Client errors: {}",
+            storage_full_grpc_addr.clone(),
+            compliance_client_res.err().unwrap()
+        );
+        panic!();
+    } else {
+        let grpc_clients = GRPCClients {
+            flight_plan_client: flight_plan_client_res.unwrap(),
+            vehicle_client: vehicle_client_res.unwrap(),
+            vertiport_client: vertiport_client_res.unwrap(),
+            vertipad_client: vertipad_client_res.unwrap(),
+            compliance_client: compliance_client_res.unwrap(),
+            itinerary_client: itinerary_client_res.unwrap(),
+            itinerary_fp_link_client: itinerary_fp_client_res.unwrap(),
+        };
+        STORAGE_CLIENT_WRAPPER
+            .set(StorageClientWrapper {
+                grpc_clients: Some(grpc_clients),
+            })
+            .expect("Failed to set storage client wrapper");
+    }
 }
 
 #[derive(Debug)]

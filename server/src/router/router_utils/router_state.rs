@@ -136,7 +136,7 @@ pub fn is_vehicle_available(
 
     let vehicle_schedule = vehicle_schedule.as_str();
     let Ok(vehicle_schedule) = Calendar::from_str(vehicle_schedule) else {
-        debug!(
+        router_debug!(
             "Invalid schedule for vehicle {}: {}",
             vehicle.id,
             vehicle_schedule
@@ -285,9 +285,13 @@ pub fn is_vertiport_available(
     } else {
         (conflicting_flight_plans_count == 0, vec![])
     };
-    debug!(
+    router_debug!(
         "Checking {} is departure: {}, is available for {} - {}? {}",
-        vertiport_id, is_departure_vertiport, date_from, date_to, res.0,
+        vertiport_id,
+        is_departure_vertiport,
+        date_from,
+        date_to,
+        res.0,
     );
     res
 }
@@ -372,9 +376,11 @@ pub fn get_all_vehicles_scheduled_for_vertiport(
             (vehicle_id.clone(), minutes_to_arrival)
         })
         .collect();
-    debug!(
+    router_debug!(
         "Vehicles at vertiport: {} at a time: {} : {:?}",
-        &vertiport_id, timestamp, vehicles
+        &vertiport_id,
+        timestamp,
+        vehicles
     );
     vehicles
 }
@@ -435,7 +441,7 @@ pub fn get_vehicle_scheduled_location(
         );
     }
     let vehicle_flight_plan = vehicle_flight_plans.first().unwrap();
-    debug!(
+    router_debug!(
         "Vehicle {} had last flight plan {} with destination {}",
         vehicle.id,
         vehicle_flight_plan.id.clone(),
@@ -549,9 +555,10 @@ pub fn find_deadhead_flight_plan(
     for &vertiport in nearest_vertiports_from_departure {
         let n_duration = *departure_vertiport_durations.get(vertiport).unwrap();
         for vehicle in vehicles {
-            debug!(
+            router_debug!(
                 "DH: Checking vehicle id:{} for departure time: {}",
-                &vehicle.id, departure_time
+                &vehicle.id,
+                departure_time
             );
             let (vehicle_dest_vertiport, _minutes_to_arrival) = get_vehicle_scheduled_location(
                 vehicle,
@@ -559,9 +566,10 @@ pub fn find_deadhead_flight_plan(
                 existing_flight_plans,
             );
             if vehicle_dest_vertiport != *vertiport.uid {
-                debug!(
+                router_debug!(
                     "DH: Vehicle id:{} not at or arriving to vertiport id:{}",
-                    &vehicle.id, vehicle_dest_vertiport
+                    &vehicle.id,
+                    vehicle_dest_vertiport
                 );
                 continue;
             }
@@ -574,7 +582,7 @@ pub fn find_deadhead_flight_plan(
             );
 
             let Ok(is_vehicle_available) = result else {
-                debug!(
+                router_debug!(
                     "Unable to determine vehicle availability: (id {}) {}",
                     &vehicle.id, result.err().unwrap()
                 );
@@ -582,7 +590,7 @@ pub fn find_deadhead_flight_plan(
             };
 
             if !is_vehicle_available {
-                debug!(
+                router_debug!(
                             "DH: Vehicle id:{} not available for departure time: {} and duration {} minutes",
                             &vehicle.id, departure_time - Duration::minutes(n_duration), block_aircraft_and_vertiports_minutes
                         );
@@ -604,26 +612,28 @@ pub fn find_deadhead_flight_plan(
                 existing_flight_plans,
                 false,
             );
-            debug!(
+            router_debug!(
                 "DH: DEPARTURE TIME: {}, {}, {}",
-                departure_time, is_departure_vertiport_available, is_arrival_vertiport_available
+                departure_time,
+                is_departure_vertiport_available,
+                is_arrival_vertiport_available
             );
             if !is_departure_vertiport_available {
-                debug!(
+                router_debug!(
                     "DH: Departure vertiport not available for departure time {}",
                     departure_time - Duration::minutes(n_duration)
                 );
                 continue;
             }
             if !is_arrival_vertiport_available {
-                debug!(
+                router_debug!(
                     "DH: Arrival vertiport not available for departure time {}",
                     departure_time - Duration::minutes(LANDING_AND_UNLOADING_TIME_MIN as i64)
                 );
                 continue;
             }
             // add deadhead flight plan and return
-            debug!(
+            router_debug!(
                         "DH: Found available vehicle with id: {} from vertiport id: {}, for a DH flight for a departure time {}", vehicle.id, vertiport.uid.clone(),
                         departure_time - Duration::minutes(n_duration)
                     );
@@ -656,7 +666,7 @@ pub fn find_rerouted_vehicle_flight_plan(
         .iter() //if there is a parked vehicle at the arrival vertiport, we can move it to some other vertiport
         .find(|(_, minutes_to_arrival)| *minutes_to_arrival == 0);
     found_vehicle?;
-    debug!("Checking if idle vehicle from the arrival airport can be re-routed");
+    router_debug!("Checking if idle vehicle from the arrival airport can be re-routed");
     //todo this should re-route the vehicle to the nearest vertiport or HUB, but
     // we don't have vertipads or HUB id in the graph to do this.
     // So we are just re-routing to the same vertiport in the future time instead
@@ -669,7 +679,7 @@ pub fn find_rerouted_vehicle_flight_plan(
         existing_flight_plans,
     );
     found_gap?;
-    debug!(
+    router_debug!(
         "Found a gap for re-routing idle vehicle from the arrival vertiport {}",
         found_gap.unwrap()
     );
@@ -696,8 +706,8 @@ pub fn get_nearest_vertiports_vertiport_id(
     let mut vd_vec = Vec::from_iter(vertiport_durations.iter());
     vd_vec.sort_by(|a, b| a.1.cmp(b.1));
     let sorted_vertiports_by_durations = vd_vec.iter().map(|(a, _b)| **a).collect::<Vec<&Node>>();
-    debug!("Vertiport durations: {:?}", &vertiport_durations);
-    debug!("Sorted vertiports: {:?}", &sorted_vertiports_by_durations);
+    router_debug!("Vertiport durations: {:?}", &vertiport_durations);
+    router_debug!("Sorted vertiports: {:?}", &sorted_vertiports_by_durations);
     (sorted_vertiports_by_durations, vertiport_durations)
 }
 
@@ -720,17 +730,17 @@ pub fn get_possible_flights(
     vehicles: Vec<Vehicle>,
     existing_flight_plans: Vec<FlightPlan>,
 ) -> Result<Vec<(FlightPlanData, Vec<FlightPlanData>)>, String> {
-    info!("Finding possible flights");
+    router_info!("Finding possible flights");
     if earliest_departure_time.is_none() || latest_arrival_time.is_none() {
-        error!("Both earliest departure and latest arrival time must be specified");
+        router_error!("Both earliest departure and latest arrival time must be specified");
         return Err(
             "Both earliest departure and latest arrival time must be specified".to_string(),
         );
     }
     //1. Find route and cost between requested vertiports
-    info!("[1/5]: Finding route between vertiports");
+    router_info!("[1/5]: Finding route between vertiports");
     if !is_router_initialized() {
-        error!("Router not initialized");
+        router_error!("Router not initialized");
         return Err("Router not initialized".to_string());
     }
     let (route, cost) = get_route(RouteQuery {
@@ -738,10 +748,10 @@ pub fn get_possible_flights(
         to: get_node_by_id(&vertiport_arrive.id)?,
         aircraft: Aircraft::Cargo,
     })?;
-    debug!("Route: {:?}", route);
-    debug!("Cost: {:?}", cost);
+    router_debug!("Route: {:?}", route);
+    router_debug!("Cost: {:?}", cost);
     if route.is_empty() {
-        error!("No route found");
+        router_error!("No route found");
         return Err("Route between vertiports not found".to_string());
     }
     //1.1 Create a sorted vector of vertiports nearest to the departure and arrival vertiport (in case we need to create a deadhead flight)
@@ -749,11 +759,11 @@ pub fn get_possible_flights(
         get_nearest_vertiports_vertiport_id(&vertiport_depart);
 
     //2. calculate blocking times for each vertiport and aircraft
-    info!("[2/5]: Calculating blocking times");
+    router_info!("[2/5]: Calculating blocking times");
 
     let block_aircraft_and_vertiports_minutes = estimate_flight_time_minutes(cost, Aircraft::Cargo);
 
-    debug!(
+    router_debug!(
         "Estimated flight time in minutes including takeoff and landing: {}",
         block_aircraft_and_vertiports_minutes
     );
@@ -761,12 +771,12 @@ pub fn get_possible_flights(
     let time_window_duration_minutes: f32 = ((latest_arrival_time.as_ref().unwrap().seconds
         - earliest_departure_time.as_ref().unwrap().seconds)
         / 60) as f32;
-    debug!(
+    router_debug!(
         "Time window duration in minutes: {}",
         time_window_duration_minutes
     );
     if (time_window_duration_minutes - block_aircraft_and_vertiports_minutes) < 0.0 {
-        error!("Time window too small to schedule flight");
+        router_error!("Time window too small to schedule flight");
         return Err("Time window too small to schedule flight".to_string());
     }
     let mut num_flight_options: i64 = ((time_window_duration_minutes
@@ -778,7 +788,7 @@ pub fn get_possible_flights(
         num_flight_options = MAX_RETURNED_FLIGHT_PLANS;
     }
     //3. check vertiport schedules and flight plans
-    info!(
+    router_info!(
         "[3/5]: Checking vertiport schedules and flight plans for {} possible flight plans",
         num_flight_options
     );
@@ -811,7 +821,7 @@ pub fn get_possible_flights(
             &existing_flight_plans,
             false,
         );
-        debug!(
+        router_debug!(
             "DEPARTURE TIME: {}, ARRIVAL TIME: {}, {}, {}",
             departure_time,
             arrival_time,
@@ -819,14 +829,14 @@ pub fn get_possible_flights(
             is_arrival_vertiport_available
         );
         if !is_departure_vertiport_available {
-            debug!(
+            router_debug!(
                 "Departure vertiport not available for departure time {}",
                 departure_time
             );
             continue;
         }
         if !is_arrival_vertiport_available {
-            debug!(
+            router_debug!(
                 "Arrival vertiport not available for departure time {}",
                 departure_time
             );
@@ -840,20 +850,21 @@ pub fn get_possible_flights(
             if let Some(flight_plan) = found_rerouted_vehicle_flight_plan {
                 deadhead_flights.push(flight_plan);
             } else {
-                debug!("No rerouted vehicle found");
+                router_debug!("No rerouted vehicle found");
                 continue;
             }
         }
         let mut available_vehicle: Option<Vehicle> = None;
         for vehicle in &vehicles {
-            debug!(
+            router_debug!(
                 "Checking vehicle id:{} for departure time: {}",
-                &vehicle.id, departure_time
+                &vehicle.id,
+                departure_time
             );
             let (vehicle_vertiport_id, minutes_to_arrival) =
                 get_vehicle_scheduled_location(vehicle, departure_time, &existing_flight_plans);
             if vehicle_vertiport_id != vertiport_depart.id || minutes_to_arrival > 0 {
-                debug!(
+                router_debug!(
                     "Vehicle id:{} not available at location for requested time {}. It is/will be at vertiport id: {} in {} minutes",
                     &vehicle.id, departure_time, vehicle_vertiport_id, minutes_to_arrival
                 );
@@ -867,7 +878,7 @@ pub fn get_possible_flights(
             );
 
             let Ok(is_vehicle_available) = result else {
-                debug!(
+                router_debug!(
                     "Could not determine vehicle availability: (id {}) {}",
                     &vehicle.id, result.unwrap_err()
                 );
@@ -875,22 +886,24 @@ pub fn get_possible_flights(
             };
 
             if !is_vehicle_available {
-                debug!(
+                router_debug!(
                     "Vehicle id:{} not available for departure time: {} and duration {} minutes",
-                    &vehicle.id, departure_time, block_aircraft_and_vertiports_minutes
+                    &vehicle.id,
+                    departure_time,
+                    block_aircraft_and_vertiports_minutes
                 );
                 continue;
             }
             //when vehicle is available, break the "vehicles" loop early and add flight plan
             available_vehicle = Some(vehicle.clone());
-            debug!("Found available vehicle with id: {} from vertiport id: {}, for a flight for a departure time {}", &vehicle.id, &vertiport_depart.id,
+            router_debug!("Found available vehicle with id: {} from vertiport id: {}, for a flight for a departure time {}", &vehicle.id, &vertiport_depart.id,
                         departure_time
                     );
             break;
         }
         // No simple flight plans found, looking for plans with deadhead flights
         if available_vehicle.is_none() {
-            debug!(
+            router_debug!(
                 "No available vehicles for departure time {}, looking for deadhead flights...",
                 departure_time
             );
@@ -911,14 +924,14 @@ pub fn get_possible_flights(
             }
         }
         if available_vehicle.is_none() {
-            debug!(
+            router_debug!(
                 "DH: No available vehicles for departure time {} (including deadhead flights)",
                 departure_time
             );
             continue;
         }
         //4. should check other constraints (cargo weight, number of passenger seats)
-        //info!("[4/5]: Checking other constraints (cargo weight, number of passenger seats)");
+        //router_info!("[4/5]: Checking other constraints (cargo weight, number of passenger seats)");
         flight_plans.push((
             create_flight_plan_data(
                 available_vehicle.unwrap().id.clone(),
@@ -935,19 +948,19 @@ pub fn get_possible_flights(
     }
 
     //5. return draft flight plan(s)
-    info!(
+    router_info!(
         "[5/5]: Returning {} draft flight plan(s)",
         flight_plans.len()
     );
-    debug!("Flight plans: {:?}", flight_plans);
+    router_debug!("Flight plans: {:?}", flight_plans);
     Ok(flight_plans)
 }
 
 /// Estimates the time needed to travel between two locations including loading and unloading
 /// Estimate should be rather generous to block resources instead of potentially overloading them
 pub fn estimate_flight_time_minutes(distance_km: f32, aircraft: Aircraft) -> f32 {
-    debug!("distance_km: {}", distance_km);
-    debug!("aircraft: {:?}", aircraft);
+    router_debug!("distance_km: {}", distance_km);
+    router_debug!("aircraft: {:?}", aircraft);
     match aircraft {
         Aircraft::Cargo => {
             LOADING_AND_TAKEOFF_TIME_MIN
@@ -959,7 +972,7 @@ pub fn estimate_flight_time_minutes(distance_km: f32, aircraft: Aircraft) -> f32
 
 /// gets node by id
 pub fn get_node_by_id(id: &str) -> Result<&'static Node, String> {
-    debug!("id: {}", id);
+    router_debug!("id: {}", id);
     let nodes = NODES.get().expect("Nodes not initialized");
     let node = nodes
         .iter()
@@ -970,7 +983,7 @@ pub fn get_node_by_id(id: &str) -> Result<&'static Node, String> {
 
 /// Initialize the router with vertiports from the storage service
 pub fn init_router_from_vertiports(vertiports: &[Vertiport]) -> Result<(), String> {
-    info!("Initializing router from vertiports");
+    router_info!("Initializing router from vertiports");
     let nodes = vertiports
         .iter()
         .map(|vertiport| Node {
@@ -1014,21 +1027,21 @@ pub fn get_nearest_vertiports<'a>(
     dst_location: &'a Location,
     vertiports: &'static Vec<Node>,
 ) -> (&'static Node, &'static Node) {
-    info!("Getting nearest vertiports");
+    router_info!("Getting nearest vertiports");
     let mut src_vertiport = &vertiports[0];
     let mut dst_vertiport = &vertiports[0];
-    debug!("src_location: {:?}", src_location);
-    debug!("dst_location: {:?}", dst_location);
+    router_debug!("src_location: {:?}", src_location);
+    router_debug!("dst_location: {:?}", dst_location);
     let mut src_distance = haversine::distance(src_location, &src_vertiport.location);
     let mut dst_distance = haversine::distance(dst_location, &dst_vertiport.location);
-    debug!("src_distance: {}", src_distance);
-    debug!("dst_distance: {}", dst_distance);
+    router_debug!("src_distance: {}", src_distance);
+    router_debug!("dst_distance: {}", dst_distance);
     for vertiport in vertiports {
-        debug!("checking vertiport: {:?}", vertiport);
+        router_debug!("checking vertiport: {:?}", vertiport);
         let new_src_distance = haversine::distance(src_location, &vertiport.location);
         let new_dst_distance = haversine::distance(dst_location, &vertiport.location);
-        debug!("new_src_distance: {}", new_src_distance);
-        debug!("new_dst_distance: {}", new_dst_distance);
+        router_debug!("new_src_distance: {}", new_src_distance);
+        router_debug!("new_dst_distance: {}", new_dst_distance);
         if new_src_distance < src_distance {
             src_distance = new_src_distance;
             src_vertiport = vertiport;
@@ -1038,8 +1051,8 @@ pub fn get_nearest_vertiports<'a>(
             dst_vertiport = vertiport;
         }
     }
-    debug!("src_vertiport: {:?}", src_vertiport);
-    debug!("dst_vertiport: {:?}", dst_vertiport);
+    router_debug!("src_vertiport: {:?}", src_vertiport);
+    router_debug!("dst_vertiport: {:?}", dst_vertiport);
     (src_vertiport, dst_vertiport)
 }
 
@@ -1049,15 +1062,25 @@ pub fn get_nearby_nodes(
     nodes_store: &OnceCell<Vec<Node>>,
     query: NearbyLocationQuery,
 ) -> &'static Vec<Node> {
-    debug!("query: {:?}", query);
-    nodes_store
-        .set(generate_nodes_near(
-            &query.location,
-            query.radius,
-            query.capacity,
-        ))
-        .expect("Failed to generate nodes");
-    return NODES.get().expect("Failed to get nodes");
+    router_debug!("query: {:?}", query);
+    let v: Vec<Node> = generate_nodes_near(&query.location, query.radius, query.capacity);
+
+    match nodes_store.set(v) {
+        Ok(()) => {}
+        Err(_) => {
+            router_warn!("(get_nearby_nodes) failed to set node store.");
+        }
+    }
+
+    match NODES.get() {
+        Some(t) => t,
+        None => {
+            router_error!("(get_nearby nodes) failed to get nodes.");
+
+            // TODO(R3): This will all be refactored, will panic for now.
+            panic!();
+        }
+    }
 }
 
 /// Checks if router is initialized
@@ -1067,7 +1090,7 @@ pub fn is_router_initialized() -> bool {
 
 /// Get route
 pub fn get_route(req: RouteQuery) -> Result<(Vec<Location>, f32), String> {
-    debug!("Getting route");
+    router_debug!("Getting route");
     let RouteQuery {
         from,
         to,
@@ -1088,8 +1111,8 @@ pub fn get_route(req: RouteQuery) -> Result<(Vec<Location>, f32), String> {
         return Err(format!("{:?}", result.unwrap_err()));
     };
 
-    debug!("cost: {}", cost);
-    debug!("path: {:?}", path);
+    router_debug!("cost: {}", cost);
+    router_debug!("path: {:?}", path);
     let locations = path
         .iter()
         .map(|node_idx| {
@@ -1104,8 +1127,8 @@ pub fn get_route(req: RouteQuery) -> Result<(Vec<Location>, f32), String> {
                 .location
         })
         .collect::<Vec<Location>>();
-    debug!("locations: {:?}", locations);
-    info!("Finished getting route with cost: {}", cost);
+    router_debug!("locations: {:?}", locations);
+    router_info!("Finished getting route with cost: {}", cost);
     Ok((locations, cost))
 }
 
@@ -1153,7 +1176,7 @@ mod router_tests {
             },
         );
 
-        //println!("nodes: {:?}", nodes);
+        //router_println!("nodes: {:?}", nodes);
         let init_res = init_router();
         println!("init_res: {:?}", init_res);
         let src_location = Location {

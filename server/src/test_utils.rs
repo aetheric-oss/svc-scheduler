@@ -1,32 +1,60 @@
 /// test utils for creating gRPC client stub
-use crate::grpc_client_wrapper::{ComplianceClientWrapperTrait, StorageClientWrapperTrait};
-use crate::router::router_utils::router_state::{
-    init_router_from_vertiports, is_router_initialized,
+use crate::grpc::client::{
+    ComplianceClientWrapperTrait,
+    StorageClientWrapperTrait
 };
+use crate::router::router_utils::router_state::{
+    init_router_from_vertiports,
+    is_router_initialized,
+};
+
+use svc_compliance_client_grpc::{
+    client::{
+        FlightPlanRequest,
+        FlightPlanResponse,
+        FlightReleaseRequest,
+        FlightReleaseResponse
+    }
+};
+
+use svc_storage_client_grpc::{
+    flight_plan::{
+        Data as FlightPlanData,
+        List as FlightPlans,
+        Object as FlightPlan,
+        Response as FPResponse,
+        UpdateObject as UpdateFlightPlan,
+    },
+    vehicle::{
+        Data as VehicleData,
+        List as Vehicles,
+        Object as Vehicle
+    },
+    vertipad::{
+        Data as VertipadData,
+        List as Vertipads,
+        Object as Vertipad
+    },
+    vertiport::{
+        Data as VertiportData,
+        List as Vertiports,
+        Object as Vertiport
+    },
+    itinerary,
+    AdvancedSearchFilter,
+    Id,
+    IdList
+};
+
+use tonic::{Request, Response, Status};
+use uuid::Uuid;
 use async_trait::async_trait;
 use chrono::offset::Utc;
 use chrono::TimeZone;
 use once_cell::sync::OnceCell;
 use prost_types::Timestamp;
 use std::sync::Once;
-use svc_compliance_client_grpc::client::{
-    FlightPlanRequest, FlightPlanResponse, FlightReleaseRequest, FlightReleaseResponse,
-};
-use svc_storage_client_grpc::flight_plan::{
-    Data as FlightPlanData, List as FlightPlans, Object as FlightPlan, Response as FPResponse,
-    UpdateObject as UpdateFlightPlan,
-};
-use svc_storage_client_grpc::itinerary;
-use svc_storage_client_grpc::vehicle::{Data as VehicleData, List as Vehicles, Object as Vehicle};
-use svc_storage_client_grpc::vertipad::{
-    Data as VertipadData, List as Vertipads, Object as Vertipad,
-};
-use svc_storage_client_grpc::vertiport::{
-    Data as VertiportData, List as Vertiports, Object as Vertiport,
-};
-use svc_storage_client_grpc::{AdvancedSearchFilter, Id, IdList};
-use tonic::{Request, Response, Status};
-use uuid::Uuid;
+use log::debug;
 
 static INIT_LOGGER: Once = Once::new();
 static INIT_ROUTER_STARTED: OnceCell<bool> = OnceCell::new();
