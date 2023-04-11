@@ -11,10 +11,7 @@ use crate::router::router_utils::router_state::{
 
 use svc_compliance_client_grpc::client::FlightPlanRequest;
 use svc_storage_client_grpc::{
-    resources::{
-        flight_plan::{self, Data as FlightPlanData},
-        itinerary,
-    },
+    resources::{flight_plan, itinerary},
     AdvancedSearchFilter, Id as StorageId, IdList,
 };
 
@@ -40,8 +37,8 @@ enum FlightPlanType {
 }
 
 /// gets or creates a new hashmap of unconfirmed flight plans
-fn unconfirmed_flight_plans() -> &'static Mutex<HashMap<String, FlightPlanData>> {
-    static INSTANCE: OnceCell<Mutex<HashMap<String, FlightPlanData>>> = OnceCell::new();
+fn unconfirmed_flight_plans() -> &'static Mutex<HashMap<String, flight_plan::Data>> {
+    static INSTANCE: OnceCell<Mutex<HashMap<String, flight_plan::Data>>> = OnceCell::new();
     INSTANCE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -63,19 +60,29 @@ fn unconfirmed_itineraries() -> &'static Mutex<HashMap<String, Vec<ItineraryFlig
 // Helper Functions
 //-------------------------------------------------------------------
 
-fn create_scheduler_fp_from_storage_fp(fp_id: String, fp: &FlightPlanData) -> QueryFlightPlan {
-    QueryFlightPlan {
+fn fp_from_storage(fp_id: String, fp: flight_plan::Data) -> Result<QueryFlightPlan, ()> {
+    let Some(vertiport_depart_id) = fp.departure_vertiport_id else {
+        error!("(fp_from_storage) flight plan {} has no departure vertiport. Should not be possible.", fp_id);
+        return Err(());
+    };
+
+    let Some(vertiport_arrive_id) = fp.destination_vertiport_id else {
+        error!("(fp_from_storage) flight plan {} has no arrival vertiport", fp_id);
+        return Err(());
+    };
+
+    Ok(QueryFlightPlan {
         id: fp_id,
-        pilot_id: fp.pilot_id.clone(),
-        vehicle_id: fp.vehicle_id.clone(),
+        pilot_id: fp.pilot_id,
+        vehicle_id: fp.vehicle_id,
         cargo: [123].to_vec(),
-        weather_conditions: fp.weather_conditions.clone().unwrap_or_default(),
-        vertiport_depart_id: fp.departure_vertiport_id.clone().unwrap(),
-        pad_depart_id: fp.departure_vertipad_id.clone(),
-        vertiport_arrive_id: fp.destination_vertiport_id.clone().unwrap(),
-        pad_arrive_id: fp.destination_vertipad_id.clone(),
-        estimated_departure: fp.scheduled_departure.clone(),
-        estimated_arrival: fp.scheduled_arrival.clone(),
+        weather_conditions: fp.weather_conditions.unwrap_or_default(),
+        vertiport_depart_id,
+        pad_depart_id: fp.departure_vertipad_id,
+        vertiport_arrive_id,
+        pad_arrive_id: fp.destination_vertipad_id,
+        estimated_departure: fp.scheduled_departure,
+        estimated_arrival: fp.scheduled_arrival,
         actual_departure: None,
         actual_arrival: None,
         flight_release_approval: None,
@@ -83,7 +90,7 @@ fn create_scheduler_fp_from_storage_fp(fp_id: String, fp: &FlightPlanData) -> Qu
         flight_status: FlightStatus::Ready as i32,
         flight_priority: FlightPriority::Low as i32,
         estimated_distance: 0,
-    }
+    })
 }
 
 /// spawns a thread that will cancel the itinerary after a certain amount of time (ITINERARY_EXPIRATION_S)
@@ -105,7 +112,7 @@ fn get_draft_itinerary_by_id(id: &str) -> Option<Vec<ItineraryFlightPlan>> {
 }
 
 /// Gets flight plan from hash map of unconfirmed flight plans
-fn get_draft_fp_by_id(id: &str) -> Option<FlightPlanData> {
+fn get_draft_fp_by_id(id: &str) -> Option<flight_plan::Data> {
     unconfirmed_flight_plans()
         .lock()
         .expect("Mutex Lock Error getting flight plan from temp storage")
@@ -291,8 +298,8 @@ pub async fn init_router(storage_client_wrapper: &(dyn StorageClientWrapperTrait
     info!("Initializing router with {} vertiports ", vertiports.len());
     if !is_router_initialized() {
         let res = init_router_from_vertiports(&vertiports);
-        if res.is_err() {
-            error!("Failed to initialize router: {}", res.err().unwrap());
+        if let Err(res) = res {
+            error!("Failed to initialize router: {}", res);
         }
     }
 }
@@ -357,20 +364,22 @@ pub async fn query_flight(
         .await?
         .into_inner()
         .list;
+
     //3. get all flight plans from this time to latest departure time (including partially fitting flight plans)
     //- this assumes that all landed flights have updated vehicle.last_vertiport_id (otherwise we would need to look in to the past)
     //Plans are used by lib_router to find aircraft and vertiport availability and aircraft predicted location
     let timestamp_now = prost_types::Timestamp::from(SystemTime::now());
+    let Some(latest_arrival_time) = flight_request.latest_arrival_time.clone() else {
+        warn!("(query_flight) latest arrival time not provided.");
+        return Err(Status::invalid_argument("Routing failed; latest arrival time not provided."));
+    };
+
     let existing_flight_plans = storage_client_wrapper
         .flight_plans(Request::new(
             AdvancedSearchFilter::search_between(
                 "scheduled_departure".to_owned(),
                 timestamp_now.to_string(),
-                flight_request
-                    .latest_arrival_time
-                    .clone()
-                    .unwrap()
-                    .to_string(),
+                latest_arrival_time.to_string(),
             )
             .and_is_null("deleted_at".to_owned()),
         ))
@@ -403,16 +412,20 @@ pub async fn query_flight(
     let mut itineraries: Vec<Itinerary> = vec![];
     for (fp, deadhead_fps) in &flight_plans {
         let fp_id = Uuid::new_v4().to_string();
+        let Ok(item) = fp_from_storage(fp_id.clone(), fp.clone()) else {
+            warn!("(query_flight) invalid flight plan ({:?}), skipping.", fp_id);
+            continue;
+        };
+
         info!("Adding draft flight plan with temporary id: {}", &fp_id);
         unconfirmed_flight_plans()
             .lock()
             .expect("Mutex Lock Error inserting flight plan into temp storage")
             .insert(fp_id.clone(), fp.clone());
 
-        let item = create_scheduler_fp_from_storage_fp(fp_id.clone(), fp);
         let deadhead_flight_plans: Vec<QueryFlightPlan> = deadhead_fps
             .iter()
-            .map(|fp| create_scheduler_fp_from_storage_fp(Uuid::new_v4().to_string(), fp))
+            .filter_map(|fp| fp_from_storage(Uuid::new_v4().to_string(), fp.clone()).ok())
             .collect();
         debug!("flight plan: {:?}", &item);
 
@@ -647,14 +660,16 @@ mod tests {
     async fn run_query_flight(
         storage_client_wrapper: &(dyn StorageClientWrapperTrait + Send + Sync),
     ) -> Response<QueryFlightResponse> {
-        let edt = Utc
-            .with_ymd_and_hms(2022, 10, 25, 11, 20, 0)
-            .unwrap()
-            .timestamp();
-        let lat = Utc
-            .with_ymd_and_hms(2022, 10, 25, 12, 15, 0)
-            .unwrap()
-            .timestamp();
+        let chrono::LocalResult::Single(edt) = Utc.with_ymd_and_hms(2022, 10, 25, 11, 20, 0) else {
+            panic!();
+        };
+        let edt = edt.timestamp();
+
+        let chrono::LocalResult::Single(lat) = Utc.with_ymd_and_hms(2022, 10, 25, 12, 15, 0) else {
+            panic!();
+        };
+        let lat = lat.timestamp();
+
         query_flight(
             Request::new(QueryFlightRequest {
                 is_cargo: false,

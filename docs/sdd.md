@@ -34,12 +34,13 @@ The scheduler module is responsible for:
 
 ## Related Documents
 
-| Document                                                                                                          | Description                                                  |
-|-------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
-| [High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md) | Overview of Arrow microservices.                             |
-| [High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Arrow microservices. |
-| [Concept of Operations - `svc-scheduler`](./conops.md)                                                            | Concept of Operations for `svc-scheduler`.                   |
-| [Interface Control Document - `svc-scheduler`](./icd.md)                                                          | Interface Control Document for `svc-scheduler`.              |
+Document | Description
+--- | ----
+[High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md) | Overview of Arrow microservices.
+[High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Arrow microservices.
+[Concept of Operations - `svc-scheduler`](./conops.md) | Concept of Operations for `svc-scheduler`.
+[Interface Control Document - `svc-scheduler`](./icd.md)| Interface Control Document for `svc-scheduler`.
+[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements for this service.
 
 ## Location
 

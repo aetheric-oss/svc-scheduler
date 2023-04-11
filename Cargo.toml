@@ -11,3 +11,4 @@ categories = [
   "aerospace::drones",
   "aerospace::protocols",
 ] # max 5 -- https://crates.io/category_slugs
+keywords = ["vtol", "server", "scheduler"] # max 5
