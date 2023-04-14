@@ -9,7 +9,7 @@
 Item | Value
 --- | ---
 Maintainer(s) | @arrow-air/services
-Stuckee | Roman Mandryk ([@romanmandryk](https://github.com/romanmandryk)), A.M. Smith ([@ServiceDog](https://github.com/servicedog))
+Stuckee | A.M. Smith ([@ServiceDog](https://github.com/servicedog))
 
 :exclamation: This document is intended for internal use.
 
@@ -47,10 +47,7 @@ flowchart LR
         direction LR
         api{GRPC API}
         logic((logic))
-        rout(lib-router)
-
         api <--> logic
-        logic <-- Aircraft Selection --> rout
       end
       storage[svc-storage]
       compliance[svc-compliance]
@@ -70,7 +67,7 @@ class p subgraph_padding
 Explanation:
 1) `svc-scheduler` obtains current aircraft and vertiport information from `svc-storage`.
 2) Services make requests to `svc-scheduler`'s gRPC interface.
-3) Aircraft selection is performed with calls to `lib-router`.
+3) Aircraft selection and vertipad scheduling are performed by `svc-scheduler`.
 4) `svc-scheduler` submits and obtains approval for flight plans from `svc-compliance`.
 
 A full description of interfaces can be found in the [ICD](./icd.md).

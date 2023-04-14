@@ -21,12 +21,9 @@ Status | :yellow_circle: Development
 
 This document details the software implementation of `svc-scheduler` (scheduler module).
 
-The scheduler module is responsible for:
+The scheduler module is responsible for calculating possible itineraries (including deadhead flights) for a journey between a departure and destination vertipad. It does so with the schedules of all resources (vertiports/pads, aircrafts, pilots) in mind to avoid double-booking.
 
-- finding feasibility of flight routes (using [lib-router](https://github.com/Arrow-air/lib-router)) and estimating flight times
-- checking schedules of all resources (vertiports/pads, aircrafts, pilots) and finding possible flight plans.
-- booking/confirming new flights
-- cancelling existing flights and releasing scheduled resources
+Draft itineraries are held in memory temporarily and discarded if not confirmed in time. Confirmed flights are saved to storage and can be cancelled. Flight queries, confirmations, and cancellation requests are made by other microservices in the Arrow network (such as `svc-cargo`).
 
 *Note: This module is intended to be used by other Arrow micro-services via gRPC.*
 
@@ -95,10 +92,10 @@ sequenceDiagram
     scheduler->>+storage: get aircrafts associated with vertipads and their scheduled flights
     storage->>-scheduler: <aircrafts>, <flight_plans>
     scheduler->>scheduler: Check there are now flights scheduled for used aircraft
-    scheduler->>+router: get_possible_flights()
-    router->>router: find route from depart to arrive vertiport and cost/distance
-    router->>router: estimate flight time based on the distance, check schedules of vertiports and aircrafts
-    router-->>-scheduler: <flight_plans> - draft flight plans
+    Note over scheduler: get_possible_flights()
+    Note over scheduler: find route from depart to arrive vertiport and cost/distance
+    Note over scheduler: estimate flight time based on the distance<br>check schedules of vertiports and aircrafts<br>include deadhead legs
+    Note over scheduler: produce draft itineraries
     scheduler->>scheduler: store draft plans in to memory for 30 seconds
     alt at least one flight found
         scheduler->>grpc_client: return <QueryFlightPlans>
