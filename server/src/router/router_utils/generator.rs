@@ -141,7 +141,7 @@ fn gen_around_location(
     let sa = ang.sin() / len;
 
     // Create Quaternion components
-    let vec: Vector3<f32> = [x, y, z]; // Todo handle 0 case
+    let vec: Vector3<f32> = [x, y, z]; // TODO(R3) handle 0 case
     let q: Quaternion<f32> = (ca, [sa * x1, sa * y1, sa * z1]);
     let vec = quaternion::rotate_vector(q, vec);
 
@@ -173,8 +173,8 @@ mod tests {
     /// Test that the distance between two locations is less than the radius.
     ///
     /// # Note
-    /// Sometimes the test will fail. TODO: Double check the
-    /// [`gen_around_location`] function for improvements.
+    /// Sometimes the test will fail.
+    /// TODO(R3): Double check the [`gen_around_location`] function for improvements.
     #[test]
     fn test_generate_location_near() {
         let location = generate_location();

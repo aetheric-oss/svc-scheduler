@@ -99,7 +99,7 @@ pub struct Vertipad<'a> {
     /// Certain pads may have special purposes. For example, a pad may
     /// be used for medical emergency services.
     ///
-    /// TODO: Define a struct for permissions.
+    /// TODO(R3): Define a struct for permissions.
     pub permissions: Vec<String>,
 
     /// If there's no vertiport, then the vertipad itself is the vertiport.

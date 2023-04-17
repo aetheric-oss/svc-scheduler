@@ -129,7 +129,7 @@ pub fn is_vehicle_available(
 ) -> Result<bool, String> {
     let vehicle_data = vehicle.data.as_ref().unwrap();
 
-    // TODO R3: What's the default if a schedule isn't provided?
+    // TODO(R3): What's the default if a schedule isn't provided?
     let Some(vehicle_schedule) = vehicle_data.schedule.as_ref() else {
         return Ok(true);
     };
@@ -667,7 +667,7 @@ pub fn find_rerouted_vehicle_flight_plan(
         .find(|(_, minutes_to_arrival)| *minutes_to_arrival == 0);
     found_vehicle?;
     router_debug!("Checking if idle vehicle from the arrival airport can be re-routed");
-    //todo this should re-route the vehicle to the nearest vertiport or HUB, but
+    // TODO(R3) this should re-route the vehicle to the nearest vertiport or HUB, but
     // we don't have vertipads or HUB id in the graph to do this.
     // So we are just re-routing to the same vertiport in the future time instead
     let found_gap = find_nearest_gap_for_reroute_flight(

@@ -202,7 +202,7 @@ async fn confirm_draft_flight_plan(
     //
     let _ = remove_draft_fp_by_id(&flight_plan_id);
 
-    // TODO R3
+    // TODO(R3)
     // Retrieve user data in case that's relevant to compliance
 
     let compliance_res = compliance_client_wrapper
@@ -432,7 +432,7 @@ pub async fn query_flight(
         //
         // Create Itinerary
         //
-        // TODO R3 account for existing flight plans combined with draft flight plans
+        // TODO(R3) account for existing flight plans combined with draft flight plans
         let mut total_fps = vec![];
         total_fps.push(ItineraryFlightPlan {
             fp_type: FlightPlanType::Draft,
@@ -492,7 +492,7 @@ pub async fn confirm_itinerary(
     let mut confirmed_flight_plan_ids: Vec<String> = vec![];
     for fp in draft_itinerary_flights {
         if fp.fp_type == FlightPlanType::Existing {
-            // TODO R3 update svc-storage flight plan with new passenger count
+            // TODO(R3) update svc-storage flight plan with new passenger count
             // let data = flight_plan::UpdateObject { ... }
 
             confirmed_flight_plan_ids.push(fp.fp_id);
@@ -572,7 +572,7 @@ pub async fn cancel_itinerary(
     };
 
     //
-    // TODO R3 Don't allow cancellations within X minutes of the first flight
+    // TODO(R3) Don't allow cancellations within X minutes of the first flight
     //
 
     //
@@ -614,7 +614,7 @@ pub async fn cancel_itinerary(
     flight_plan.flight_status = flight_plan::FlightStatus::Cancelled as i32;
     for id in response.into_inner().ids {
         //
-        // TODO Don't cancel flight plan if it exists in another itinerary
+        // TODO(R3) Don't cancel flight plan if it exists in another itinerary
         //
         let request = flight_plan::UpdateObject {
             id: id.clone(),

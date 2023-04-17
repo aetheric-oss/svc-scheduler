@@ -6,7 +6,7 @@
 ![Sanity Checks](https://github.com/arrow-air/svc-scheduler/actions/workflows/sanity_checks.yml/badge.svg?branch=main)
 ![Rust
 Checks](https://github.com/arrow-air/svc-scheduler/actions/workflows/rust_ci.yml/badge.svg?branch=main)
-![Python Flake8](https://github.com/arrow-air/svc-scheduler/actions/workflows/python_ci.yml/badge.svg?branch=main)
+![Python PEP8](https://github.com/arrow-air/svc-scheduler/actions/workflows/python_ci.yml/badge.svg?branch=main)
 ![Arrow DAO
 Discord](https://img.shields.io/discord/853833144037277726?style=plastic)
 

@@ -340,7 +340,7 @@ impl StorageClientWrapperTrait for StorageClientWrapperStub {
         let request = request.into_inner();
         let _itinerary_id = request.id;
         if let Some(_others) = request.other_id_list {
-            // TODO requires mut self
+            // TODO(R3) requires mut self
             // self.itinerary_flight_plans.insert(itinerary_id, others.ids);
         }
         Ok(Response::new(()))
