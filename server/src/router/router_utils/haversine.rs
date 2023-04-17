@@ -10,13 +10,6 @@ use crate::router::router_types::location::Location;
 
 /// Calculate the distance between two points on a sphere.
 ///
-/// # Arguments
-/// * `from` - The starting point.
-/// * `to` - The ending point.
-///
-/// # Returns
-/// The distance between the two points in kilometers.
-///
 /// # Notes
 /// The current formula does ***not*** take into account the altitude of the
 /// points.

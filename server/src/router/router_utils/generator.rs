@@ -17,12 +17,6 @@ const RAD_TO_DEG: f32 = 180.0 / std::f32::consts::PI;
 
 #[allow(dead_code)]
 /// Generate a vector of random nodes.
-///
-/// # Arguments
-/// * `capacity` - The number of nodes to generate.
-///
-/// # Returns
-/// A vector of nodes.
 pub fn generate_nodes(capacity: i32) -> Vec<Node> {
     let mut nodes = Vec::new();
     let mut uuid_set = HashSet::<String>::new();
@@ -40,14 +34,6 @@ pub fn generate_nodes(capacity: i32) -> Vec<Node> {
 }
 
 /// Generate a vector of random nodes near a location.
-///
-/// # Arguments
-/// * `location` - The location to generate nodes near.
-/// * `radius` - The radius in kilometers to generate nodes within.
-/// * `capacity` - The number of nodes to generate.
-///
-/// # Returns
-/// A vector of nodes.
 pub fn generate_nodes_near(location: &Location, radius: f32, capacity: i32) -> Vec<Node> {
     let mut nodes = Vec::new();
     let mut uuid_set = HashSet::<String>::new();
@@ -82,13 +68,6 @@ pub fn generate_random_node() -> Node {
 
 /// Generate a random node near a location within radius in kilometers.
 ///
-/// # Arguments
-/// * `location` - The location to generate nodes near.
-/// * `radius` - The radius in kilometers to generate nodes within.
-///
-/// # Returns
-/// A node with a location near the given location.
-///
 /// # Caution
 /// Note that the UUID generation does not guarantee uniqueness. Please
 /// make sure to check for potential duplicates, albeit very unlikely.
@@ -103,9 +82,6 @@ pub fn generate_random_node_near(location: &Location, radius: f32) -> Node {
 }
 
 /// Generate a random location anywhere on earth.
-///
-/// # Returns
-/// A random location anywhere on earth.
 pub fn generate_location() -> Location {
     let mut rng = rand::thread_rng();
     let latitude = OrderedFloat(rng.gen_range(-90.0..=90.0));
@@ -119,13 +95,6 @@ pub fn generate_location() -> Location {
 }
 
 /// Generate a random location near a given location and radius.
-///
-/// # Arguments
-/// * `location` - The location to generate a random location near.
-/// * `radius` - The radius in kilometers.
-///
-/// # Returns
-/// A random location near the given location and radius.
 pub fn generate_location_near(location: &Location, radius: f32) -> Location {
     let mut rng = rand::thread_rng();
     let (latitude, longitude) = gen_around_location(
@@ -146,15 +115,6 @@ pub fn generate_location_near(location: &Location, radius: f32) -> Location {
 /// Generate a random location within a radius.
 ///
 /// Source: [Reddit](https://www.reddit.com/r/rust/comments/f08lqu/comment/fgsxeik/)
-///
-/// # Arguments
-/// * `rng` - The random number generator.
-/// * `latitude` - The latitude of the location.
-/// * `longitude` - The longitude of the location.
-/// * `radius` - The radius in kilometers.
-///
-/// # Returns
-/// A latitude and longitude pair.
 ///
 /// # Notes
 /// @GoodluckH: This function sometimes output invalid coordinates. I'm not sure why.
