@@ -3,12 +3,13 @@ package grpc;
 import "google/protobuf/timestamp.proto";
 
 //Scheduler service
-service SchedulerRpc {
+service RpcService {
     rpc queryFlight (QueryFlightRequest) returns (QueryFlightResponse);
-    rpc confirmFlight (Id) returns (ConfirmFlightResponse);
-    rpc cancelFlight (Id) returns (CancelFlightResponse);
+    rpc confirmItinerary (ConfirmItineraryRequest) returns (ConfirmItineraryResponse);
+    rpc cancelItinerary (Id) returns (CancelItineraryResponse);
     rpc isReady (ReadyRequest) returns (ReadyResponse);
 }
+
 // QueryFlightRequest
 message QueryFlightRequest {
     //is_cargo - true if cargo mission, false if people transport
@@ -17,16 +18,25 @@ message QueryFlightRequest {
     optional uint32 persons = 2;
     //weight in grams
     optional uint32 weightGrams = 3;
-    //requested preferred time of departure - if not set, then arrival time is used; if both set, then departure time is used
-    optional google.protobuf.Timestamp departureTime = 4;
-    //requested preferred time of arrival - if not set, then departure time is used; if both set, then departure time is used
-    optional google.protobuf.Timestamp arrivalTime = 5;
+    //requested earliest time of departure - beginning of the time window in which we search for a flight
+    google.protobuf.Timestamp earliestDepartureTime = 4;
+    //requested preferred time of arrival - end of the time window in which we search for a flight
+    google.protobuf.Timestamp latestArrivalTime = 5;
     //vertiport_depart_id
     string vertiport_depart_id = 6;
     //vertiport_depart_id
     string vertiport_arrive_id = 7;
 }
-//Flight Status Enum
+
+// Confirms an itinerary by ID
+message ConfirmItineraryRequest {
+    // The ID of the itinerary being confirmed
+    string id = 1;
+    // The ID of the user confirming the itinerary
+    string user_id = 2;
+}
+
+// Flight Status Enum
 enum FlightStatus{
     //READY
     READY = 0;
@@ -41,7 +51,8 @@ enum FlightStatus{
     //DRAFT
     DRAFT = 6;
 }
-//Flight Priority Enum
+
+// Flight Priority Enum
 enum FlightPriority{
     //LOW
     LOW = 0;
@@ -91,30 +102,35 @@ message QueryFlightPlan {
     uint32 estimated_distance = 18;
 
 }
+
+// Itinerary includes id, flight plan and potential deadhead flights
+message Itinerary {
+    // itinerary id
+    string id = 1;
+    //flight_plan
+    QueryFlightPlan flight_plan = 2;
+    //deadhead flight plans
+    repeated QueryFlightPlan deadhead_flight_plans = 3;
+}
+
 //QueryFlightResponse
 message QueryFlightResponse {
-    //array/vector of flight items
-    repeated QueryFlightPlan flights = 1;
+    //array/vector of itineraries items
+    repeated Itinerary itineraries = 1;
 }
 
-//Id type for passing id only requests
-message Id{
-    //id
-    string id = 1;
-}
-
-//ConfirmFlightResponse
-message ConfirmFlightResponse{
-    //id
+//ConfirmItineraryResponse
+message ConfirmItineraryResponse{
+    //id of the itinerary
     string id = 1;
     //indicates if confirmation was successful
     bool confirmed = 2;
     //time when the flight was confirmed
     google.protobuf.Timestamp confirmationTime = 3;
 }
-//CancelFlightResponse
-message CancelFlightResponse{
-    //id
+//CancelItineraryResponse
+message CancelItineraryResponse{
+    //id of the itinerary
     string id = 1;
     //indicates if cancellation was successful
     bool cancelled = 2;
@@ -122,6 +138,12 @@ message CancelFlightResponse{
     google.protobuf.Timestamp cancellationTime = 3;
     //reason of cancellation
     string reason = 4;
+}
+
+// Identification (typically UUID)
+message Id {
+    // The ID of the itinerary or flight plan
+    string id = 1;
 }
 
 // Ready Request

@@ -1,7 +1,14 @@
 [package]
-edition = "2021"
-name    = "svc-scheduler-client-grpc"
-version = "0.2.0"
+description = "GRPC client for the scheduler service."
+name        = "svc-scheduler-client-grpc"
+version     = "0.2.5-develop.16"
+
+categories.workspace   = true
+edition.workspace      = true
+homepage.workspace     = true
+keywords.workspace     = true
+license-file.workspace = true
+repository.workspace   = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/scheduler/reference/manifest.html
 

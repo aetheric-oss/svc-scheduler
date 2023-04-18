@@ -1,5 +1,6 @@
 /// QueryFlightRequest
 #[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightRequest {
     /// is_cargo - true if cargo mission, false if people transport
@@ -11,12 +12,12 @@ pub struct QueryFlightRequest {
     /// weight in grams
     #[prost(uint32, optional, tag = "3")]
     pub weight_grams: ::core::option::Option<u32>,
-    /// requested preferred time of departure - if not set, then arrival time is used; if both set, then departure time is used
+    /// requested earliest time of departure - beginning of the time window in which we search for a flight
     #[prost(message, optional, tag = "4")]
-    pub departure_time: ::core::option::Option<::prost_types::Timestamp>,
-    /// requested preferred time of arrival - if not set, then departure time is used; if both set, then departure time is used
+    pub earliest_departure_time: ::core::option::Option<::prost_types::Timestamp>,
+    /// requested preferred time of arrival - end of the time window in which we search for a flight
     #[prost(message, optional, tag = "5")]
-    pub arrival_time: ::core::option::Option<::prost_types::Timestamp>,
+    pub latest_arrival_time: ::core::option::Option<::prost_types::Timestamp>,
     /// vertiport_depart_id
     #[prost(string, tag = "6")]
     pub vertiport_depart_id: ::prost::alloc::string::String,
@@ -24,8 +25,20 @@ pub struct QueryFlightRequest {
     #[prost(string, tag = "7")]
     pub vertiport_arrive_id: ::prost::alloc::string::String,
 }
+/// Confirms an itinerary by ID
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConfirmItineraryRequest {
+    /// The ID of the itinerary being confirmed
+    #[prost(string, tag = "1")]
+    pub id: ::prost::alloc::string::String,
+    /// The ID of the user confirming the itinerary
+    #[prost(string, tag = "2")]
+    pub user_id: ::prost::alloc::string::String,
+}
 /// QueryFlightPlan
 #[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightPlan {
     /// id of the flight
@@ -83,27 +96,35 @@ pub struct QueryFlightPlan {
     #[prost(uint32, tag = "18")]
     pub estimated_distance: u32,
 }
-/// QueryFlightResponse
+/// Itinerary includes id, flight plan and potential deadhead flights
 #[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct QueryFlightResponse {
-    /// array/vector of flight items
-    #[prost(message, repeated, tag = "1")]
-    pub flights: ::prost::alloc::vec::Vec<QueryFlightPlan>,
-}
-/// Id type for passing id only requests
-#[derive(Eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Id {
-    /// id
+pub struct Itinerary {
+    /// itinerary id
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
+    /// flight_plan
+    #[prost(message, optional, tag = "2")]
+    pub flight_plan: ::core::option::Option<QueryFlightPlan>,
+    /// deadhead flight plans
+    #[prost(message, repeated, tag = "3")]
+    pub deadhead_flight_plans: ::prost::alloc::vec::Vec<QueryFlightPlan>,
 }
-/// ConfirmFlightResponse
+/// QueryFlightResponse
 #[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ConfirmFlightResponse {
-    /// id
+pub struct QueryFlightResponse {
+    /// array/vector of itineraries items
+    #[prost(message, repeated, tag = "1")]
+    pub itineraries: ::prost::alloc::vec::Vec<Itinerary>,
+}
+/// ConfirmItineraryResponse
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConfirmItineraryResponse {
+    /// id of the itinerary
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     /// indicates if confirmation was successful
@@ -113,11 +134,11 @@ pub struct ConfirmFlightResponse {
     #[prost(message, optional, tag = "3")]
     pub confirmation_time: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// CancelFlightResponse
-#[derive(Eq)]
+/// CancelItineraryResponse
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CancelFlightResponse {
-    /// id
+pub struct CancelItineraryResponse {
+    /// id of the itinerary
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     /// indicates if cancellation was successful
@@ -130,14 +151,25 @@ pub struct CancelFlightResponse {
     #[prost(string, tag = "4")]
     pub reason: ::prost::alloc::string::String,
 }
+/// Identification (typically UUID)
+#[derive(Eq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Id {
+    /// The ID of the itinerary or flight plan
+    #[prost(string, tag = "1")]
+    pub id: ::prost::alloc::string::String,
+}
 /// Ready Request
 ///
 /// No arguments
 #[derive(Eq, Copy)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadyRequest {}
 /// Ready Response
 #[derive(Eq, Copy)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadyResponse {
     /// ready
@@ -176,6 +208,18 @@ impl FlightStatus {
             FlightStatus::Draft => "DRAFT",
         }
     }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "READY" => Some(Self::Ready),
+            "BOARDING" => Some(Self::Boarding),
+            "IN_FLIGHT" => Some(Self::InFlight),
+            "FINISHED" => Some(Self::Finished),
+            "CANCELLED" => Some(Self::Cancelled),
+            "DRAFT" => Some(Self::Draft),
+            _ => None,
+        }
+    }
 }
 /// Flight Priority Enum
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -200,18 +244,27 @@ impl FlightPriority {
             FlightPriority::Emergency => "EMERGENCY",
         }
     }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "LOW" => Some(Self::Low),
+            "HIGH" => Some(Self::High),
+            "EMERGENCY" => Some(Self::Emergency),
+            _ => None,
+        }
+    }
 }
 /// Generated client implementations.
-pub mod scheduler_rpc_client {
+pub mod rpc_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
-    ///Scheduler service
+    /// Scheduler service
     #[derive(Debug, Clone)]
-    pub struct SchedulerRpcClient<T> {
+    pub struct RpcServiceClient<T> {
         inner: tonic::client::Grpc<T>,
     }
-    impl SchedulerRpcClient<tonic::transport::Channel> {
+    impl RpcServiceClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
@@ -222,7 +275,7 @@ pub mod scheduler_rpc_client {
             Ok(Self::new(conn))
         }
     }
-    impl<T> SchedulerRpcClient<T>
+    impl<T> RpcServiceClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
@@ -240,7 +293,7 @@ pub mod scheduler_rpc_client {
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
-        ) -> SchedulerRpcClient<InterceptedService<T, F>>
+        ) -> RpcServiceClient<InterceptedService<T, F>>
         where
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
@@ -254,7 +307,7 @@ pub mod scheduler_rpc_client {
                 http::Request<tonic::body::BoxBody>,
             >>::Error: Into<StdError> + Send + Sync,
         {
-            SchedulerRpcClient::new(InterceptedService::new(inner, interceptor))
+            RpcServiceClient::new(InterceptedService::new(inner, interceptor))
         }
         /// Compress requests with the given encoding.
         ///
@@ -286,14 +339,14 @@ pub mod scheduler_rpc_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/queryFlight",
+                "/grpc.RpcService/queryFlight",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
-        pub async fn confirm_flight(
+        pub async fn confirm_itinerary(
             &mut self,
-            request: impl tonic::IntoRequest<super::Id>,
-        ) -> Result<tonic::Response<super::ConfirmFlightResponse>, tonic::Status> {
+            request: impl tonic::IntoRequest<super::ConfirmItineraryRequest>,
+        ) -> Result<tonic::Response<super::ConfirmItineraryResponse>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -305,14 +358,14 @@ pub mod scheduler_rpc_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/confirmFlight",
+                "/grpc.RpcService/confirmItinerary",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
-        pub async fn cancel_flight(
+        pub async fn cancel_itinerary(
             &mut self,
             request: impl tonic::IntoRequest<super::Id>,
-        ) -> Result<tonic::Response<super::CancelFlightResponse>, tonic::Status> {
+        ) -> Result<tonic::Response<super::CancelItineraryResponse>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -324,7 +377,7 @@ pub mod scheduler_rpc_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/cancelFlight",
+                "/grpc.RpcService/cancelItinerary",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
@@ -342,9 +395,7 @@ pub mod scheduler_rpc_client {
                     )
                 })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/grpc.SchedulerRpc/isReady",
-            );
+            let path = http::uri::PathAndQuery::from_static("/grpc.RpcService/isReady");
             self.inner.unary(request.into_request(), path, codec).await
         }
     }

@@ -1,0 +1,191 @@
+## DO NOT EDIT!
+# This file was provisioned by Terraform
+# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-svc/.github/workflows/post_release.yml
+
+name: Post Release Events
+
+on:
+  release:
+    # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#release to be confused
+    # Since we want to trigger both on develop and main releases we use published. (created does not trigger on develop)
+    types: [published]
+
+env:
+  TERM: xterm
+
+jobs:
+  api-docs:
+    name: Generate and sync API docs
+    environment: production
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    concurrency:
+      group: api-docs-sync
+    env:
+      AWS_S3_DOCS_REST_DEST_PATH: "/api-docs/rest/${{ github.event.repository.name }}/"
+      AWS_S3_DOCS_GRPC_DEST_PATH: "/api-docs/grpc/${{ github.event.repository.name }}/"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Gather env vars
+        run: |
+          if printf "%s" "${{ github.ref_name }}" |grep -q -- "-develop" ; then
+            echo "BRANCHPATH=develop" >> $GITHUB_ENV
+          else
+            echo "BRANCHPATH=main" >> $GITHUB_ENV
+          fi
+          # Check if we need to build openapi or only grpc
+          if [ -d "openapi" ]; then
+            echo "DOC_TARGETS=rust-openapi rust-grpc-api" >> $GITHUB_ENV
+          else
+            echo Openapi not found, skipping...
+            echo "DOC_TARGETS=rust-grpc-api" >> $GITHUB_ENV
+          fi
+
+      # Generate api docs
+      - name:
+        run: |
+          echo Building targets: ${DOC_TARGETS}
+          make ${DOC_TARGETS}
+      - name: Check for openapi json output
+        id: openapi_files
+        uses: andstor/file-existence-action@v2
+        with:
+          files: "out/${{ github.event.repository.name }}-openapi.json"
+      - name: Check for grpc-api output
+        id: grpc_api_files
+        uses: andstor/file-existence-action@v2
+        with:
+          files: "out/${{ github.event.repository.name }}-grpc-api.json"
+
+      # Login to AWS and Sync docs to AWS S3 bucket
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_WEBSITE }}:role/${{ secrets.AWS_S3_SERVICES_DOCS_ROLE }}"
+          role-session-name: arrow-openapi-docs
+          aws-region: "us-east-2"
+      - name: Sync OpenAPI docs to S3 for processing
+        if: steps.openapi_files.outputs.files_exists == 'true'
+        id: openapi_sync_s3
+        run: |
+          aws s3 cp ./out/${{ github.event.repository.name }}-openapi.json "s3://${{ secrets.AWS_S3_SERVICES_DOCS_BUCKET }}${{ env.AWS_S3_DOCS_REST_DEST_PATH }}${BRANCHPATH}/openapi.json"
+      - name: Sync GRPC API docs to S3 for processing
+        if: steps.grpc_api_files.outputs.files_exists == 'true'
+        id: grpc_api_sync_s3
+        run: |
+          aws s3 cp ./out/${{ github.event.repository.name }}-grpc-api.json "s3://${{ secrets.AWS_S3_SERVICES_DOCS_BUCKET }}${{ env.AWS_S3_DOCS_GRPC_DEST_PATH }}${BRANCHPATH}/grpc-api.json"
+  docker_build:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
+    concurrency:
+      group: docker-build-${{ github.ref_name }}
+    env:
+      DOCKER_IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: 'amd64,arm64'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.DOCKER_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern=v{{version}},value=${{ github.ref_name }}
+            type=semver,pattern=v{{major}}.{{minor}},value=${{ github.ref_name }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            PACKAGE_NAME=${{ github.event.repository.name }}
+
+  rust-docs:
+    name: Generate and sync Rust docs
+    environment: production
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    concurrency:
+      group: rust-docs-sync
+    env:
+      AWS_S3_DOCS_RUST_DEST_PATH: "/rust-docs/${{ github.event.repository.name }}/"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Gather env vars
+        run: |
+          if printf "%s" "${{ github.ref_name }}" |grep -q -- "-develop" ; then
+            echo "BRANCHPATH=develop" >> $GITHUB_ENV
+          else
+            echo "BRANCHPATH=main" >> $GITHUB_ENV
+          fi
+
+      # Generate rust docs
+      - name:
+        run: |
+          make rust-doc
+      # Login to AWS and Sync docs to AWS S3 bucket
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_WEBSITE }}:role/${{ secrets.AWS_S3_SERVICES_DOCS_ROLE }}"
+          role-session-name: arrow-rust-docs
+          aws-region: "us-east-2"
+      - name: Sync rust docs to S3 for processing
+        run: |
+          aws s3 sync ./target/doc/ "s3://${{ secrets.AWS_S3_SERVICES_DOCS_BUCKET }}${{ env.AWS_S3_DOCS_RUST_DEST_PATH }}${BRANCHPATH}/"  --delete --size-only
+
+  grpc_client_release:
+    name: Publish client to crates.io
+    runs-on: ubuntu-latest
+    concurrency:
+      group: grpc-client-release-${{ github.ref_name }}
+    env:
+      DOCKER_IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - name: Gather env vars
+        run: |
+          if printf "%s" "${{ github.ref_name }}" |grep -q -- "-develop" ; then
+            echo "PUBLISH_DRY_RUN=1" >> $GITHUB_ENV
+          else
+            echo "PUBLISH_DRY_RUN=0" >> $GITHUB_ENV
+          fi
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Build and publish client
+        run: |
+          make rust-publish
