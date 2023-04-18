@@ -1,3 +1,48 @@
+## [Release 0.3.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.3.0)
+
+### ✨ Features
+
+- new interface for query_flight ([`a40ddbe`](https://github.com/Arrow-air/svc-scheduler/commit/a40ddbee3cb68e1ba1912230b30e3cdf8876338b))
+- time range implementation for query flight ([`2062046`](https://github.com/Arrow-air/svc-scheduler/commit/20620467c76711afb4197a00694a11b01c9cbe4f))
+- call compliance service when confirming flight ([`6e17c32`](https://github.com/Arrow-air/svc-scheduler/commit/6e17c3212a0a94359cc6b26cc9c49c745fd41ee7))
+- call compliance service when confirming flight ([`340415c`](https://github.com/Arrow-air/svc-scheduler/commit/340415c569d71ed4fee3e3ef5dd461dadb766b62))
+- implement new scenarios with router and add new test ([`54c231f`](https://github.com/Arrow-air/svc-scheduler/commit/54c231f0953fd608f55109c8e365ead7ee004398))
+- implement scenario 5 and test ([`46d2738`](https://github.com/Arrow-air/svc-scheduler/commit/46d273843e4024f8fc72f1a383457471b52fb721))
+- implement scenario 6 and test ([`5ae4966`](https://github.com/Arrow-air/svc-scheduler/commit/5ae4966ddcb36f61cb744874ab77ad07cb647db2))
+- add itineraries ([`03f4bfa`](https://github.com/Arrow-air/svc-scheduler/commit/03f4bfac051bc79b4c75a23765f23a3da707a91f))
+- loop router initialization ([`2dd1153`](https://github.com/Arrow-air/svc-scheduler/commit/2dd115391178dc2d2844511bf8c9bab14efcf1eb))
+- add conops ([`6803125`](https://github.com/Arrow-air/svc-scheduler/commit/68031259964d458f8968ffa33dff9d9a96799fb0))
+- combine router lib ([`2faf70b`](https://github.com/Arrow-air/svc-scheduler/commit/2faf70b7c2d24dfc051cc3528fc4e41e69a78521))
+
+### 🐛 Fixes
+
+- fix queries with deleted flag ([`69782ac`](https://github.com/Arrow-air/svc-scheduler/commit/69782ac33bf4ed8d2a8fbc6bedf37a54377922c1))
+- remove redundant doc comments ([`40bc03f`](https://github.com/Arrow-air/svc-scheduler/commit/40bc03fd1a12f4deba6ccb97bc40a492435ed49a))
+
+### 🔥 Refactorings
+
+- organize router module ([`8449def`](https://github.com/Arrow-air/svc-scheduler/commit/8449defbbed19cb785f7b3cd6ec785ed62c84dda))
+
+### 🛠 Maintenance
+
+- terraform provisioned file changes ([`712e75e`](https://github.com/Arrow-air/svc-scheduler/commit/712e75ebf9efd3c30dfd1f9cb6b0623ae5256d9c))
+- refactor code to be testable ([`a3e92f2`](https://github.com/Arrow-air/svc-scheduler/commit/a3e92f2d120ba6cba715e96dee2af26505627914))
+- update release files ([`4ee00ab`](https://github.com/Arrow-air/svc-scheduler/commit/4ee00abe4085f0b1d11b0cc091567c33601b9e0c))
+- update svc-storage version with advanced filters ([`dbe49a7`](https://github.com/Arrow-air/svc-scheduler/commit/dbe49a76a6f05214eff278fabf0bef6f7be8e82e))
+- refactor test data to return exp results with deadhead flights ([`507ace6`](https://github.com/Arrow-air/svc-scheduler/commit/507ace6040dfceb117a881eb3dcc5b8e103dcde4))
+- add 2 tests for deadhead flights (one for parked and one for in-fligh scenario) ([`d27261e`](https://github.com/Arrow-air/svc-scheduler/commit/d27261e3a6d1be1e4d6ae1a5f78812dd2f8144e1))
+- update dependency ([`6606b79`](https://github.com/Arrow-air/svc-scheduler/commit/6606b7973b482eb37293af93a1f17c22c21a4435))
+- add 1 test for aircraft re-routing when capacity not met ([`2f2f28c`](https://github.com/Arrow-air/svc-scheduler/commit/2f2f28c872d20a351a0c9713e86fe98dc41b2cad))
+- update README ([`5104464`](https://github.com/Arrow-air/svc-scheduler/commit/51044640ae1dfd382b1bb08d0381539a22b6d617))
+- module refactor ([`0971b79`](https://github.com/Arrow-air/svc-scheduler/commit/0971b790dee345d69635bce17032dc95620554ab))
+- review cleanup ([`ba6df85`](https://github.com/Arrow-air/svc-scheduler/commit/ba6df8542df9d318add8c11f0d399a05bf227919))
+- remove references to lib-router ([`348494a`](https://github.com/Arrow-air/svc-scheduler/commit/348494a92e45c0ac80d85a0e25868aef4b4f5888))
+- address reviewer comments ([`cd81b97`](https://github.com/Arrow-air/svc-scheduler/commit/cd81b978e79180ca872b794a32e7fb03f7ff3663))
+
+### 📚 Documentation
+
+-  **readme:** add license notice and additional info (#24) ([`63001ba`](https://github.com/Arrow-air/svc-scheduler/commit/63001ba7134bf77490c72aeaa5c455e139417e40))
+
 ## [Release 0.2.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.2.0)
 
 ### ✨ Features
