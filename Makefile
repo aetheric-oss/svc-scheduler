@@ -6,7 +6,7 @@ include .make/env.mk
 export
 
 help: .help-base .help-rust .help-python .help-cspell .help-markdown .help-editorconfig .help-commitlint .help-toml .help-docker
-build: rust-build docker-build
+build: clean docker-build
 clean: rust-clean
 release: rust-release
 publish: rust-publish

@@ -2,7 +2,7 @@
 # This file was provisioned by Terraform
 # File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/all/.make/markdown.mk
 
-MARKDOWN_FILES ?= $(shell find . -type f -iname '*md' ! -iwholename "*./node_modules/*" ! -path "./build" ! -iwholename "*.terraform*" ! -iwholename "*.cargo/*")
+MARKDOWN_FILES ?= $(shell find . -type f -iname '*md' ! -iwholename "*./node_modules/*" ! -path "./build" ! -iwholename "*.terraform*" ! -iwholename "*.cargo/*" ! -iwholename "./target/*")
 LINK_CHECKER_JSON ?= .link-checker.config.json
 
 .help-markdown:

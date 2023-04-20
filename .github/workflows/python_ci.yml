@@ -3,6 +3,12 @@
 # File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/.github/workflows/python_ci.yml
 
 on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - '**.py'
   pull_request:
     branches:
       - develop
