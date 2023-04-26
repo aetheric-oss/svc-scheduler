@@ -153,7 +153,7 @@ rust-coverage: check-cargo-registry rust-docker-pull
 	@mkdir -p coverage/
 	@$(call cargo_run,tarpaulin,\
 		--workspace -l --include-tests --tests --no-fail-fast \
-		--all-features --out Lcov \
+		--all-features --skip-clean -t 600 --out Lcov \
 		--output-dir coverage/)
 	@sed -e "s/\/usr\/src\/app\///g" -i coverage/lcov.info
 
