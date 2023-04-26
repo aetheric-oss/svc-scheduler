@@ -21,54 +21,86 @@ env:
   TERM: xterm
 
 jobs:
-  check:
-    name: Checks
-    runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.head_commit.message, 'provisioned by terraform') }}
-    steps:
-      - uses: actions/checkout@v2
-      - run: make rust-check
-
-  build_and_test_debug:
-    name: Build & Test
-    runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.head_commit.message, 'provisioned by terraform') }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Build
-        run: make build
-      - name: Test
-        run: make rust-test
-
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - run: make rust-fmt
+
+  check:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
+      - run: make rust-check
+
+  build:
+    name: Build
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
+      - run: make rust-build
+
+  test:
+    name: Test
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
+      - name: Test
+        run: make rust-test
 
   clippy:
     name: Clippy
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
       - run: make rust-clippy
 
   # Validates the code examples in doc comments
   doc:
     name: Rustdoc
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
       - run: make rust-doc
 
   coverage:
     name: Unit Test Coverage
+    needs: build
     runs-on: ubuntu-latest
     env:
       NODE_COVERALLS_DEBUG: 1
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
       - run: |
           mkdir -p coverage
           make rust-coverage | tee coverage/ut.txt
