@@ -21,7 +21,7 @@ indent_size = 4
 [{Makefile*,*.mk,*.sh}]
 indent_style = tab
 indent_size = 4
-[{*.tsx,*.html,*.yml,*.yaml,*.toml,*.json,*.tf,*.hcl}]
+[{*.ts,*.tsx,*.html,*.yml,*.yaml,*.toml,*.json,*.tf,*.hcl}]
 indent_size = 2
 # we might want to use https://www.npmjs.com/package/lintspaces instead, we can't lint the css and js comments atm
 [{*.js,*.css,Cargo.lock}]
