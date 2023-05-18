@@ -23,6 +23,9 @@ services:
       - type: bind
         source: logs/
         target: /logs/
+      - type: bind
+        source: .env
+        target: /.env
   example:
     links:
       - web-server
@@ -43,5 +46,4 @@ services:
       - SERVER_PORT_GRPC
       - SERVER_PORT_REST
       - EXAMPLE_TARGET
-      - LOG_CONFIG
     command: cargo run --manifest-path "${CARGO_MANIFEST_PATH}" --example "${EXAMPLE_TARGET}"
