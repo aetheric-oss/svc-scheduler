@@ -2,15 +2,16 @@
 # This file was provisioned by Terraform
 # File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/all/.make/rust.mk
 
-RUST_IMAGE_NAME     ?= ghcr.io/arrow-air/tools/arrow-rust
-RUST_IMAGE_TAG      ?= 1.1
-CARGO_MANIFEST_PATH ?= Cargo.toml
-CARGO_INCREMENTAL   ?= 1
-RUSTC_BOOTSTRAP     ?= 0
-RELEASE_TARGET      ?= x86_64-unknown-linux-musl
-PUBLISH_DRY_RUN     ?= 1
-OUTPUTS_PATH        ?= $(SOURCE_PATH)/out
-ADDITIONAL_OPT      ?=
+RUST_IMAGE_NAME         ?= ghcr.io/arrow-air/tools/arrow-rust
+RUST_IMAGE_TAG          ?= 1.1
+CARGO_MANIFEST_PATH     ?= Cargo.toml
+CARGO_INCREMENTAL       ?= 1
+RUSTC_BOOTSTRAP         ?= 0
+RELEASE_TARGET          ?= x86_64-unknown-linux-musl
+PUBLISH_DRY_RUN         ?= 1
+OUTPUTS_PATH            ?= $(SOURCE_PATH)/out
+ADDITIONAL_OPT          ?=
+PACKAGE_FEATURES        ?= ""
 
 # function with a generic template to run docker with the required values
 # Accepts $1 = command to run, $2 = additional command flags (optional)
@@ -69,11 +70,11 @@ check-logs-dir:
 
 rust-build: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo build...$(SGR0)"
-	@$(call cargo_run,build)
+	@$(call cargo_run,build, --features $(PACKAGE_FEATURES) )
 
 rust-release: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo build --release...$(SGR0)"
-	@$(call cargo_run,build,--release --target $(RELEASE_TARGET))
+	@$(call cargo_run,build, --features $(PACKAGE_FEATURES) --release --target $(RELEASE_TARGET))
 
 rust-publish: rust-build
 	@echo "$(CYAN)Running cargo publish --package $(PUBLISH_PACKAGE_NAME)...$(SGR0)"
@@ -91,9 +92,13 @@ rust-check: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo check...$(SGR0)"
 	@$(call cargo_run,check)
 
-rust-test: check-cargo-registry rust-docker-pull
+rust-test-features: $(EXCLUSIVE_FEATURES_TEST)
+$(EXCLUSIVE_FEATURES_TEST):
+	@echo "$(CYAN)Running cargo test for feature $@...$(SGR0)"
+	@$(call cargo_run,test,--features $@ --all)
+rust-test: check-cargo-registry rust-docker-pull rust-test-features
 	@echo "$(CYAN)Running cargo test...$(SGR0)"
-	@$(call cargo_run,test,--all)
+	@$(call cargo_run,test,--features $(PACKAGE_FEATURES) --all)
 
 rust-example-%: EXAMPLE_TARGET=$*
 rust-example-%: check-cargo-registry check-logs-dir rust-docker-pull
@@ -153,7 +158,7 @@ rust-coverage: check-cargo-registry rust-docker-pull
 	@mkdir -p coverage/
 	@$(call cargo_run,tarpaulin,\
 		--workspace -l --include-tests --tests --no-fail-fast \
-		--all-features --skip-clean -t 600 --out Lcov \
+		--features $(PACKAGE_FEATURES) --skip-clean -t 600 --out Lcov \
 		--output-dir coverage/)
 	@sed -e "s/\/usr\/src\/app\///g" -i coverage/lcov.info
 
