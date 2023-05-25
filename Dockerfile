@@ -5,12 +5,13 @@ FROM --platform=$BUILDPLATFORM ghcr.io/arrow-air/tools/arrow-rust:latest AS buil
 
 ENV CARGO_INCREMENTAL=1
 ENV RUSTC_BOOTSTRAP=0
+ENV PACKAGE_RELEASE_FEATURES=
 
 COPY . /usr/src/app
 
 # perl and build-base are needed to build openssl, see:
 # https://github.com/openssl/openssl/blob/master/INSTALL.md#prerequisites
-RUN apk -U add perl build-base ; cd /usr/src/app ; cargo build --release --features=vendored-openssl
+RUN apk -U add perl build-base ; cd /usr/src/app ; cargo build --release --features=vendored-openssl,${PACKAGE_RELEASE_FEATURES}
 
 FROM --platform=$TARGETPLATFORM ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.14 AS grpc-health-probe
 
