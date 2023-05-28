@@ -16,6 +16,9 @@ PACKAGE_TEST_FEATURES    ?= ""
 PACKAGE_BUILD_FEATURES   ?= ""
 PACKAGE_RELEASE_FEATURES ?= ""
 
+# Can contain quotes, but we don't want quotes
+EXCLUSIVE_FEATURES_TEST  := $(shell echo ${EXCLUSIVE_FEATURES_TEST})
+
 # function with a generic template to run docker with the required values
 # Accepts $1 = command to run, $2 = additional command flags (optional)
 ifeq ("$(CARGO_MANIFEST_PATH)", "")
