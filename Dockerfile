@@ -11,7 +11,10 @@ COPY . /usr/src/app
 
 # perl and build-base are needed to build openssl, see:
 # https://github.com/openssl/openssl/blob/master/INSTALL.md#prerequisites
-RUN apk -U add perl build-base ; cd /usr/src/app ; cargo build --release --features=vendored-openssl,${PACKAGE_RELEASE_FEATURES}
+RUN apk -U add perl build-base
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    cd /usr/src/app && \
+    cargo build --release --features=vendored-openssl,${PACKAGE_RELEASE_FEATURES}
 
 FROM --platform=$TARGETPLATFORM ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.14 AS grpc-health-probe
 
