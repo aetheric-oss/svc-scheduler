@@ -55,6 +55,12 @@ jobs:
           shared-key: "rust-ci"
           cache-directories: "${{ github.workspace }}/.cargo"
       - run: make rust-build
+      - name: Cache .env file for next jobs
+        uses: actions/cache/save@v3
+        id: cache
+        with:
+          path: .env
+          key: dot-env-${{ github.run_id }}
 
   test:
     name: Test
@@ -66,6 +72,11 @@ jobs:
         with:
           shared-key: "rust-ci"
           cache-directories: "${{ github.workspace }}/.cargo"
+      - name: Get .env file from cache
+        uses: actions/cache/restore@v3
+        with:
+          path: .env
+          key: dot-env-${{ github.run_id }}
       - name: Test
         run: make rust-test
 
@@ -106,6 +117,11 @@ jobs:
         with:
           shared-key: "rust-ci"
           cache-directories: "${{ github.workspace }}/.cargo"
+      - name: Get .env file from cache
+        uses: actions/cache/restore@v3
+        with:
+          path: .env
+          key: dot-env-${{ github.run_id }}
       - run: |
           mkdir -p coverage
           make rust-coverage | tee coverage/ut.txt
