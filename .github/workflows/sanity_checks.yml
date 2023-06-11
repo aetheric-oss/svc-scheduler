@@ -47,6 +47,7 @@ jobs:
       - run: make toml-test
 
   commit-msg:
+    if: ${{ github.event_name == 'pull_request' }}
     name: Commit message Check
     runs-on: ubuntu-latest
     steps:
@@ -56,6 +57,7 @@ jobs:
       - run: npx commitlint --from=${{ github.event.pull_request.base.sha }}
 
   release-notes:
+    if: ${{ github.event_name == 'pull_request' }}
     name: Preview Release Notes
     runs-on: ubuntu-latest
     steps:
