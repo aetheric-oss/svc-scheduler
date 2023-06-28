@@ -13,6 +13,7 @@ pub mod engine {
         result::Result as StdResult,
     };
 
+    use geo::GeodesicLength;
     use ordered_float::OrderedFloat;
     use petgraph::{algo::astar, graph::NodeIndex, stable_graph::StableDiGraph};
 
@@ -21,7 +22,7 @@ pub mod engine {
         node::{AsNode, Node},
     };
 
-    use crate::router::router_utils::{graph::build_edges, haversine};
+    use crate::router::router_utils::graph::build_edges;
 
     /// Error types for the router engine.
     ///
@@ -51,7 +52,7 @@ pub mod engine {
     /// that maps a node to its index in the graph.
     #[derive(Debug)]
     pub struct Router<'a> {
-        pub(crate) graph: StableDiGraph<&'a Node, OrderedFloat<f32>>,
+        pub(crate) graph: StableDiGraph<&'a Node, OrderedFloat<f64>>,
         pub(crate) node_indices: HashMap<&'a Node, NodeIndex>,
         pub(crate) edges: Vec<Edge<'a>>,
     }
@@ -80,9 +81,9 @@ pub mod engine {
         /// A Router struct.
         pub fn new(
             nodes: &[impl AsNode],
-            constraint: f32,
-            constraint_function: fn(&dyn AsNode, &dyn AsNode) -> f32,
-            cost_function: fn(&dyn AsNode, &dyn AsNode) -> f32,
+            constraint: f64,
+            constraint_function: fn(&dyn AsNode, &dyn AsNode) -> f64,
+            cost_function: fn(&dyn AsNode, &dyn AsNode) -> f64,
         ) -> Router {
             router_info!("[1/4] Initializing the router engine...");
             router_info!("[2/4] Building edges...");
@@ -168,10 +169,10 @@ pub mod engine {
             from: &Node,
             to: &Node,
             algorithm: Algorithm,
-            heuristic_function: Option<fn(NodeIndex) -> f32>,
-        ) -> StdResult<(f32, Vec<NodeIndex>), RouterError> {
+            heuristic_function: Option<fn(NodeIndex) -> f64>,
+        ) -> StdResult<(f64, Vec<NodeIndex>), RouterError> {
             router_debug!(
-                "Finding shortest path from {:?} to {:?} using algorithm {:?}",
+                "(find_shortest_path) Finding shortest path from {:?} to {:?} using algorithm {:?}",
                 from.location,
                 to.location,
                 algorithm
@@ -208,39 +209,32 @@ pub mod engine {
             Ok(result)
         }
 
-        /// Compute the total Haversine distance of a path.
+        /// Compute the total Geodesic distance (in meters) of a path.
         ///
         /// # Arguments
         /// * `path` - The path to compute the distance of. The path is
         ///   given as a vector of [`NodeIndex`] structs.
         ///
         /// # Returns
-        /// The total distance of the path.
+        /// The total distance of the path in meters.
         ///
         /// If the path is empty, 0.0 is returned.
         ///
-        /// If the path is invalid, -1.0 is returned.
-        pub fn get_total_distance(&self, path: &Vec<NodeIndex>) -> StdResult<f32, RouterError> {
-            router_info!("Computing total distance of path");
-            let mut total_distance = 0.0;
-            for i in 0..path.len() - 1 {
-                let node_from = self.get_node_by_id(path[i]);
-                let node_to = self.get_node_by_id(path[i + 1]);
-
-                let Some(node_from) = node_from else {
-                    router_error!("'From' node is not found.");
-                    return Err(RouterError::InvalidNodesInPath);
-                };
-
-                let Some(node_to) = node_to else {
-                    router_error!("'To' node is not found.");
-                    return Err(RouterError::InvalidNodesInPath);
-                };
-
-                total_distance += haversine::distance(&node_from.location, &node_to.location);
+        /// # Errors
+        /// Returns a RouterError if a node could not be found in the router
+        pub fn get_total_distance(&self, path: &Vec<NodeIndex>) -> StdResult<f64, RouterError> {
+            router_info!("(get_total_distance) Computing total distance of path");
+            let mut points: Vec<geo::Point> = vec![];
+            for index in path {
+                let node = self.get_node_by_id(*index);
+                let Some(node) = node else {
+                        router_error!("Node {:?} is not found.", index);
+                        return Err(RouterError::InvalidNodesInPath);
+                    };
+                points.push(node.location.into())
             }
-            router_debug!("Total distance: {}", total_distance);
-            Ok(total_distance)
+            let geo_line_string = geo::LineString::from(points);
+            Ok(geo_line_string.geodesic_length())
         }
 
         /// Get the number of nodes in the graph.
@@ -268,11 +262,9 @@ mod router_tests {
         router::engine::Router,
     };
 
-    use crate::router::router_utils::{
-        generator::{generate_nodes, generate_nodes_near},
-        haversine,
-    };
+    use crate::router::router_utils::mock::{generate_nodes, generate_nodes_near};
 
+    use geo::{GeodesicDistance, Point};
     use ordered_float::OrderedFloat;
 
     const SAN_FRANCISCO: Location = Location {
@@ -284,13 +276,21 @@ mod router_tests {
 
     #[test]
     fn test_correct_node_count() {
-        let nodes = generate_nodes_near(&SAN_FRANCISCO, 10000.0, CAPACITY);
+        let nodes = generate_nodes_near(&SAN_FRANCISCO.into(), 10.0, CAPACITY);
 
         let router = Router::new(
             &nodes,
             10000.0,
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
         );
 
         assert_eq!(CAPACITY as usize, router.get_node_count());
@@ -299,13 +299,21 @@ mod router_tests {
     /// The graph has no edges.
     #[test]
     fn test_shortest_path_disconnected_graph() {
-        let nodes = generate_nodes_near(&SAN_FRANCISCO, 10000.0, CAPACITY);
+        let nodes = generate_nodes_near(&SAN_FRANCISCO.into(), 10000.0, CAPACITY);
 
         let router = Router::new(
             &nodes,
             0.0,
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
         );
 
         let from = &nodes[0];
@@ -387,9 +395,17 @@ mod router_tests {
 
         let router = Router::new(
             &nodes,
-            100.0,
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
+            16100.0,
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
         );
 
         assert_eq!(4, router.get_node_count());
@@ -404,9 +420,11 @@ mod router_tests {
             panic!("Could not find shortest path: {:?}", result.unwrap_err());
         };
 
+        let expected_from_point: Point = nodes[0].location.into();
+        let expected_to_point: Point = nodes[2].location.into();
         assert_eq!(
             cost,
-            haversine::distance(&nodes[0].location, &nodes[2].location)
+            expected_from_point.geodesic_distance(&expected_to_point)
         );
         // should be 1 -> 3
         assert_eq!(path.len(), 2);
@@ -437,7 +455,7 @@ mod router_tests {
     /// point 4: 40.738820, -73.990440
     ///
     /// There should not be any path from 1 to 4 if we constraint our
-    /// flight distance to 100 kilometers.
+    /// flight distance to 100 kilometers (100000 meters).
     #[test]
     fn test_shortest_path_no_path() {
         let nodes = vec![
@@ -489,9 +507,17 @@ mod router_tests {
 
         let router = Router::new(
             &nodes,
-            100.0,
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
+            100000.0,
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
         );
 
         assert_eq!(4, router.get_node_count());
@@ -577,8 +603,16 @@ mod router_tests {
         let router = Router::new(
             &nodes,
             10000.0,
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
         );
 
         let result =
@@ -641,9 +675,17 @@ mod router_tests {
 
         let router = Router::new(
             &nodes,
-            10000.0,
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
+            10000000.0,
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
         );
 
         let edges = router.get_edges();
@@ -660,8 +702,16 @@ mod router_tests {
         let router = Router::new(
             &nodes,
             10000.0,
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
         );
 
         let result = router.find_shortest_path(&nodes[0], &nodes[99], Algorithm::AStar, None);

@@ -1,13 +1,13 @@
 //! A number of methods to generate random data for testing.
 
 use crate::router::router_types::{location::Location, node::Node, status};
+use geo::prelude::*;
+use geo::{LineString, Point, Polygon, Rect};
 use ordered_float::OrderedFloat;
-use quaternion::Quaternion;
-use rand::{rngs::ThreadRng, Rng};
+use rand::Rng;
 
 use std::collections::HashSet;
 use uuid::Uuid;
-use vecmath::Vector3;
 
 //-----------------------------------------------------
 // Constants
@@ -15,7 +15,6 @@ use vecmath::Vector3;
 const DEG_TO_RAD: f32 = std::f32::consts::PI / 180.0;
 const RAD_TO_DEG: f32 = 180.0 / std::f32::consts::PI;
 
-#[allow(dead_code)]
 /// Generate a vector of random nodes.
 pub fn generate_nodes(capacity: i32) -> Vec<Node> {
     let mut nodes = Vec::new();
@@ -34,7 +33,10 @@ pub fn generate_nodes(capacity: i32) -> Vec<Node> {
 }
 
 /// Generate a vector of random nodes near a location.
-pub fn generate_nodes_near(location: &Location, radius: f32, capacity: i32) -> Vec<Node> {
+/// The provided radius (kilometers) is being used to determine the maximum radius distance
+/// the generated nodes can be apart from the provided location.
+/// The provided capacity is used to determine the amount of nodes that should be generated.
+pub fn generate_nodes_near(location: &Point, radius: f32, capacity: i32) -> Vec<Node> {
     let mut nodes = Vec::new();
     let mut uuid_set = HashSet::<String>::new();
     for _ in 0..capacity {
@@ -71,7 +73,7 @@ pub fn generate_random_node() -> Node {
 /// # Caution
 /// Note that the UUID generation does not guarantee uniqueness. Please
 /// make sure to check for potential duplicates, albeit very unlikely.
-pub fn generate_random_node_near(location: &Location, radius: f32) -> Node {
+pub fn generate_random_node_near(location: &Point, radius: f32) -> Node {
     Node {
         uid: Uuid::new_v4().to_string(),
         location: generate_location_near(location, radius),
@@ -95,62 +97,92 @@ pub fn generate_location() -> Location {
 }
 
 /// Generate a random location near a given location and radius.
-pub fn generate_location_near(location: &Location, radius: f32) -> Location {
+pub fn generate_location_near(location: &Point, radius: f32) -> Location {
     let mut rng = rand::thread_rng();
-    let (latitude, longitude) = gen_around_location(
-        &mut rng,
-        location.latitude.into_inner(),
-        location.longitude.into_inner(),
-        radius,
-    );
+    let point = gen_around_location(&mut rng, location, radius);
 
     let altitude_meters = OrderedFloat(rng.gen_range(0.0..=10000.0));
     Location {
-        latitude,
-        longitude,
+        latitude: OrderedFloat(point.y() as f32),
+        longitude: OrderedFloat(point.x() as f32),
         altitude_meters,
     }
 }
 
-/// Generate a random location within a radius.
+/// Generate a random location within a radius (in meters).
 ///
-/// Source: [Reddit](https://www.reddit.com/r/rust/comments/f08lqu/comment/fgsxeik/)
-///
-/// # Notes
-/// @GoodluckH: This function sometimes output invalid coordinates. I'm not sure why.
+/// Creates a circle using 365 points around the given latitude/longitude values.
+/// Then randomly generates a new point within this circle using a bounding rect.
 fn gen_around_location(
-    rng: &mut ThreadRng,
-    latitude: f32,
-    longitude: f32,
+    rng: &mut rand::rngs::ThreadRng,
+    start_point: &Point,
     radius: f32,
-) -> (OrderedFloat<f32>, OrderedFloat<f32>) {
-    // Transform to cartesian coordinates
-    let x = (DEG_TO_RAD * longitude).cos();
-    let y = (DEG_TO_RAD * longitude).sin();
-    let z = (DEG_TO_RAD * latitude).sin();
-
-    // Generate random unit vector
-    let x1 = 2.0 * rng.gen::<f32>() - 1.0;
-    let y1 = 2.0 * rng.gen::<f32>() - 1.0;
-    let z1 = 2.0 * rng.gen::<f32>() - 1.0;
-    let len = (x1 * x1 + y1 * y1 + z1 * z1).sqrt();
-
-    // Generate random angle
-    let ang = 0.5 * (radius / 1000.0 * DEG_TO_RAD) * rng.gen::<f32>();
-    let ca = ang.cos();
-    let sa = ang.sin() / len;
-
-    // Create Quaternion components
-    let vec: Vector3<f32> = [x, y, z]; // TODO(R3) handle 0 case
-    let q: Quaternion<f32> = (ca, [sa * x1, sa * y1, sa * z1]);
-    let vec = quaternion::rotate_vector(q, vec);
-
-    let r_lon = RAD_TO_DEG * vec[1].atan2(vec[0]);
-    let r_lat = RAD_TO_DEG * vec[2].asin();
-    if r_lat.is_nan() {
-        return gen_around_location(rng, latitude, longitude, radius);
+) -> Point<f64> {
+    let mut points = vec![];
+    for i in 0..265 {
+        points.push(start_point.geodesic_destination(i as f64, radius as f64));
     }
-    (OrderedFloat(r_lat), OrderedFloat(r_lon))
+
+    let polygon = Polygon::new(LineString::from(points), vec![]);
+    let bounding_rect: Rect = polygon
+        .bounding_rect()
+        .unwrap_or_else(|| panic!("Could not get bounding rect for polygon: {:?}", polygon));
+
+    loop {
+        let random_x = rng.gen_range(bounding_rect.min().x..bounding_rect.max().x);
+        let random_y = rng.gen_range(bounding_rect.min().y..bounding_rect.max().y);
+        let random_point = Point::new(random_x, random_y);
+
+        if polygon.contains(&random_point) {
+            return random_point;
+        }
+    }
+}
+
+/// Takes customer location (src) and required destination (dst) and returns a tuple with nearest vertiports to src and dst
+pub fn get_nearest_vertiports<'a>(
+    src_location: &'a Location,
+    dst_location: &'a Location,
+    vertiports: &'static Vec<Node>,
+) -> (&'static Node, &'static Node) {
+    router_info!("(get_nearest_vertiports) function start.");
+    let mut src_vertiport = &vertiports[0];
+    let mut dst_vertiport = &vertiports[0];
+    router_debug!("(get_nearest_vertiport) src_location: {:?}", src_location);
+    router_debug!("(get_nearest_vertiport) dst_location: {:?}", dst_location);
+    let src_point: Point = src_location.into();
+    let dst_point: Point = dst_location.into();
+    let mut src_distance = src_point.geodesic_distance(&src_vertiport.location.into());
+    let mut dst_distance = dst_point.geodesic_distance(&dst_vertiport.location.into());
+    router_debug!("(get_nearest_vertiport) src_distance: {}", src_distance);
+    router_debug!("(get_nearest_vertiport) dst_distance: {}", dst_distance);
+    for vertiport in vertiports {
+        router_debug!(
+            "(get_nearest_vertiport) checking vertiport: {:?}",
+            vertiport
+        );
+        let new_src_distance = src_point.geodesic_distance(&vertiport.location.into());
+        let new_dst_distance = dst_point.geodesic_distance(&vertiport.location.into());
+        router_debug!(
+            "(get_nearest_vertiport) new_src_distance: {}",
+            new_src_distance
+        );
+        router_debug!(
+            "(get_nearest_vertiport) new_dst_distance: {}",
+            new_dst_distance
+        );
+        if new_src_distance < src_distance {
+            src_distance = new_src_distance;
+            src_vertiport = vertiport;
+        }
+        if new_dst_distance < dst_distance {
+            dst_distance = new_dst_distance;
+            dst_vertiport = vertiport;
+        }
+    }
+    router_debug!("(get_nearest_vertiport) src_vertiport: {:?}", src_vertiport);
+    router_debug!("(get_nearest_vertiport) dst_vertiport: {:?}", dst_vertiport);
+    (src_vertiport, dst_vertiport)
 }
 
 #[cfg(test)]
@@ -178,7 +210,7 @@ mod tests {
     #[test]
     fn test_generate_location_near() {
         let location = generate_location();
-        let location_near = generate_location_near(&location, 10.0);
+        let location_near = generate_location_near(&location.into(), 10.0);
         println!("Original location: {:?}", location);
         println!("Nearby location: {:?}", location_near);
         println!(

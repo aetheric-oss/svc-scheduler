@@ -30,7 +30,7 @@
 - update release files ([`4ee00ab`](https://github.com/Arrow-air/svc-scheduler/commit/4ee00abe4085f0b1d11b0cc091567c33601b9e0c))
 - update svc-storage version with advanced filters ([`dbe49a7`](https://github.com/Arrow-air/svc-scheduler/commit/dbe49a76a6f05214eff278fabf0bef6f7be8e82e))
 - refactor test data to return exp results with deadhead flights ([`507ace6`](https://github.com/Arrow-air/svc-scheduler/commit/507ace6040dfceb117a881eb3dcc5b8e103dcde4))
-- add 2 tests for deadhead flights (one for parked and one for in-fligh scenario) ([`d27261e`](https://github.com/Arrow-air/svc-scheduler/commit/d27261e3a6d1be1e4d6ae1a5f78812dd2f8144e1))
+- add 2 tests for deadhead flights (one for parked and one for in-flight scenario) ([`d27261e`](https://github.com/Arrow-air/svc-scheduler/commit/d27261e3a6d1be1e4d6ae1a5f78812dd2f8144e1))
 - update dependency ([`6606b79`](https://github.com/Arrow-air/svc-scheduler/commit/6606b7973b482eb37293af93a1f17c22c21a4435))
 - add 1 test for aircraft re-routing when capacity not met ([`2f2f28c`](https://github.com/Arrow-air/svc-scheduler/commit/2f2f28c872d20a351a0c9713e86fe98dc41b2cad))
 - update README ([`5104464`](https://github.com/Arrow-air/svc-scheduler/commit/51044640ae1dfd382b1bb08d0381539a22b6d617))

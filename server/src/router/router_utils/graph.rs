@@ -30,10 +30,11 @@ use crate::router::router_types::{edge::Edge, node::AsNode};
 /// *O*(*n^2*) at worst if the constraint is not met for all nodes.
 pub fn build_edges(
     nodes: &[impl AsNode],
-    constraint: f32,
-    constraint_function: fn(&dyn AsNode, &dyn AsNode) -> f32,
-    cost_function: fn(&dyn AsNode, &dyn AsNode) -> f32,
+    constraint: f64,
+    constraint_function: fn(&dyn AsNode, &dyn AsNode) -> f64,
+    cost_function: fn(&dyn AsNode, &dyn AsNode) -> f64,
 ) -> Vec<Edge> {
+    router_debug!("(build_edges) starting function call.");
     let mut edges = Vec::new();
     for from in nodes {
         for to in nodes {
@@ -44,7 +45,7 @@ pub fn build_edges(
                 edges.push(Edge {
                     from: from.as_node(),
                     to: to.as_node(),
-                    cost: OrderedFloat(cost),
+                    cost: OrderedFloat::<f64>(cost),
                 });
             }
         }
@@ -54,10 +55,9 @@ pub fn build_edges(
 
 #[cfg(test)]
 mod tests {
-    use crate::router::router_utils::{
-        generator::{generate_location, generate_nodes_near},
-        haversine,
-    };
+    use geo::{GeodesicDistance, Point};
+
+    use crate::router::router_utils::mock::{generate_location, generate_nodes_near};
 
     use super::*;
 
@@ -65,14 +65,22 @@ mod tests {
     fn test_build_edges() {
         let capacity = 1000;
         let location = generate_location();
-        let nodes = generate_nodes_near(&location, 1000.0, capacity);
+        let nodes = generate_nodes_near(&location.into(), 1000.0, capacity);
 
         // set constraint to 2000 so that all nodes should be connected
         let edges = build_edges(
             &nodes,
             2000.0,
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
-            |from, to| haversine::distance(&from.as_node().location, &to.as_node().location),
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
+            |from, to| {
+                let from_point: Point = from.as_node().location.into();
+                let to_point: Point = to.as_node().location.into();
+                from_point.geodesic_distance(&to_point)
+            },
         );
 
         assert_eq!(edges.len(), nodes.len() * nodes.len() - capacity as usize);
