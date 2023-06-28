@@ -72,7 +72,8 @@ impl FromStr for Calendar {
                 .collect();
             if rrules_with_header.len() < 2 {
                 router_error!(
-                    "Invalid rrule with header length: {}",
+                    "Invalid rrule {} with header length: {}",
+                    calendar_str,
                     rrules_with_header.len()
                 );
                 return Err(());
@@ -140,8 +141,7 @@ impl Calendar {
     ///    If the calendar contains a blocking event from 10:00 to 11:00 and we check if 9:30 to 10:00 is available, it will return true.
     ///       - if the start or end time is on the boundary with the blocking event, it is considered available.
     /// Code Example:
-    /// ```
-    ///    use router::schedule::Calendar;
+    /// ```rust,ignore
     ///    use std::str::FromStr;
     ///    use chrono::TimeZone;
     ///    use rrule::Tz;
@@ -156,7 +156,7 @@ impl Calendar {
     /// returns true if the time slot is fully available
     pub fn is_available_between(&self, start_time: DateTime<Tz>, end_time: DateTime<Tz>) -> bool {
         router_debug!(
-            "Checking if time slot is available between {} and {}",
+            "(is_available_between) Checking if time slot is available between {} and {}",
             start_time,
             end_time
         );
@@ -165,8 +165,8 @@ impl Calendar {
         let start_time = start_time + Duration::seconds(1);
         let end_time = end_time - Duration::seconds(1);
 
-        router_debug!("Adjusted start_time: {}", start_time);
-        router_debug!("Adjusted end_time: {}", end_time);
+        router_debug!("(is_available_between) Adjusted start_time: {}", start_time);
+        router_debug!("(is_available_between) Adjusted end_time: {}", end_time);
         for event in &self.events {
             let duration = &event.duration;
             // check standard rrule time - if event(block) start time is between two dates,
@@ -174,11 +174,11 @@ impl Calendar {
             let (events, _) = &event
                 .rrule_set
                 .clone()
-                .after(start_time)
-                .before(end_time)
+                .after(start_time.with_timezone(&rrule::Tz::UTC))
+                .before(end_time.with_timezone(&rrule::Tz::UTC))
                 .all(1);
             if !events.is_empty() {
-                router_debug!("Time slot is not available");
+                router_debug!("(is_available_between) Time slot is not available");
                 return false;
             }
             let d = DurationParser::parse(duration).expect("Failed to parse duration");
@@ -192,16 +192,16 @@ impl Calendar {
             let (events, _) = &event
                 .rrule_set
                 .clone()
-                .after(adjusted_start_time)
-                .before(end_time)
+                .after(adjusted_start_time.with_timezone(&rrule::Tz::UTC))
+                .before(end_time.with_timezone(&rrule::Tz::UTC))
                 .all(10);
             if !events.is_empty() {
-                router_debug!("Time slot is not available");
+                router_debug!("(is_available_between) Time slot is not available for adjusted start time [{}]", adjusted_start_time);
                 return false;
             }
         }
         // if no events(blocks) found across all rrule_sets, then time slot is available
-        router_debug!("Time slot is available");
+        router_debug!("(is_available_between) Time slot is available");
         true
     }
 }
@@ -234,6 +234,7 @@ mod calendar_tests {
         let calendar = Calendar::from_str(CAL_WORKDAYS_8AM_6PM).unwrap();
         assert_eq!(calendar.events.len(), 2);
         assert_eq!(calendar.events[0].duration, "PT14H");
+        assert_eq!(calendar.events[1].duration, "PT24H");
     }
 
     #[test]
@@ -269,6 +270,7 @@ mod calendar_tests {
     fn test_calendar_with_day_break() {
         let calendar =
             Calendar::from_str(&(CAL_WORKDAYS_8AM_6PM.to_owned() + _WITH_1HR_DAILY_BREAK)).unwrap();
+        assert_eq!(calendar.events[2].duration, "PT1H");
 
         let mut start = Tz::UTC.with_ymd_and_hms(2022, 10, 25, 11, 30, 0).unwrap();
         let mut end = Tz::UTC.with_ymd_and_hms(2022, 10, 25, 12, 30, 0).unwrap();

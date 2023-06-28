@@ -7,7 +7,7 @@ appenders:
       pattern: "{d(%Y-%m-%d %H:%M:%S)} | {({l}):5.5} | {f}:{L} — {m}{n}"
   grpc_requests:
     kind: rolling_file
-    path: "log/grpc_requests.log"
+    path: "logs/grpc_requests.log"
     policy:
       trigger:
         kind: size
@@ -19,9 +19,23 @@ appenders:
         base: 1
     encoder:
       kind: json
+  grpc_clients:
+    kind: rolling_file
+    path: "logs/grpc_clients.log"
+    policy:
+      trigger:
+        kind: size
+        limit: 20mb
+      roller:
+        kind: fixed_window
+        pattern: logs/grpc_clients_{}.gz
+        count: 5
+        base: 1
+    encoder:
+      kind: json
   router:
     kind: rolling_file
-    path: "log/router.log"
+    path: "logs/router.log"
     policy:
       trigger:
         kind: size
@@ -33,9 +47,23 @@ appenders:
         base: 1
     encoder:
       kind: json
+  tests:
+    kind: rolling_file
+    path: "logs/tests.log"
+    policy:
+      trigger:
+        kind: size
+        limit: 20mb
+      roller:
+        kind: fixed_window
+        pattern: logs/tests_{}.gz
+        count: 5
+        base: 1
+    encoder:
+      kind: json
 
 root:
-  level: info
+  level: warn
   appenders:
     - stdout
 
@@ -44,7 +72,15 @@ loggers:
     level: info
     appenders:
       - grpc_requests
-  app::router:
+  app::client::storage::grpc:
     level: info
     appenders:
+      - grpc_clients
+  app::router:
+    level: debug
+    appenders:
       - router
+  test::unit:
+    level: info
+    appenders:
+      - tests

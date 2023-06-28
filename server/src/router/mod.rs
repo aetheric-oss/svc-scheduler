@@ -14,9 +14,12 @@ pub mod router_types {
 
 /// Utility functions for the router.
 pub mod router_utils {
-    pub mod generator;
     pub mod graph;
     pub mod haversine;
     pub mod router_state;
     pub mod schedule;
+
+    #[cfg(feature = "mock")]
+    #[allow(dead_code)]
+    pub mod mock;
 }

@@ -14,6 +14,6 @@ pub struct Edge<'a> {
     /// The other end of the edge.
     pub to: &'a Node,
 
-    /// The weight of the edge.
-    pub cost: OrderedFloat<f32>,
+    /// The weight of the edge in meters.
+    pub cost: OrderedFloat<f64>,
 }

@@ -26,3 +26,20 @@ pub struct Location {
     /// The altitude of the location in meters.
     pub altitude_meters: OrderedFloat<f32>,
 }
+
+impl From<Location> for geo::Point {
+    fn from(value: Location) -> Self {
+        geo::Point::new(
+            value.longitude.into_inner() as f64,
+            value.latitude.into_inner() as f64,
+        )
+    }
+}
+impl From<&Location> for geo::Point {
+    fn from(value: &Location) -> Self {
+        geo::Point::new(
+            value.longitude.into_inner() as f64,
+            value.latitude.into_inner() as f64,
+        )
+    }
+}
