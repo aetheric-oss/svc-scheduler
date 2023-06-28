@@ -1,23 +1,34 @@
+![Arrow Banner](https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png)
+
 # Concept of Operations - `svc-scheduler`
 
-<center>
-
-<img src="https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png" style="height:250px" />
-
-</center>
-
-Item | Value
---- | ---
-Maintainer(s) | @arrow-air/services
-Stuckee | A.M. Smith ([@ServiceDog](https://github.com/servicedog))
+## :telescope: Overview
 
 :exclamation: This document is intended for internal use.
 
 :exclamation: This document describes both current and *planned* capabilities. Not all features described in this document have been implemented.
 
-## 1.0 Project Description
+### Metadata
 
-#### 1.0.1 Background
+| Attribute     | Description                                                       |
+| ------------- |-------------------------------------------------------------------|
+| Maintainer(s) | [Services Team](https://github.com/orgs/Arrow-air/teams/services) |
+| Stuckee       | A.M. Smith ([@ServiceDog](https://github.com/servicedog))         |
+| Status        | Development                                                       |
+
+
+## :books: Related Documents
+
+Document | Description
+--- | ---
+[High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md) | Overview of Arrow microservices.
+[High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Arrow microservices.
+[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
+[Interface Control Document (ICD) - `svc-scheduler`](./icd.md) | Defines the inputs and outputs of this microservice.
+[Software Design Document (SDD) - `svc-scheduler`](./sdd.md) | Specifies the internal activity of this microservice.
+[Routing Scenarios](https://docs.google.com/presentation/d/1Nt91KVIczhxngurfyeIJtG8J0m_38jGU1Cnqm1_BfPc/edit#slide=id.g1454d6dfbcf_0_731) | Graphical representation of various routing scenarios
+
+## :raised_hands: Motivation
 
 The scheduler service (`svc-scheduler`) is the center of the Arrow rideshare and cargo network.
 
@@ -27,8 +38,15 @@ There are a limited number of VTOL landing zones in the urban environment. While
 
 As an additional source of complexity, passengers may plan minutes, hours, or days in advance. In the on-demand case, potential routes should be calculated and presented to the client within a reasonable time frame (seconds or minutes) and stay viable long enough for the client to make a decision.
 
-#### 1.0.2 Overview of the Envisioned System
+## Needs, Goals and Objectives of Envisioned System
 
+The `svc-scheduler` service has several functions:
+- Expose an API for other microservices to create, confirm, cancel, and modify flight plans.
+- Fleet routing and optimization
+
+## External Interfaces
+
+This is a general overview of external interfaces and capabilities.
 <center> 
 
 ```mermaid
@@ -72,36 +90,11 @@ Explanation:
 
 A full description of interfaces can be found in the [ICD](./icd.md).
 
-## 2.0 Applicable Resources
-
-#### 2.0.1 Documents
-
-Document | Description
---- | ---
-[High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md) | Overview of Arrow microservices.                             |
-[High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Arrow microservices. |
-[Software Design Document - `svc-scheduler`](./sdd.md) | Defines the implementation of this interface.
-[Interface Control Document (ICD) - `svc-scheduler`](./icd.md) | Defines the inputs and outputs of this microservice.
-[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements for this service.
-[Routing Scenarios](https://docs.google.com/presentation/d/1Nt91KVIczhxngurfyeIJtG8J0m_38jGU1Cnqm1_BfPc/edit#slide=id.g1454d6dfbcf_0_731) | Graphical representation of various routing scenarios
-
-## 3.0 Needs, Goals and Objectives of Envisioned System
-
-The `svc-scheduler` service has several functions:
-- Expose an API for other microservices to create, confirm, cancel, and modify flight plans.
-- Fleet routing and optimization
-
-## 3.1 External Interfaces
-
-This is a general overview of external interfaces and capabilities.
-
-A full description of interfaces can be found in the [ICD](./icd.md).
-
-## 4.0 Nominal & Off-Nominal Conditions
+## Nominal & Off-Nominal Conditions
 
 Nominal and off-nominal conditions will be addressed by service-level requirements, which will link up to high-level requirements. These documents are still being developed.
 
-## 4.1 Modes of Operation
+## Modes of Operation
 
 Mode | Description
 --- | ---
@@ -110,19 +103,19 @@ Maintain | Forbid new flight requests, allow limited modifications and cancellat
 No-Fly | Ground all active flights to nearest available vertipad or emergency landing zone. Forbid new flight requests without proper permissions.
 Offline | Unable to accept any type of request; dependencies unavailable.
 
-## 5.0 Physical Environment
+## Physical Environment
 
 See the High-Level Services CONOPS.
 
-## 6.0 Support Environment
+## Support Environment
 
 See the High-Level Services CONOPS.
 
-## 7.0 Impact Considerations
+## Impact Considerations
 
 See the High-Level Services CONOPS.
 
-## 8.0 Risks and Potential Issues
+## Risks and Potential Issues
 
 ***Attack Vector***
 
@@ -140,9 +133,9 @@ A failure of the service (power outage, process crash, server meltdown, etc.) co
 
 Users will request personal data through this service including ride history, vertiport defaults, and other sensitive information. Data traffic to and from this service should be encrypted for user privacy.
 
-## 9.0 Scheduling Variables
+## Scheduling Variables
 
-#### 9.0.1 Requests
+### Requests
 
 When a service requests a flight, it must provide information about the trip.
 
@@ -153,7 +146,7 @@ When a service requests a flight, it must provide information about the trip.
 | Cargo or Rideshare | Different vehicles and vertipads will be used for cargo operations and rideshare operations. |
 | Pad Time | Estimated amount of time needed for loading and unloading.
 
-#### 9.0.2 Vertiports
+### Vertiports
 
 Vertiports have:
 - Operational status (open/closed)
@@ -163,7 +156,7 @@ Vertiports have:
   - Location stream (moving platforms)
 - One or more **vertipads**
 
-#### 9.0.3 Vertipads
+### Vertipads
 
 A vertipad, or **pad** for short, is a landing zone for a VTOL aircraft. The size and visible markings of a pad are typically governed by government regulations.
 
@@ -176,7 +169,7 @@ A pad has:
 
 A pad can host a single aircraft at a time, and therefore must have a **pad schedule**.
 
-#### 9.0.4 Vertipad Schedule
+### Vertipad Schedule
 
 The pad schedule consists of dynamically sized time slots. The start of a time slot corresponds with the estimated arrival time of an aircraft. The size of a time slot is the estimated amount of time that the aircraft will occupy the pad. This value can be set by default, by request, or by the vertiport operator.
 
@@ -196,19 +189,19 @@ If there is no backup pad and the current aircraft is unable to be moved off of 
 
 Even a small delay at one vertipad has the power to propagate to the whole network and cause missed connections. Incoming flights can help get a vertipad schedule back on track through early departures. If five flights each leave one minute earlier than expected, they can collectively rectify a five minute delay caused by an earlier flight. `svc-scheduler` may enforce these smaller pad windows until a vertipad is on-time once again.
 
-#### 9.0.5 Aircraft
+### Aircraft
 
 Aircraft from multiple manufacturers may operate on the Arrow network. Different makes and models may have differing specifications, such as cargo capacity, range, and handicap accessibility.
 
 These factors are considered by the scheduler when matching an aircraft to a flight plan, as well as proximity to the departure location at the departure time.
 
-#### 9.0.6 Aircraft Charge
+### Aircraft Charge
 
 Aircraft have limited range on a single battery charge. The scheduler will calculate if an aircraft has sufficient charge to make a journey, based on the weight of cargo, distance, and current state of charge. The scheduler will also plan for extended pad occupation if an aircraft needs to recharge.
 
 In the case of easily exchangeable power cells, the scheduler will determine the cells to be exchanged based on their charge levels, which can be obtained from networked charging stations.
 
-#### 9.0.7 Regulatory Constraints
+### Regulatory Constraints
 
 Regulations from civil aviation authorities will impact aircraft scheduling.
 
@@ -218,7 +211,7 @@ Many countries require flight plans filed with the nearest flight authority prio
 
 Due to the low-flying nature of VTOL aircraft, government regulations may restrict aircraft to specific flight "corridors" between each pad. In this case, changing destination mid-flight (due to a medical emergency, for instance) may require a sequence of transfers between corridors, as opposed to simply changing direction. These regulations are still being developed.
 
-#### 9.0.8 Environmental Factors
+### Environmental Factors
 
 Scheduling may be impacted by inclement weather, including windy conditions and rain. The scheduler may factor wind speed into trip estimations, depending on the aircraft and activity level of the destination pad.
 
@@ -226,7 +219,7 @@ Specific weather conditions should disqualify flights. Circumstances of automati
 
 Vertiports and aircraft require a strong network connection to stay apprised of schedule changes. Downtime in the network may halt new flights, and a manual procedure for landing aircraft on pads will need to be followed in the event of network or electricity outages.
 
-## 10.0.0 Deployment
+## Deployment
 
 A dedicated `svc-scheduler` process will be deployed to each VTOL region. Regions will generally be focused around cities, towns, or test sites. The server hardware will optimally also be located in `svc-scheduler`'s region.
 

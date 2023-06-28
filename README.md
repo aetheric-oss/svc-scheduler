@@ -1,12 +1,9 @@
-![Arrow Banner](https://github.com/Arrow-air/.github/raw/main/profile/assets/arrow_v2_twitter-banner_neu.png)
+![Arrow Banner](https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png)
 
-# `svc-scheduler`
+# svc-scheduler Service
 
-![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/Arrow-air/svc-scheduler?include_prereleases)
-![Sanity Checks](https://github.com/arrow-air/svc-scheduler/actions/workflows/sanity_checks.yml/badge.svg?branch=main)
-![Rust
-Checks](https://github.com/arrow-air/svc-scheduler/actions/workflows/rust_ci.yml/badge.svg?branch=main)
-![Python PEP8](https://github.com/arrow-air/svc-scheduler/actions/workflows/python_ci.yml/badge.svg?branch=main)
+![GitHub stable release (latest by date)](https://img.shields.io/github/v/release/Arrow-air/svc-scheduler?sort=semver&color=green) ![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/Arrow-air/svc-scheduler?include_prereleases) [![Coverage Status](https://coveralls.io/repos/github/Arrow-air/svc-scheduler/badge.svg?branch=develop)](https://coveralls.io/github/Arrow-air/svc-scheduler)
+![Sanity Checks](https://github.com/arrow-air/svc-scheduler/actions/workflows/sanity_checks.yml/badge.svg?branch=develop) ![Python PEP8](https://github.com/arrow-air/svc-scheduler/actions/workflows/python_ci.yml/badge.svg?branch=develop) ![Rust Checks](https://github.com/arrow-air/svc-scheduler/actions/workflows/rust_ci.yml/badge.svg?branch=develop) 
 ![Arrow DAO
 Discord](https://img.shields.io/discord/853833144037277726?style=plastic)
 
@@ -19,7 +16,8 @@ repository can be found in the `server/src` directory.
 The documentation of the `lib-router` can be found [here](https://github.com/Arrow-air/lib-router/tree/develop/docs).
 
 ## :telescope: Overview
-**svc-scheduler** is responsible for scheduling, confirming and cancelling flights. 
+
+**svc-scheduler** is responsible for scheduling, confirming and canceling flights. 
 The service exposes two crates:
 - server - [bin] target to run gRPC server
 - client - [lib] target for other services to import and use
@@ -67,9 +65,10 @@ make rust-example-grpc
 
 ### Formatting
 
-The Arrow docker image has some formatting tools installed which can fix your code formatting for you.
-Using the Makefile, you can easily run the formatters on your code.
-Make sure to commit your code before running these commands, as they might not always result in a desired outcome.
+The Arrow docker image has some formatting tools installed which can fix your
+code formatting for you. Using the Makefile, you can easily run the formatters
+on your code. Make sure to commit your code before running these commands, as
+they might not always result in the desired outcome.
 
 ```bash
 # Format TOML files
