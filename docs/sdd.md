@@ -1,23 +1,8 @@
-# `svc-scheduler`- Software Design Document (SDD)
+![Arrow Banner](https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png)
 
-<center>
+# Software Design Document (SDD) - `svc-scheduler`
 
-<img src="https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png" style="height:250px" />
-
-</center>
-
-### Metadata
-
-| Item | Description                                                       |
-| --- |-------------------------------------------------------------------|
-| Maintainer(s) | [Services Team](https://github.com/orgs/Arrow-air/teams/services) |
-| Primary Contact | [romanmandryk](https://github.com/romanmandryk)                      |
-
-## Overview
-
-Attribute | Description
---- | ---
-Status | :yellow_circle: Development
+## :telescope: Overview
 
 This document details the software implementation of `svc-scheduler` (scheduler module).
 
@@ -29,29 +14,33 @@ Draft itineraries are held in memory temporarily and discarded if not confirmed 
 
 *This document is under development as Arrow operates on a pre-revenue and pre-commercial stage. Scheduler logics may evolve as per business needs, which may result in architectural/implementation changes to the scheduler module.*
 
-## Related Documents
+### Metadata
+
+| Attribute     | Description                                                       |
+| ------------- |-------------------------------------------------------------------|
+| Maintainer(s) | [Services Team](https://github.com/orgs/Arrow-air/teams/services) |
+| Stuckee       | [romanmandryk](https://github.com/romanmandryk)                   |
+| Status        | Development                                                       |
+
+## :books: Related Documents
 
 Document | Description
 --- | ----
 [High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md) | Overview of Arrow microservices.
 [High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Arrow microservices.
-[Concept of Operations - `svc-scheduler`](./conops.md) | Concept of Operations for `svc-scheduler`.
-[Interface Control Document - `svc-scheduler`](./icd.md)| Interface Control Document for `svc-scheduler`.
-[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements for this service.
+[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
+[Concept of Operations - `svc-scheduler`](./conops.md) | Defines the motivation and duties of this microservice.
+[Interface Control Document - `svc-scheduler`](./icd.md)| Defines the inputs and outputs of this microservice.
+[Routing Scenarios](https://docs.google.com/presentation/d/1Nt91KVIczhxngurfyeIJtG8J0m_38jGU1Cnqm1_BfPc/edit#slide=id.g1454d6dfbcf_0_731) | Graphical representation of various routing scenarios
 
-## Location
-
-Server-side service.
-
-## Module Attributes
+## :dna: Module Attributes
 
 | Attribute       | Applies | Explanation                                                                              |
 |-----------------|---------|------------------------------------------------------------------------------------------|
 | Safety Critical | No      | Scheduler is business critical but has no direct impact to the operational safety.       |
 | Realtime        | No      | Scheduler is only used to fetch viable flights, and will not be used during the flights. |
 
-
-## Logic
+## :gear: Logic
 
 ### Initialization
 
@@ -74,9 +63,7 @@ Does not apply.
 
 Does not apply.
 
-## Interface Handlers
-
-See [the ICD](./icd.md) for this microservice.
+## :speech_balloon: gRPC Handlers
 
 ### `query_flight` 
 - Takes requested departure and arrival vertiport ids and departure/arrival time window and returns next available flight(s).
