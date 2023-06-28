@@ -1,22 +1,25 @@
 //! gRPC client implementation
 
-///module svc_scheduler generated from svc-scheduler-grpc.proto
-pub mod scheduler_grpc {
-    #![allow(unused_qualifications)]
-    include!("../src/grpc.rs");
-}
 use chrono::{TimeZone, Utc};
-use prost_types::Timestamp;
-use scheduler_grpc::rpc_service_client::RpcServiceClient;
-use scheduler_grpc::{ConfirmItineraryRequest, QueryFlightRequest};
-use tonic::Request;
+use lib_common::grpc::get_endpoint_from_env;
+use prost_wkt_types::Timestamp;
+use svc_scheduler_client_grpc::client::{
+    ConfirmItineraryRequest, QueryFlightRequest, RpcServiceClient,
+};
+use svc_scheduler_client_grpc::service::Client as ServiceClient;
+use svc_scheduler_client_grpc::{Client, GrpcClient};
+use tonic::transport::Channel;
 
-/// Example svc-scheduler-client
-/// Assuming the server is running on localhost:50051, this method calls `client.query_flight` and
-/// should receive a valid response from the server
+/// Example svc-scheduler-client-grpc
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = RpcServiceClient::connect("http://[::1]:50052").await?;
+    let (host, port) = get_endpoint_from_env("SERVER_HOSTNAME", "SERVER_PORT_GRPC");
+    let connection = GrpcClient::<RpcServiceClient<Channel>>::new_client(&host, port, "scheduler");
+    println!("Connection created");
+    println!(
+        "NOTE: Ensure the server is running on {} or this example will fail.",
+        connection.get_address()
+    );
 
     let departure_time = Utc
         .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
@@ -28,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap()
         .timestamp();
 
-    let request = Request::new(QueryFlightRequest {
+    let request = QueryFlightRequest {
         is_cargo: true,
         persons: Some(0),
         weight_grams: Some(5000),
@@ -42,17 +45,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             seconds: arrival_time,
             nanos: 0,
         }),
-    });
+    };
 
-    let response = client.query_flight(request).await?.into_inner().itineraries;
+    let response = connection
+        .query_flight(request)
+        .await?
+        .into_inner()
+        .itineraries;
     let itinerary_id = (&response)[0].id.clone();
     println!("itinerary id={}", itinerary_id);
 
-    let response = client
-        .confirm_itinerary(Request::new(ConfirmItineraryRequest {
+    let response = connection
+        .confirm_itinerary(ConfirmItineraryRequest {
             id: itinerary_id,
             user_id: "".to_string(),
-        }))
+        })
         .await?;
 
     println!("RESPONSE={:?}", &response);

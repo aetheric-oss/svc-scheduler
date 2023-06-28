@@ -14,10 +14,10 @@ pub struct QueryFlightRequest {
     pub weight_grams: ::core::option::Option<u32>,
     /// requested earliest time of departure - beginning of the time window in which we search for a flight
     #[prost(message, optional, tag = "4")]
-    pub earliest_departure_time: ::core::option::Option<::prost_types::Timestamp>,
+    pub earliest_departure_time: ::core::option::Option<::prost_wkt_types::Timestamp>,
     /// requested preferred time of arrival - end of the time window in which we search for a flight
     #[prost(message, optional, tag = "5")]
-    pub latest_arrival_time: ::core::option::Option<::prost_types::Timestamp>,
+    pub latest_arrival_time: ::core::option::Option<::prost_wkt_types::Timestamp>,
     /// vertiport_depart_id
     #[prost(string, tag = "6")]
     pub vertiport_depart_id: ::prost::alloc::string::String,
@@ -36,68 +36,7 @@ pub struct ConfirmItineraryRequest {
     #[prost(string, tag = "2")]
     pub user_id: ::prost::alloc::string::String,
 }
-/// QueryFlightPlan
-#[derive(Eq)]
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct QueryFlightPlan {
-    /// id of the flight
-    #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
-    /// pilot_id
-    #[prost(string, tag = "2")]
-    pub pilot_id: ::prost::alloc::string::String,
-    /// vehicle_id
-    #[prost(string, tag = "3")]
-    pub vehicle_id: ::prost::alloc::string::String,
-    /// cargo
-    #[prost(uint32, repeated, tag = "4")]
-    pub cargo: ::prost::alloc::vec::Vec<u32>,
-    /// weather_conditions
-    #[prost(string, tag = "5")]
-    pub weather_conditions: ::prost::alloc::string::String,
-    /// vertiport_depart_id
-    #[prost(string, tag = "6")]
-    pub vertiport_depart_id: ::prost::alloc::string::String,
-    /// pad_depart_id
-    #[prost(string, tag = "7")]
-    pub pad_depart_id: ::prost::alloc::string::String,
-    /// vertiport_arrive_id
-    #[prost(string, tag = "8")]
-    pub vertiport_arrive_id: ::prost::alloc::string::String,
-    /// pad_arrive_id
-    #[prost(string, tag = "9")]
-    pub pad_arrive_id: ::prost::alloc::string::String,
-    /// estimated_departure
-    #[prost(message, optional, tag = "10")]
-    pub estimated_departure: ::core::option::Option<::prost_types::Timestamp>,
-    /// estimated_arrival
-    #[prost(message, optional, tag = "11")]
-    pub estimated_arrival: ::core::option::Option<::prost_types::Timestamp>,
-    /// actual_departure
-    #[prost(message, optional, tag = "12")]
-    pub actual_departure: ::core::option::Option<::prost_types::Timestamp>,
-    /// actual_arrival
-    #[prost(message, optional, tag = "13")]
-    pub actual_arrival: ::core::option::Option<::prost_types::Timestamp>,
-    /// flight_release_approval
-    #[prost(message, optional, tag = "14")]
-    pub flight_release_approval: ::core::option::Option<::prost_types::Timestamp>,
-    /// flight_plan_submitted
-    #[prost(message, optional, tag = "15")]
-    pub flight_plan_submitted: ::core::option::Option<::prost_types::Timestamp>,
-    /// flightStatus
-    #[prost(enumeration = "FlightStatus", tag = "16")]
-    pub flight_status: i32,
-    /// flightPriority
-    #[prost(enumeration = "FlightPriority", tag = "17")]
-    pub flight_priority: i32,
-    /// estimated distance in meters
-    #[prost(uint32, tag = "18")]
-    pub estimated_distance: u32,
-}
 /// Itinerary includes id, flight plan and potential deadhead flights
-#[derive(Eq)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Itinerary {
@@ -106,13 +45,16 @@ pub struct Itinerary {
     pub id: ::prost::alloc::string::String,
     /// flight_plan
     #[prost(message, optional, tag = "2")]
-    pub flight_plan: ::core::option::Option<QueryFlightPlan>,
+    pub flight_plan: ::core::option::Option<
+        ::svc_storage_client_grpc::flight_plan::Object,
+    >,
     /// deadhead flight plans
     #[prost(message, repeated, tag = "3")]
-    pub deadhead_flight_plans: ::prost::alloc::vec::Vec<QueryFlightPlan>,
+    pub deadhead_flight_plans: ::prost::alloc::vec::Vec<
+        ::svc_storage_client_grpc::flight_plan::Object,
+    >,
 }
 /// QueryFlightResponse
-#[derive(Eq)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryFlightResponse {
@@ -132,7 +74,7 @@ pub struct ConfirmItineraryResponse {
     pub confirmed: bool,
     /// time when the flight was confirmed
     #[prost(message, optional, tag = "3")]
-    pub confirmation_time: ::core::option::Option<::prost_types::Timestamp>,
+    pub confirmation_time: ::core::option::Option<::prost_wkt_types::Timestamp>,
 }
 /// CancelItineraryResponse
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -146,7 +88,7 @@ pub struct CancelItineraryResponse {
     pub cancelled: bool,
     /// time when the flight was cancelled
     #[prost(message, optional, tag = "3")]
-    pub cancellation_time: ::core::option::Option<::prost_types::Timestamp>,
+    pub cancellation_time: ::core::option::Option<::prost_wkt_types::Timestamp>,
     /// reason of cancellation
     #[prost(string, tag = "4")]
     pub reason: ::prost::alloc::string::String,
@@ -176,85 +118,8 @@ pub struct ReadyResponse {
     #[prost(bool, tag = "1")]
     pub ready: bool,
 }
-/// Flight Status Enum
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum FlightStatus {
-    /// READY
-    Ready = 0,
-    /// BOARDING
-    Boarding = 1,
-    /// IN_FLIGHT
-    InFlight = 3,
-    /// FINISHED
-    Finished = 4,
-    /// CANCELLED
-    Cancelled = 5,
-    /// DRAFT
-    Draft = 6,
-}
-impl FlightStatus {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            FlightStatus::Ready => "READY",
-            FlightStatus::Boarding => "BOARDING",
-            FlightStatus::InFlight => "IN_FLIGHT",
-            FlightStatus::Finished => "FINISHED",
-            FlightStatus::Cancelled => "CANCELLED",
-            FlightStatus::Draft => "DRAFT",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "READY" => Some(Self::Ready),
-            "BOARDING" => Some(Self::Boarding),
-            "IN_FLIGHT" => Some(Self::InFlight),
-            "FINISHED" => Some(Self::Finished),
-            "CANCELLED" => Some(Self::Cancelled),
-            "DRAFT" => Some(Self::Draft),
-            _ => None,
-        }
-    }
-}
-/// Flight Priority Enum
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum FlightPriority {
-    /// LOW
-    Low = 0,
-    /// HIGH
-    High = 1,
-    /// EMERGENCY
-    Emergency = 2,
-}
-impl FlightPriority {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            FlightPriority::Low => "LOW",
-            FlightPriority::High => "HIGH",
-            FlightPriority::Emergency => "EMERGENCY",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "LOW" => Some(Self::Low),
-            "HIGH" => Some(Self::High),
-            "EMERGENCY" => Some(Self::Emergency),
-            _ => None,
-        }
-    }
-}
 /// Generated client implementations.
+#[cfg(not(tarpaulin_include))]
 pub mod rpc_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
