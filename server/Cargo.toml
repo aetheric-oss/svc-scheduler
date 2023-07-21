@@ -14,7 +14,14 @@ repository.workspace   = true
 [features]
 default          = []
 dev              = ["mock"]
-test_util        = ["mock", "stub_backends"]
+test_util        = [
+  "mock",
+  "stub_backends",
+  "svc-storage-client-grpc/mock",
+  "svc-compliance-client-grpc/mock",
+  # "svc-gis-client-grpc/mock",
+]
+
 vendored-openssl = ["openssl/vendored"]
 # Will add a 'mock' module for the enabled resources, providing access to mock data generation functions
 mock = ["svc-storage-client-grpc/mock"]
@@ -22,6 +29,7 @@ mock = ["svc-storage-client-grpc/mock"]
 stub_backends = [
   "svc-storage-client-grpc/stub_client",
   "svc-compliance-client-grpc/stub_client",
+  "svc-gis-client-grpc/stub_client",
 ]
 # Will implement stub functions for the server, only use for tests!
 stub_server = ["test_util"]
@@ -53,9 +61,9 @@ petgraph         = "0.6"
 prost            = "0.11"
 prost-types      = "0.11"
 prost-wkt-types  = "0.4"
-quaternion       = "0.4"
+quaternion       = "1.0"
 rand             = "0.8"
-rrule            = "0.10"
+rrule            = "0.11"
 serde            = { version = "1.0", features = ["derive"] }
 tokio            = { version = "1.28", features = ["full"] }
 tokio-util       = "0.7"
@@ -77,6 +85,10 @@ features = ["flight_plan", "itinerary", "vehicle", "vertipad", "vertiport"]
 git      = "https://github.com/Arrow-air/svc-storage.git"
 tag      = "v0.11.0"
 
+[dependencies.svc-gis-client-grpc]
+git = "https://github.com/Arrow-air/svc-gis.git"
+tag = "v0.0.1-develop.8"
+
 [dependencies.log4rs]
 features = [
   "background_rotation",
@@ -88,7 +100,7 @@ version = "1.2"
 
 [dev-dependencies]
 logtest     = "2.0"
-serial_test = "1.0"
+serial_test = "2.0"
 
 [dev-dependencies.cargo-husky]
 default-features = false          # Disable features which are enabled by default

@@ -411,6 +411,7 @@ pub async fn query_flight(
         flight_request.latest_arrival_time,
         aircraft,
         existing_flight_plans,
+        clients
     ).await else {
         let error = String::from("Routing failed; No flight plans available.");
         grpc_error!("(query_flight) {}", error);
@@ -587,7 +588,7 @@ pub async fn cancel_itinerary(
 ) -> Result<Response<CancelItineraryResponse>, Status> {
     let clients = get_clients().await;
     let itinerary_id = request.into_inner().id;
-    grpc_info!("(cancel_itinerary) for id {}", &itinerary_id);
+    grpc_info!("(cancel_itinerary) for id {}.", &itinerary_id);
 
     //
     // Look within unconfirmed itineraries
@@ -634,7 +635,7 @@ pub async fn cancel_itinerary(
     clients.storage.itinerary.update(update_object).await?;
 
     grpc_info!(
-        "cancel_itinerary with id {} cancelled in storage",
+        "(cancel_itinerary) cancel_itinerary with id {} cancelled in storage.",
         &itinerary_id
     );
 
@@ -661,7 +662,12 @@ pub async fn cancel_itinerary(
             .flight_plan
             .get_by_id(StorageId { id: id.clone() })
             .await?;
-        let mut flight_plan_data = flight_plan.into_inner().data.unwrap();
+        
+        let Ok(mut flight_plan_data) = flight_plan.into_inner().data else {
+            grpc_warn!("(cancel_itinerary) WARNING: Could not cancel flight plan with ID: {}", id);
+            continue;
+        };
+
         flight_plan_data.flight_status = flight_plan::FlightStatus::Cancelled as i32;
         // end temp code
 
@@ -679,7 +685,7 @@ pub async fn cancel_itinerary(
 
         // Keep going even if there's a warning
         if result.is_err() {
-            grpc_warn!("WARNING: Could not cancel flight plan with ID: {}", id);
+            grpc_warn!("(cancel_itinerary) WARNING: Could not cancel flight plan with ID: {}", id);
         }
     }
 

@@ -383,7 +383,11 @@ dependencies = [
  "pin-project-lite",
  "rustversion",
  "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_urlencoded",
  "sync_wrapper",
+ "tokio",
  "tower",
  "tower-layer",
  "tower-service",
@@ -1880,6 +1884,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "num"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b05180d69e3da0e530ba2a1dae5110317e49e3b7f3d41be227dc5f92e49ee7af"
+dependencies = [
+ "num-bigint 0.4.4",
+ "num-complex 0.4.4",
+ "num-integer",
+ "num-iter",
+ "num-rational 0.4.1",
+ "num-traits",
+]
+
+[[package]]
 name = "num-bigint"
 version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1903,6 +1921,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-bigint"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "608e7659b5c3d7cba262d894801b9ec9d00de989e8a82bd4bef91d08da45cdc0"
+dependencies = [
+ "autocfg",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "num-complex"
 version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1919,6 +1948,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
 dependencies = [
  "autocfg",
+ "num-traits",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ba157ca0885411de85d6ca030ba7e2a83a28636056c7c699b07c8b6f7383214"
+dependencies = [
  "num-traits",
 ]
 
@@ -1974,6 +2012,18 @@ checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
 dependencies = [
  "autocfg",
  "num-bigint 0.2.6",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-rational"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0638a1c9d0a3c0914158145bc76cff373a75a627e6ecbfb71cbe6f453a5a19b0"
+dependencies = [
+ "autocfg",
+ "num-bigint 0.4.4",
  "num-integer",
  "num-traits",
 ]
@@ -2359,6 +2409,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "postgres-derive"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83145eba741b050ef981a9a1838c843fa7665e154383325aa8b440ae703180a2"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.37",
+]
+
+[[package]]
 name = "postgres-native-tls"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2400,6 +2462,7 @@ dependencies = [
  "chrono",
  "fallible-iterator",
  "geo-types",
+ "postgres-derive",
  "postgres-protocol",
  "serde",
  "serde_json",
@@ -2579,9 +2642,9 @@ dependencies = [
 
 [[package]]
 name = "quaternion"
-version = "0.4.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "098443236d1445368525aa1874295cb9d9fc7699b52907c78692f0b18bd8c216"
+checksum = "f228fdb4cf3d4f76c98dc318b73f23df2bd7cbed8319e9ee28696aaf4737c0b3"
 dependencies = [
  "vecmath",
 ]
@@ -2777,12 +2840,12 @@ dependencies = [
 
 [[package]]
 name = "rrule"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "822efdcd86c668b92c5ddc4c08906b731d184feb3e595575924737495ae928a7"
+checksum = "615777991e415d96aa97f6e45e809111911497c029e5d0df7f6d751d218d28e8"
 dependencies = [
  "chrono",
- "chrono-tz 0.6.3",
+ "chrono-tz 0.8.3",
  "lazy_static",
  "log",
  "regex",
@@ -3032,6 +3095,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_path_to_error"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4beec8bce849d58d06238cb50db2e1c417cfeafa4c63f692b15c82b7c80f8335"
+dependencies = [
+ "itoa",
+ "serde",
+]
+
+[[package]]
+name = "serde_urlencoded"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3491c14715ca2294c4d6a88f15e84739788c1d030eed8c110436aafdaa2f3fd"
+dependencies = [
+ "form_urlencoded",
+ "itoa",
+ "ryu",
+ "serde",
+]
+
+[[package]]
 name = "serde_yaml"
 version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3058,9 +3143,9 @@ dependencies = [
 
 [[package]]
 name = "serial_test"
-version = "1.0.0"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "538c30747ae860d6fb88330addbbd3e0ddbe46d662d032855596d8a8ca260611"
+checksum = "0e56dd856803e253c8f298af3f4d7eb0ae5e23a737252cd90bb4f3b435033b2d"
 dependencies = [
  "dashmap",
  "futures",
@@ -3072,13 +3157,13 @@ dependencies = [
 
 [[package]]
 name = "serial_test_derive"
-version = "1.0.0"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "079a83df15f85d89a68d64ae1238f142f172b1fa915d0d76b26a7cba1b659a69"
+checksum = "91d129178576168c589c9ec973feedf7d3126c01ac2bf08795109aa35b69fb8f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.37",
 ]
 
 [[package]]
@@ -3233,7 +3318,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "svc-gis-client-grpc",
+ "svc-gis-client-grpc 0.0.1-develop.8 (git+https://github.com/Arrow-air/svc-gis.git?tag=v0.1.0)",
  "thiserror",
  "tokio",
  "tokio-util",
@@ -3256,6 +3341,71 @@ dependencies = [
  "serde_json",
  "svc-compliance",
  "tonic",
+]
+
+[[package]]
+name = "svc-gis"
+version = "0.0.1-develop.8"
+source = "git+https://github.com/Arrow-air/svc-gis.git?tag=v0.0.1-develop.8#02b3543665891b0a11ee915b6aa8d460da80caa6"
+dependencies = [
+ "anyhow",
+ "axum",
+ "cargo-husky",
+ "chrono",
+ "clap",
+ "clap_lex",
+ "config",
+ "deadpool-postgres",
+ "dotenv",
+ "futures",
+ "hyper",
+ "lib-common",
+ "log",
+ "log4rs",
+ "native-tls",
+ "num 0.4.1",
+ "num-derive",
+ "num-traits",
+ "openssl",
+ "postgis",
+ "postgres-native-tls",
+ "postgres-types",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "prost-wkt-types",
+ "rand 0.8.5",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-postgres",
+ "tokio-util",
+ "tonic",
+ "tonic-build",
+ "tonic-health",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "svc-gis-client-grpc"
+version = "0.0.1-develop.8"
+source = "git+https://github.com/Arrow-air/svc-gis.git?tag=v0.0.1-develop.8#02b3543665891b0a11ee915b6aa8d460da80caa6"
+dependencies = [
+ "cfg-if",
+ "chrono",
+ "lib-common",
+ "log",
+ "num-derive",
+ "num-traits",
+ "postgres-types",
+ "prost",
+ "prost-types",
+ "prost-wkt-types",
+ "svc-gis",
+ "tonic",
+ "uuid",
 ]
 
 [[package]]
@@ -3310,6 +3460,7 @@ dependencies = [
  "serde",
  "serial_test",
  "svc-compliance-client-grpc",
+ "svc-gis-client-grpc 0.0.1-develop.8 (git+https://github.com/Arrow-air/svc-gis.git?tag=v0.0.1-develop.8)",
  "svc-scheduler",
  "svc-storage-client-grpc",
  "tokio",
@@ -3981,6 +4132,7 @@ dependencies = [
  "proc-macro-error",
  "proc-macro2",
  "quote",
+ "regex",
  "syn 2.0.37",
 ]
 
@@ -3991,6 +4143,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79daa5ed5740825c40b389c5e50312b9c86df53fccd33f281df655642b43869d"
 dependencies = [
  "getrandom",
+ "serde",
 ]
 
 [[package]]

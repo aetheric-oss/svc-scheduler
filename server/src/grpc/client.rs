@@ -1,6 +1,7 @@
 //! gRPC client helpers implementation
 use lib_common::grpc::{Client, GrpcClient};
 use svc_compliance_client_grpc::client::rpc_service_client::RpcServiceClient as ComplianceClient;
+use svc_gis_client_grpc::client::rpc_service_client::RpcServiceClient as GisClient;
 use svc_storage_client_grpc::Clients;
 use tokio::sync::OnceCell;
 use tonic::transport::Channel;
@@ -27,6 +28,8 @@ pub struct GrpcClients {
     pub storage: Clients,
     /// A GrpcClient provided by the svc_compliance_grpc_client module
     pub compliance: GrpcClient<ComplianceClient<Channel>>,
+    /// A GrpcClient provided by the svc_gis_grpc_client module
+    pub gis: GrpcClient<GisClient<Channel>>,
 }
 
 impl GrpcClients {
@@ -41,6 +44,11 @@ impl GrpcClients {
                 config.compliance_port_grpc,
                 "compliance",
             ),
+            gis: GrpcClient::<GisClient<Channel>>::new_client(
+                &config.gis_host_grpc,
+                config.gis_port_grpc,
+                "gis",
+            ),
         }
     }
 }
@@ -48,6 +56,7 @@ impl GrpcClients {
 #[cfg(test)]
 mod tests {
     use svc_compliance_client_grpc::prelude::ComplianceClient;
+    use svc_gis_client_grpc::Client as GisServiceClient;
 
     use super::*;
 
@@ -85,5 +94,9 @@ mod tests {
         let compliance = &clients.compliance;
         println!("{:?}", compliance);
         assert_eq!(compliance.get_name(), "compliance");
+
+        let gis = &clients.gis;
+        println!("{:?}", gis);
+        assert_eq!(gis.get_name(), "gis");
     }
 }

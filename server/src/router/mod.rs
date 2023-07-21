@@ -2,24 +2,5 @@
 
 #[macro_use]
 pub mod macros;
-
-/// Types of the router.
-pub mod router_types {
-    pub mod edge;
-    pub mod location;
-    pub mod node;
-    pub mod router;
-    pub mod status;
-}
-
-/// Utility functions for the router.
-pub mod router_utils {
-    pub mod graph;
-    pub mod haversine;
-    pub mod router_state;
-    pub mod schedule;
-
-    #[cfg(feature = "mock")]
-    #[allow(dead_code)]
-    pub mod mock;
-}
+pub mod router_types;
+pub mod router_utils;

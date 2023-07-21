@@ -106,4 +106,3 @@ At 100% coverage.
 point can fail sometimes. This is because `gen_around_location` sometimes
 returns incorrect values. However, this function is only used for testing
 purposes.*
-

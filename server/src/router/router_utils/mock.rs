@@ -211,10 +211,10 @@ mod tests {
     fn test_generate_location_near() {
         let location = generate_location();
         let location_near = generate_location_near(&location.into(), 10.0);
-        println!("Original location: {:?}", location);
-        println!("Nearby location: {:?}", location_near);
+        println!("(test_generate_location_near) original location: {:?}", location);
+        println!("(test_generate_location_near) nearby location: {:?}", location_near);
         println!(
-            "Distance: {}",
+            "(test_generate_location_near) distance: {}",
             haversine::distance(&location, &location_near)
         );
         assert!(haversine::distance(&location, &location_near) <= 10.0);

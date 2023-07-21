@@ -18,15 +18,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ready = client.is_ready(ReadyRequest {}).await?.into_inner();
     assert_eq!(ready.ready, true);
 
-    let departure_time = Utc
-        .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
-        .unwrap()
-        .timestamp();
+    let departure_time = match Utc.with_ymd_and_hms(2022, 10, 25, 15, 0, 0) {
+        Ok(time) => time.timestamp()
+        Err(e) => {
+            println!("(main) failed to parse departure time: {}", e);
+            return Ok(());
+        }
+    }
 
-    let arrival_time = Utc
-        .with_ymd_and_hms(2022, 10, 25, 16, 0, 0)
-        .unwrap()
-        .timestamp();
+    let arrival_time = match Utc.with_ymd_and_hms(2022, 10, 25, 16, 0, 0) {
+        Ok(time) => time.timestamp()
+        Err(e) => {
+            println!("(main) failed to parse arrival time: {}", e);
+            return Ok(());
+        }
+    }
 
     let request = QueryFlightRequest {
         is_cargo: true,
@@ -46,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let response = client.query_flight(request).await?.into_inner().itineraries;
     let itinerary_id = (&response)[0].id.clone();
-    println!("itinerary id={}", itinerary_id);
+    println!("(main) itinerary id={}", itinerary_id);
 
     let response = client
         .confirm_itinerary(ConfirmItineraryRequest {
@@ -55,13 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .await?;
 
-    println!("RESPONSE={:?}", &response);
-
-    /*let response = client
-    .cancel_flight(Request::new(Id {
-        id: "b32c8a28-bfb4-4fe9-8819-e119e18991c0".to_string(),
-    }))
-    .await?;*/
+    println!("(main) RESPONSE={:?}", &response);
 
     Ok(())
 }

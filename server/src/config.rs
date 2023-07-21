@@ -25,13 +25,19 @@ pub struct Config {
     /// host to be used for connecting to the storage service
     pub storage_host_grpc: String,
 
+    /// host to be used for connecting to the gis service
+    pub gis_host_grpc: String,
+
+    /// port to be used for connecting to the gis service
+    pub gis_port_grpc: u16,
+
     /// path to log configuration YAML file
     pub log_config: String,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        log::warn!("Creating Config object with default values.");
+        log::warn!("(Config default) Creating Config object with default values.");
         Self::new()
     }
 }
@@ -45,6 +51,8 @@ impl Config {
             compliance_host_grpc: String::from("svc-compliance"),
             storage_port_grpc: 50051,
             storage_host_grpc: String::from("svc-storage"),
+            gis_host_grpc: String::from("svc-gis"),
+            gis_port_grpc: 50051,
             log_config: String::from("log4rs.yaml"),
         }
     }
@@ -61,6 +69,8 @@ impl Config {
             .set_default("compliance_host_grpc", default_config.compliance_host_grpc)?
             .set_default("storage_port_grpc", default_config.storage_port_grpc)?
             .set_default("storage_host_grpc", default_config.storage_host_grpc)?
+            .set_default("gis_port_grpc", default_config.gis_port_grpc)?
+            .set_default("gis_host_grpc", default_config.gis_host_grpc)?
             .set_default("log_config", default_config.log_config)?
             .add_source(Environment::default().separator("__"))
             .build()?
@@ -81,6 +91,8 @@ mod tests {
         assert_eq!(config.compliance_host_grpc, String::from("svc-compliance"));
         assert_eq!(config.storage_port_grpc, 50051);
         assert_eq!(config.storage_host_grpc, String::from("svc-storage"));
+        assert_eq!(config.gis_port_grpc, 50051);
+        assert_eq!(config.gis_host_grpc, String::from("svc-gis"));
         assert_eq!(config.log_config, String::from("log4rs.yaml"));
     }
 
@@ -95,6 +107,8 @@ mod tests {
         std::env::set_var("COMPLIANCE_PORT_GRPC", "12354");
         std::env::set_var("STORAGE_HOST_GRPC", "test_host_storage_grpc");
         std::env::set_var("STORAGE_PORT_GRPC", "12345");
+        std::env::set_var("GIS_HOST_GRPC", "test_host_gis_grpc");
+        std::env::set_var("GIS_PORT_GRPC", "12345");
         std::env::set_var("LOG_CONFIG", "config_file.yaml");
 
         let config = Config::try_from_env();
@@ -113,5 +127,8 @@ mod tests {
         );
         assert_eq!(config.storage_port_grpc, 12345);
         assert_eq!(config.log_config, String::from("config_file.yaml"));
+
+        assert_eq!(config.gis_host_grpc, String::from("test_host_gis_grpc"));
+        assert_eq!(config.gis_port_grpc, 12345);
     }
 }

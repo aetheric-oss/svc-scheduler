@@ -10,10 +10,10 @@ use std::str::FromStr;
 
 /// formats chrono::DateTime to string in format: `YYYYMMDDThhmmssZ`, e.g. 20221026T133000Z
 fn datetime_to_ical_format(dt: &DateTime<Tz>) -> String {
-    router_debug!("datetime_to_ical_format: {:?}", dt);
+    router_debug!("(datetime_to_ical_format) {:?}", dt);
     let mut tz_prefix = String::new();
     let mut tz_postfix = String::new();
-    router_debug!("datetime_to_ical_format: tz: {:?}", dt.timezone());
+    router_debug!("(datetime_to_ical_format) tz: {:?}", dt.timezone());
     let tz = dt.timezone();
     match tz {
         Tz::Local(_) => {}
@@ -28,7 +28,7 @@ fn datetime_to_ical_format(dt: &DateTime<Tz>) -> String {
     }
 
     let dt = dt.format("%Y%m%dT%H%M%S");
-    router_debug!("datetime_to_ical_format: dt: {:?}", dt);
+    router_debug!("(datetime_to_ical_format) dt: {:?}", dt);
     format!("{}{}{}", tz_prefix, dt, tz_postfix)
 }
 
@@ -57,22 +57,22 @@ impl FromStr for Calendar {
     ///   "DTSTART:20221020T180000Z;DURATION:PT1H" not "DURATION:PT1H;DTSTART:20221020T180000Z"
     /// Duration is in ISO8601 format (`iso8601_duration` crate)
     fn from_str(calendar_str: &str) -> Result<Self, Self::Err> {
-        router_debug!("Parsing calendar: {}", calendar_str);
+        router_debug!("(Calendar from_str) Parsing calendar: {}", calendar_str);
         let rrule_sets: Vec<&str> = calendar_str
             .split("DTSTART:")
             .filter(|s| !s.is_empty())
             .collect();
-        router_debug!("rrule_sets: {:?}", rrule_sets);
+        router_debug!("(Calendar from_str) rrule_sets: {:?}", rrule_sets);
         let mut recurrent_events: Vec<RecurrentEvent> = Vec::new();
         for rrule_set_str in rrule_sets {
-            router_debug!("rrule_set_str: {}", rrule_set_str);
+            router_debug!("(Calendar from_str) rrule_set_str: {}", rrule_set_str);
             let rrules_with_header: Vec<&str> = rrule_set_str
                 .split('\n')
                 .filter(|s| !s.is_empty())
                 .collect();
             if rrules_with_header.len() < 2 {
                 router_error!(
-                    "Invalid rrule {} with header length: {}",
+                    "(Calendar from_str) Invalid rrule {} with header length: {}",
                     calendar_str,
                     rrules_with_header.len()
                 );
@@ -85,7 +85,7 @@ impl FromStr for Calendar {
                 .filter(|s| !s.is_empty())
                 .collect();
             if header_parts.len() != 2 {
-                router_error!("Invalid header parts length: {}", header_parts.len());
+                router_error!("(Calendar from_str) Invalid header parts length: {}", header_parts.len());
                 return Err(());
             }
             let dtstart = header_parts[0];
@@ -94,7 +94,7 @@ impl FromStr for Calendar {
             let rrset_res = RRuleSet::from_str(&str);
 
             let Ok(rrule_set) = rrset_res else {
-                router_error!("Invalid rrule set: {:?}", rrset_res.unwrap_err());
+                router_error!("(Calendar from_str) Invalid rrule set: {:?}", rrset_res.unwrap_err());
                 return Err(());
             };
 
@@ -103,7 +103,7 @@ impl FromStr for Calendar {
                 duration: duration.to_string(),
             });
         }
-        router_debug!("Parsed calendar: {:?}", recurrent_events);
+        router_debug!("(Calendar from_str) Parsed calendar: {:?}", recurrent_events);
         Ok(Calendar {
             events: recurrent_events,
         })
@@ -145,7 +145,7 @@ impl Calendar {
     ///    use std::str::FromStr;
     ///    use chrono::TimeZone;
     ///    use rrule::Tz;
-    ///    let calendar = Calendar::from_str("DTSTART:20221020T180000Z;DURATION:PT14H\n\
+    ///    let Ok(calendar) = Calendar::from_str("DTSTART:20221020T180000Z;DURATION:PT14H\n\
     ///        RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR").unwrap();
     ///    let mut start = Tz::UTC.with_ymd_and_hms(2022, 10, 25,17, 0, 0).unwrap();
     ///    let mut end = Tz::UTC.with_ymd_and_hms(2022, 10, 25,18, 0, 0).unwrap();
@@ -181,7 +181,7 @@ impl Calendar {
                 router_debug!("(is_available_between) Time slot is not available");
                 return false;
             }
-            let d = DurationParser::parse(duration).expect("Failed to parse duration");
+            let d = DurationParser::parse(duration).expect("(is_available_between) Failed to parse duration");
             let adjusted_start_time = start_time
                 - Duration::days(d.day as i64)
                 - Duration::hours(d.hour as i64)
@@ -207,7 +207,7 @@ impl Calendar {
 }
 
 #[cfg(test)]
-mod calendar_tests {
+mod tests {
     use super::Calendar;
     use chrono::TimeZone;
     use rrule::Tz;

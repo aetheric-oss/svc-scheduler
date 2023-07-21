@@ -35,9 +35,8 @@ impl RpcService for ServerImpl {
         grpc_debug!("(query_flight) request: {:?}", request);
         let res = super::queries::query_flight(request).await;
         if res.is_err() {
-            grpc_error!("{}", res.as_ref().err().unwrap());
+            grpc_error!("{}", res.as_ref().unwrap_err());
         }
-        res
     }
 
     ///Confirms the draft itinerary by id.
@@ -49,9 +48,8 @@ impl RpcService for ServerImpl {
         grpc_debug!("(confirm_itinerary) request: {:?}", request);
         let res = super::queries::confirm_itinerary(request).await;
         if res.is_err() {
-            grpc_error!("{}", res.as_ref().err().unwrap());
+            grpc_error!("{}", res.as_ref().unwrap_err());
         }
-        res
     }
 
     /// Cancels the itinerary by id.
@@ -63,9 +61,8 @@ impl RpcService for ServerImpl {
         grpc_debug!("(cancel_itinerary) request: {:?}", request);
         let res = super::queries::cancel_itinerary(request).await;
         if res.is_err() {
-            grpc_error!("{}", res.as_ref().err().unwrap());
+            grpc_error!("{}", res.as_ref().unwrap_err());
         }
-        res
     }
 
     /// Returns ready:true when service is available
