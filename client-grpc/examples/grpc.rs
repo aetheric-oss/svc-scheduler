@@ -2,13 +2,7 @@
 
 use chrono::{TimeZone, Utc};
 use lib_common::grpc::get_endpoint_from_env;
-use prost_wkt_types::Timestamp;
-use svc_scheduler_client_grpc::client::{
-    ConfirmItineraryRequest, QueryFlightRequest, RpcServiceClient,
-};
-use svc_scheduler_client_grpc::service::Client as ServiceClient;
-use svc_scheduler_client_grpc::{Client, GrpcClient};
-use tonic::transport::Channel;
+use svc_scheduler_client_grpc::prelude::{client::*, *};
 
 /// Example svc-scheduler-client-grpc
 #[tokio::main]
@@ -20,6 +14,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "NOTE: Ensure the server is running on {} or this example will fail.",
         connection.get_address()
     );
+
+    let ready = connection.is_ready(ReadyRequest {}).await?;
+    assert_eq!(ready.into_inner().ready, true);
 
     let departure_time = Utc
         .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)

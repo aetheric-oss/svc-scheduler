@@ -13,16 +13,15 @@ repository.workspace   = true
 
 [features]
 default          = []
-dev              = ["test_util"]
-test_util        = ["mock", "stub_backends", "svc-storage-client-grpc/mock"]
+dev              = ["mock"]
+test_util        = ["mock", "stub_backends"]
 vendored-openssl = ["openssl/vendored"]
 # Will add a 'mock' module for the enabled resources, providing access to mock data generation functions
-mock = ["geo"]
+mock = ["svc-storage-client-grpc/mock"]
 # Will use a stubbed backend connection, only use for tests!
 stub_backends = [
   "svc-storage-client-grpc/stub_client",
   "svc-compliance-client-grpc/stub_client",
-  "svc-compliance-client-grpc/stub_backends",
 ]
 # Will implement stub functions for the server, only use for tests!
 stub_server = ["test_util"]
@@ -38,7 +37,7 @@ chrono-tz        = "0.6"
 config           = "0.13"
 dotenv           = "0.15"
 futures          = "0.3"
-geo              = { version = "0.25", optional = true }
+geo              = "0.25"
 iso8601-duration = "0.1"
 lazy_static      = "1.4"
 log              = "0.4"
@@ -70,7 +69,7 @@ tag = "v0.1.1-develop.5"
 [dependencies.svc-storage-client-grpc]
 features = ["flight_plan", "itinerary", "vehicle", "vertipad", "vertiport"]
 git      = "https://github.com/Arrow-air/svc-storage.git"
-tag      = "v0.10.1-develop.19"
+tag      = "v0.10.1-develop.20"
 
 [dependencies.log4rs]
 features = [

@@ -15,7 +15,7 @@ repository.workspace   = true
 dev       = ["mock", "tokio", "futures"]
 test_util = ["mock", "stub_backends"]
 # Will add a 'mock' module for the enabled resources, providing access to mock data generation functions
-mock = []
+mock = ["svc-storage-client-grpc/mock"]
 # Will use a stubbed server connection, only use for tests!
 stub_backends = [
   "svc-scheduler/stub_server",
@@ -43,7 +43,7 @@ uuid            = "1.2"
 [dependencies.svc-storage-client-grpc]
 features = ["flight_plan", "itinerary"]
 git      = "https://github.com/Arrow-air/svc-storage.git"
-tag      = "v0.10.1-develop.19"
+tag      = "v0.10.1-develop.20"
 
 [dependencies.lib-common]
 features = ["grpc"]

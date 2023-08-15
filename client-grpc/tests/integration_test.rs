@@ -3,13 +3,8 @@
 
 use lib_common::grpc::get_endpoint_from_env;
 use std::time::SystemTime;
-use svc_scheduler_client_grpc::client::{
-    ConfirmItineraryRequest, Id, QueryFlightRequest, ReadyRequest, RpcServiceClient,
-};
-use svc_scheduler_client_grpc::service::Client as ServiceClient;
-use svc_scheduler_client_grpc::{Client, GrpcClient};
+use svc_scheduler_client_grpc::prelude::{client::*, *};
 use tokio::sync::OnceCell;
-use tonic::transport::Channel;
 
 pub(crate) static CLIENT: OnceCell<GrpcClient<RpcServiceClient<Channel>>> = OnceCell::const_new();
 

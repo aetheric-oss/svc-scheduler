@@ -2694,9 +2694,7 @@ dependencies = [
  "prost",
  "prost-types",
  "svc-compliance",
- "tokio",
  "tonic",
- "tower",
 ]
 
 [[package]]
@@ -2766,8 +2764,8 @@ dependencies = [
 
 [[package]]
 name = "svc-storage"
-version = "0.10.1-develop.19"
-source = "git+https://github.com/Arrow-air/svc-storage.git?tag=v0.10.1-develop.19#713b767e4d918a9f353f4250474428c2180a5cf4"
+version = "0.10.1-develop.20"
+source = "git+https://github.com/Arrow-air/svc-storage.git?tag=v0.10.1-develop.20#c1bbe62bf12b1a54b2615fdfb080c3f0c261df48"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -2815,8 +2813,8 @@ dependencies = [
 
 [[package]]
 name = "svc-storage-client-grpc"
-version = "0.10.1-develop.19"
-source = "git+https://github.com/Arrow-air/svc-storage.git?tag=v0.10.1-develop.19#713b767e4d918a9f353f4250474428c2180a5cf4"
+version = "0.10.1-develop.20"
+source = "git+https://github.com/Arrow-air/svc-storage.git?tag=v0.10.1-develop.20#c1bbe62bf12b1a54b2615fdfb080c3f0c261df48"
 dependencies = [
  "anyhow",
  "cfg-if",

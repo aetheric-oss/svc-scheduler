@@ -13,8 +13,8 @@ use crate::grpc::client::get_clients;
 use svc_compliance_client_grpc::client::FlightPlanRequest;
 use svc_compliance_client_grpc::service::Client as ComplianceServiceClient;
 use svc_storage_client_grpc::{
-    resources::{flight_plan, itinerary},
-    AdvancedSearchFilter, FieldMask, Id as StorageId, IdList, LinkClient, SimpleClient, Timestamp,
+    flight_plan, itinerary, AdvancedSearchFilter, FieldMask, Id as StorageId, IdList, LinkClient,
+    SimpleClient, Timestamp,
 };
 
 use lazy_static::lazy_static;

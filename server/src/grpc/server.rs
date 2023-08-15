@@ -10,7 +10,6 @@ pub use grpc_server::{
     QueryFlightRequest, QueryFlightResponse, ReadyRequest, ReadyResponse,
 };
 
-use super::queries;
 use crate::shutdown_signal;
 use crate::Config;
 
@@ -34,7 +33,7 @@ impl RpcService for ServerImpl {
     ) -> Result<Response<QueryFlightResponse>, Status> {
         grpc_info!("(query_flight) scheduler server.");
         grpc_debug!("(query_flight) request: {:?}", request);
-        let res = queries::query_flight(request).await;
+        let res = super::queries::query_flight(request).await;
         if res.is_err() {
             grpc_error!("{}", res.as_ref().err().unwrap());
         }
@@ -48,7 +47,7 @@ impl RpcService for ServerImpl {
     ) -> Result<Response<ConfirmItineraryResponse>, Status> {
         grpc_info!("(confirm_itinerary) scheduler server.");
         grpc_debug!("(confirm_itinerary) request: {:?}", request);
-        let res = queries::confirm_itinerary(request).await;
+        let res = super::queries::confirm_itinerary(request).await;
         if res.is_err() {
             grpc_error!("{}", res.as_ref().err().unwrap());
         }
@@ -62,7 +61,7 @@ impl RpcService for ServerImpl {
     ) -> Result<Response<CancelItineraryResponse>, Status> {
         grpc_info!("(cancel_itinerary) scheduler server.");
         grpc_debug!("(cancel_itinerary) request: {:?}", request);
-        let res = queries::cancel_itinerary(request).await;
+        let res = super::queries::cancel_itinerary(request).await;
         if res.is_err() {
             grpc_error!("{}", res.as_ref().err().unwrap());
         }

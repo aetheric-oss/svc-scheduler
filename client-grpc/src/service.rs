@@ -23,8 +23,7 @@ where
     /// ```
     /// use lib_common::grpc::get_endpoint_from_env;
     /// use svc_scheduler_client_grpc::client::{ReadyRequest, RpcServiceClient};
-    /// use svc_scheduler_client_grpc::{Client, GrpcClient};
-    /// use svc_scheduler_client_grpc::service::Client as ServiceClient;
+    /// use svc_scheduler_client_grpc::prelude::*;
     /// use tonic::transport::Channel;
     ///
     /// async fn example () -> Result<(), Box<dyn std::error::Error>> {

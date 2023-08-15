@@ -1,13 +1,13 @@
 #![doc = include_str!("../README.md")]
 
+pub mod prelude;
 pub mod service;
 
 pub use client::*;
-pub use lib_common::grpc::{Client, ClientConnect, GrpcClient};
+use prelude::*;
 
 use lib_common::log_macros;
 use tonic::async_trait;
-use tonic::transport::Channel;
 
 pub mod client {
     //! Client Library: Client Functions, Structs, Traits
@@ -42,15 +42,6 @@ impl crate::service::Client<RpcServiceClient<Channel>> for GrpcClient<RpcService
         grpc_info!("(is_ready) {} client.", self.get_name());
         grpc_debug!("(is_ready) request: {:?}", request);
         let mut client = self.get_client().await?;
-        let mut tries = 0;
-        while client.is_ready(ReadyRequest {}).await.is_err() && tries < 5 {
-            grpc_info!(
-                "(is_ready) Client not ready yet at attempt {}, retry in 1 sec...",
-                tries
-            );
-            tokio::time::sleep(tokio::time::Duration::new(2, 0)).await;
-            tries += 1;
-        }
         client.is_ready(request).await
     }
 
@@ -61,15 +52,6 @@ impl crate::service::Client<RpcServiceClient<Channel>> for GrpcClient<RpcService
         grpc_info!("(query_flight) {} client.", self.get_name());
         grpc_debug!("(query_flight) request: {:?}", request);
         let mut client = self.get_client().await?;
-        let mut tries = 0;
-        while client.is_ready(ReadyRequest {}).await.is_err() && tries < 5 {
-            grpc_info!(
-                "(query_flight) Client not ready yet at attempt {}, retry in 1 sec...",
-                tries
-            );
-            tokio::time::sleep(tokio::time::Duration::new(2, 0)).await;
-            tries += 1;
-        }
         client.query_flight(request).await
     }
 
@@ -80,15 +62,6 @@ impl crate::service::Client<RpcServiceClient<Channel>> for GrpcClient<RpcService
         grpc_info!("(confirm_itinerary) {} client.", self.get_name());
         grpc_debug!("(confirm_itinerary) request: {:?}", request);
         let mut client = self.get_client().await?;
-        let mut tries = 0;
-        while client.is_ready(ReadyRequest {}).await.is_err() && tries < 5 {
-            grpc_info!(
-                "(confirm_itinerary) Client not ready yet at attempt {}, retry in 1 sec...",
-                tries
-            );
-            tokio::time::sleep(tokio::time::Duration::new(2, 0)).await;
-            tries += 1;
-        }
         client.confirm_itinerary(request).await
     }
 
@@ -99,15 +72,6 @@ impl crate::service::Client<RpcServiceClient<Channel>> for GrpcClient<RpcService
         grpc_info!("(cancel_itinerary) {} client.", self.get_name());
         grpc_debug!("(cancel_itinerary) request: {:?}", request);
         let mut client = self.get_client().await?;
-        let mut tries = 0;
-        while client.is_ready(ReadyRequest {}).await.is_err() && tries < 5 {
-            grpc_info!(
-                "(get_client) Client not ready yet at attempt {}, retry in 1 sec...",
-                tries
-            );
-            tokio::time::sleep(tokio::time::Duration::new(1, 0)).await;
-            tries += 1;
-        }
         client.cancel_itinerary(request).await
     }
 }
