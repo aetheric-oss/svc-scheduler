@@ -2,21 +2,21 @@
 
 use chrono::{TimeZone, Utc};
 use lib_common::grpc::get_endpoint_from_env;
-use svc_scheduler_client_grpc::prelude::{client::*, *};
+use svc_scheduler_client_grpc::prelude::{scheduler::*, *};
 
 /// Example svc-scheduler-client-grpc
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (host, port) = get_endpoint_from_env("SERVER_HOSTNAME", "SERVER_PORT_GRPC");
-    let connection = GrpcClient::<RpcServiceClient<Channel>>::new_client(&host, port, "scheduler");
+    let client = SchedulerClient::new_client(&host, port, "scheduler");
     println!("Connection created");
     println!(
         "NOTE: Ensure the server is running on {} or this example will fail.",
-        connection.get_address()
+        client.get_address()
     );
 
-    let ready = connection.is_ready(ReadyRequest {}).await?;
-    assert_eq!(ready.into_inner().ready, true);
+    let ready = client.is_ready(ReadyRequest {}).await?.into_inner();
+    assert_eq!(ready.ready, true);
 
     let departure_time = Utc
         .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
@@ -44,15 +44,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     };
 
-    let response = connection
-        .query_flight(request)
-        .await?
-        .into_inner()
-        .itineraries;
+    let response = client.query_flight(request).await?.into_inner().itineraries;
     let itinerary_id = (&response)[0].id.clone();
     println!("itinerary id={}", itinerary_id);
 
-    let response = connection
+    let response = client
         .confirm_itinerary(ConfirmItineraryRequest {
             id: itinerary_id,
             user_id: "".to_string(),

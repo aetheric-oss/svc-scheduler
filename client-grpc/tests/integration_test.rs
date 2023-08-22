@@ -3,16 +3,16 @@
 
 use lib_common::grpc::get_endpoint_from_env;
 use std::time::SystemTime;
-use svc_scheduler_client_grpc::prelude::{client::*, *};
+use svc_scheduler_client_grpc::prelude::{scheduler::*, *};
 use tokio::sync::OnceCell;
 
-pub(crate) static CLIENT: OnceCell<GrpcClient<RpcServiceClient<Channel>>> = OnceCell::const_new();
+pub(crate) static CLIENT: OnceCell<SchedulerClient> = OnceCell::const_new();
 
-pub async fn get_client() -> &'static GrpcClient<RpcServiceClient<Channel>> {
+pub async fn get_client() -> &'static SchedulerClient {
     CLIENT
         .get_or_init(|| async move {
             let (host, port) = get_endpoint_from_env("SERVER_HOSTNAME", "SERVER_PORT_GRPC");
-            GrpcClient::<RpcServiceClient<Channel>>::new_client(&host, port, "scheduler")
+            SchedulerClient::new_client(&host, port, "scheduler")
         })
         .await
 }

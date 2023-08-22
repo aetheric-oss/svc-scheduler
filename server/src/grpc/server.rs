@@ -140,8 +140,9 @@ impl RpcService for ServerImpl {
     ) -> Result<Response<QueryFlightResponse>, Status> {
         grpc_warn!("(query_flight MOCK) scheduler server.");
         grpc_debug!("(query_flight MOCK) request: {:?}", request);
-        let flight_plan_data = svc_storage_client_grpc::flight_plan::mock::get_future_data_obj();
-        let flight_plan = svc_storage_client_grpc::flight_plan::Object {
+        let flight_plan_data =
+            svc_storage_client_grpc::prelude::flight_plan::mock::get_future_data_obj();
+        let flight_plan = svc_storage_client_grpc::prelude::flight_plan::Object {
             id: uuid::Uuid::new_v4().to_string(),
             data: Some(flight_plan_data),
         };

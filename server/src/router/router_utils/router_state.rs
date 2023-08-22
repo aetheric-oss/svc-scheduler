@@ -12,15 +12,8 @@ use ordered_float::OrderedFloat;
 use prost_wkt_types::Timestamp;
 use std::collections::HashMap;
 use std::str::FromStr;
+use svc_storage_client_grpc::prelude::*;
 use tokio::sync::OnceCell;
-
-// Expose so svc-scheduler doesn't assume same svc-storage version
-pub use svc_storage_client_grpc::resources::flight_plan::{
-    Data as FlightPlanData, Object as FlightPlan,
-};
-pub use svc_storage_client_grpc::resources::vehicle::Object as Vehicle;
-pub use svc_storage_client_grpc::resources::vertipad::Object as Vertipad;
-pub use svc_storage_client_grpc::resources::vertiport::Object as Vertiport;
 
 /// Query struct for generating nodes near a location.
 #[derive(Debug, Copy, Clone)]
@@ -80,8 +73,8 @@ fn create_flight_plan_data(
     arrival_vertiport_id: String,
     departure_time: DateTime<Utc>,
     arrival_time: DateTime<Utc>,
-) -> FlightPlanData {
-    FlightPlanData {
+) -> flight_plan::Data {
+    flight_plan::Data {
         pilot_id: "".to_string(),
         vehicle_id,
         weather_conditions: None,
@@ -110,10 +103,10 @@ fn create_flight_plan_data(
 ///    date_from + flight_duration_minutes (this includes takeoff and landing time)
 /// This checks both static schedule of the aircraft and existing flight plans which might overlap.
 pub fn is_vehicle_available(
-    vehicle: &Vehicle,
+    vehicle: &vehicle::Object,
     date_from: DateTime<Utc>,
     flight_duration_minutes: i64,
-    existing_flight_plans: &[FlightPlan],
+    existing_flight_plans: &[flight_plan::Object],
 ) -> Result<bool, String> {
     let vehicle_data = vehicle.data.as_ref().unwrap();
 
@@ -210,9 +203,9 @@ pub fn is_vehicle_available(
 pub fn is_vertiport_available(
     vertiport_id: String,
     vertiport_schedule: Option<String>,
-    vertipads: &[Vertipad],
+    vertipads: &[vertipad::Object],
     at_date_time: DateTime<Utc>,
-    existing_flight_plans: &[FlightPlan],
+    existing_flight_plans: &[flight_plan::Object],
     is_departure_vertiport: bool,
 ) -> (bool, Vec<(String, i64)>) {
     let mut num_vertipads = vertipads.len();
@@ -314,9 +307,9 @@ pub fn is_vertiport_available(
 pub fn get_all_vehicles_scheduled_for_vertiport(
     vertiport_id: &str,
     timestamp: DateTime<Utc>,
-    existing_flight_plans: &[FlightPlan],
+    existing_flight_plans: &[flight_plan::Object],
 ) -> Vec<(String, i64)> {
-    let mut vehicles_plans_sorted: HashMap<String, Vec<FlightPlan>> = HashMap::new();
+    let mut vehicles_plans_sorted: HashMap<String, Vec<flight_plan::Object>> = HashMap::new();
     existing_flight_plans
         .iter()
         .filter(|flight_plan| {
@@ -395,9 +388,9 @@ pub fn get_all_vehicles_scheduled_for_vertiport(
 /// If minutes_to_arrival is 0, vehicle is parked at the vertiport,
 /// otherwise it is in flight to the vertiport and should arrive in minutes_to_arrival
 pub fn get_vehicle_scheduled_location(
-    vehicle: &Vehicle,
+    vehicle: &vehicle::Object,
     timestamp: DateTime<Utc>,
-    existing_flight_plans: &[FlightPlan],
+    existing_flight_plans: &[flight_plan::Object],
 ) -> (String, i64) {
     let mut vehicle_flight_plans = existing_flight_plans
         .iter()
@@ -413,7 +406,7 @@ pub fn get_vehicle_scheduled_location(
                     .seconds
                     <= timestamp.timestamp()
         })
-        .collect::<Vec<&FlightPlan>>();
+        .collect::<Vec<&flight_plan::Object>>();
     vehicle_flight_plans.sort_by(|a, b| {
         b.data
             .as_ref()
@@ -520,10 +513,10 @@ pub async fn get_all_flight_durations_to_vertiport(
 fn find_nearest_gap_for_reroute_flight(
     vertiport_id: String,
     vertiport_schedule: Option<String>,
-    vertipads: &[Vertipad],
+    vertipads: &[vertipad::Object],
     date_from: DateTime<Utc>,
     vehicle_id: String,
-    existing_flight_plans: &[FlightPlan],
+    existing_flight_plans: &[flight_plan::Object],
 ) -> Option<DateTime<Utc>> {
     let mut time_from: Option<DateTime<Utc>> = None;
     for i in 0..6 {
@@ -561,13 +554,13 @@ fn find_nearest_gap_for_reroute_flight(
 pub fn find_deadhead_flight_plan(
     nearest_vertiports_from_departure: &Vec<&Node>,
     departure_vertiport_durations: &HashMap<&Node, i64>,
-    vehicles: &Vec<Vehicle>,
-    vertiport_depart: &Vertiport,
-    vertipads_depart: &[Vertipad],
+    vehicles: &Vec<vehicle::Object>,
+    vertiport_depart: &vertiport::Object,
+    vertipads_depart: &[vertipad::Object],
     departure_time: DateTime<Utc>,
-    existing_flight_plans: &[FlightPlan],
+    existing_flight_plans: &[flight_plan::Object],
     block_aircraft_and_vertiports_minutes: i64,
-) -> (Option<Vehicle>, Option<FlightPlanData>) {
+) -> (Option<vehicle::Object>, Option<flight_plan::Data>) {
     for &vertiport in nearest_vertiports_from_departure {
         let n_duration = *departure_vertiport_durations.get(vertiport).unwrap();
         for vehicle in vehicles {
@@ -673,11 +666,11 @@ pub fn find_deadhead_flight_plan(
 /// This function finds such a flight plan and returns it
 pub fn find_rerouted_vehicle_flight_plan(
     vehicles_at_arrival_airport: &[(String, i64)],
-    vertiport_arrive: &Vertiport,
-    vertipads_arrive: &[Vertipad],
+    vertiport_arrive: &vertiport::Object,
+    vertipads_arrive: &[vertipad::Object],
     arrival_time: &DateTime<Utc>,
-    existing_flight_plans: &[FlightPlan],
-) -> Option<FlightPlanData> {
+    existing_flight_plans: &[flight_plan::Object],
+) -> Option<flight_plan::Data> {
     let found_vehicle = vehicles_at_arrival_airport
         .iter() //if there is a parked vehicle at the arrival vertiport, we can move it to some other vertiport
         .find(|(_, minutes_to_arrival)| *minutes_to_arrival == 0);
@@ -717,7 +710,7 @@ pub fn find_rerouted_vehicle_flight_plan(
 ///    sorted_vertiports_by_durations - vector of &Nodes,
 ///    vertiport_durations - hashmap of &Node and flight duration in minutes)
 pub async fn get_nearest_vertiports_vertiport_id(
-    vertiport_depart: &Vertiport,
+    vertiport_depart: &vertiport::Object,
 ) -> Result<(Vec<&Node>, HashMap<&Node, i64>), String> {
     router_debug!(
         "(get_nearest_vertiports_vertiport_id) for departure vertiport {:?}",
@@ -748,15 +741,15 @@ pub async fn get_nearest_vertiports_vertiport_id(
 /// A vector of flight plans
 #[allow(clippy::too_many_arguments)]
 pub async fn get_possible_flights(
-    vertiport_depart: Vertiport,
-    vertiport_arrive: Vertiport,
-    vertipads_depart: Vec<Vertipad>,
-    vertipads_arrive: Vec<Vertipad>,
+    vertiport_depart: vertiport::Object,
+    vertiport_arrive: vertiport::Object,
+    vertipads_depart: Vec<vertipad::Object>,
+    vertipads_arrive: Vec<vertipad::Object>,
     earliest_departure_time: Option<Timestamp>,
     latest_arrival_time: Option<Timestamp>,
-    vehicles: Vec<Vehicle>,
-    existing_flight_plans: Vec<FlightPlan>,
-) -> Result<Vec<(FlightPlanData, Vec<FlightPlanData>)>, String> {
+    vehicles: Vec<vehicle::Object>,
+    existing_flight_plans: Vec<flight_plan::Object>,
+) -> Result<Vec<(flight_plan::Data, Vec<flight_plan::Data>)>, String> {
     router_info!("(get_possible_flights) Finding possible flights.");
     let earliest_departure_time: DateTime<Utc> = match earliest_departure_time {
         Some(timestamp) => timestamp.into(),
@@ -844,9 +837,9 @@ pub async fn get_possible_flights(
         "[3/5]: Checking vertiport schedules and flight plans for {} possible flight plans",
         num_flight_options
     );
-    let mut flight_plans: Vec<(FlightPlanData, Vec<FlightPlanData>)> = vec![];
+    let mut flight_plans: Vec<(flight_plan::Data, Vec<flight_plan::Data>)> = vec![];
     for i in 0..num_flight_options {
-        let mut deadhead_flights: Vec<FlightPlanData> = vec![];
+        let mut deadhead_flights: Vec<flight_plan::Data> = vec![];
         let mut departure_time: DateTime<Utc> = earliest_departure_time;
         departure_time += Duration::seconds(i * 60 * FLIGHT_PLAN_GAP_MINUTES as i64);
         let arrival_time =
@@ -920,7 +913,7 @@ pub async fn get_possible_flights(
                 continue;
             }
         }
-        let mut available_vehicle: Option<Vehicle> = None;
+        let mut available_vehicle: Option<vehicle::Object> = None;
         for vehicle in &vehicles {
             router_debug!(
                 "(get_possible_flights) Checking vehicle id:{} for departure time: {}",
@@ -1053,7 +1046,7 @@ pub async fn get_node_by_id(id: &str) -> Result<&'static Node, String> {
 }
 
 /// Initialize the router with vertiports from the storage service
-pub async fn init_router_from_vertiports(vertiports: &[Vertiport]) -> Result<(), String> {
+pub async fn init_router_from_vertiports(vertiports: &[vertiport::Object]) -> Result<(), String> {
     router_info!("(init_router_from_vertiports) Initializing router from vertiports.");
     let mut nodes = vec![];
     for vertiport in vertiports {
@@ -1202,8 +1195,6 @@ mod tests {
     };
     use chrono::{TimeZone, Utc};
     use ordered_float::OrderedFloat;
-    use svc_storage_client_grpc::vehicle;
-    use svc_storage_client_grpc::Timestamp;
 
     #[tokio::test]
     async fn test_router() {
@@ -1307,7 +1298,7 @@ mod tests {
         let mut vehicle_data = vehicle::mock::get_data_obj();
         vehicle_data.last_vertiport_id = Some(vertiport_id.to_string());
         vehicle_data.schedule = Some(schedule.to_owned());
-        let vehicle = Vehicle {
+        let vehicle = vehicle::Object {
             id: vehicle_id.to_string(),
             data: Some(vehicle_data),
         };
@@ -1337,7 +1328,7 @@ mod tests {
         vehicle_data.schedule = Some(String::from(
             "DTSTART:20221020T180000Z;DURATION:PT1H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
         ));
-        let vehicle = Vehicle {
+        let vehicle = vehicle::Object {
             id: vehicle_id.to_string(),
             data: Some(vehicle_data),
         };
@@ -1382,7 +1373,7 @@ mod tests {
         vehicle_data.schedule = Some(String::from(
             "DTSTART:20221020T180000Z;DURATION:PT1H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
         ));
-        let vehicle = Vehicle {
+        let vehicle = vehicle::Object {
             id: vehicle_id.to_string(),
             data: Some(vehicle_data),
         };
@@ -1441,7 +1432,7 @@ mod tests {
         vehicle_data.schedule = Some(String::from(
             "DTSTART:20221020T180000Z;DURATION:PT1H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
         ));
-        let vehicle = Vehicle {
+        let vehicle = vehicle::Object {
             id: vehicle_id.to_string(),
             data: Some(vehicle_data),
         };

@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .extern_path(".google.protobuf.Timestamp", "::prost_wkt_types::Timestamp")
         .extern_path(
             ".grpc.FlightPlanObject",
-            "::svc_storage_client_grpc::flight_plan::Object",
+            "::svc_storage_client_grpc::prelude::flight_plan::Object",
         )
         .type_attribute("ConfirmFlightResponse", "#[derive(Eq)]")
         .type_attribute("CancelFlightResponse", "#[derive(Eq)]")

@@ -12,10 +12,7 @@ use crate::router::router_utils::router_state::{
 use crate::grpc::client::get_clients;
 use svc_compliance_client_grpc::client::FlightPlanRequest;
 use svc_compliance_client_grpc::service::Client as ComplianceServiceClient;
-use svc_storage_client_grpc::{
-    flight_plan, itinerary, AdvancedSearchFilter, FieldMask, Id as StorageId, IdList, LinkClient,
-    SimpleClient, Timestamp,
-};
+use svc_storage_client_grpc::prelude::{Id as StorageId, *};
 
 use lazy_static::lazy_static;
 use std::collections::HashMap;
@@ -513,10 +510,8 @@ pub async fn query_flight_plans_for_latest_arrival(
             .and_not_in(
                 "flight_status".to_owned(),
                 vec![
-                    (svc_storage_client_grpc::flight_plan::FlightStatus::Finished as i32)
-                        .to_string(),
-                    (svc_storage_client_grpc::flight_plan::FlightStatus::Cancelled as i32)
-                        .to_string(),
+                    (flight_plan::FlightStatus::Finished as i32).to_string(),
+                    (flight_plan::FlightStatus::Cancelled as i32).to_string(),
                 ],
             ),
         )

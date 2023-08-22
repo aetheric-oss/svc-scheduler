@@ -43,7 +43,7 @@ uuid            = "1.2"
 [dependencies.svc-storage-client-grpc]
 features = ["flight_plan", "itinerary"]
 git      = "https://github.com/Arrow-air/svc-storage.git"
-tag      = "v0.10.1-develop.20"
+tag      = "v0.10.1-develop.21"
 
 [dependencies.lib-common]
 features = ["grpc"]

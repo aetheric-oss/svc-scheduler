@@ -4,10 +4,8 @@ use crate::router::router_types::location::Location;
 use chrono::{TimeZone, Utc};
 use lib_common::log_macros;
 use ordered_float::OrderedFloat;
-use svc_storage_client_grpc::resources::*;
-use svc_storage_client_grpc::*;
+use svc_storage_client_grpc::prelude::*;
 use tokio::sync::OnceCell;
-use tonic::transport::Channel;
 
 log_macros!("unit_test", "test::unit");
 
@@ -73,7 +71,7 @@ pub async fn get_vertiports_from_storage() -> Vec<vertiport::Object> {
     {
         Ok(vertiports) => vertiports.into_inner().list,
         Err(e) => {
-            grpc_error!(
+            unit_test_error!(
                 "(get_vertiports_from_storage) Could not find vertiports in MOCK service: {}",
                 e
             );
@@ -98,7 +96,7 @@ pub async fn get_vehicles_from_storage() -> Vec<vehicle::Object> {
     {
         Ok(vehicles) => vehicles.into_inner().list,
         Err(e) => {
-            grpc_error!(
+            unit_test_error!(
                 "(get_vehicles_from_storage) Could not find vehicles in MOCK service: {}",
                 e
             );
@@ -109,7 +107,7 @@ pub async fn get_vehicles_from_storage() -> Vec<vehicle::Object> {
 
 /// generate mock vertipads for the given vertiports
 async fn generate_vertipads(
-    client: &GrpcClient<vertipad::RpcServiceClient<Channel>>,
+    client: &VertipadClient,
     vertiports: &Vec<vertiport::Object>,
 ) -> Vec<vertipad::Object> {
     let mut vertipads: Vec<vertipad::Object> = vec![];
@@ -152,9 +150,7 @@ async fn generate_vertipads(
 }
 
 /// generate mock vertiports
-async fn generate_vertiports(
-    client: &GrpcClient<vertiport::RpcServiceClient<Channel>>,
-) -> Vec<vertiport::Object> {
+async fn generate_vertiports(client: &VertiportClient) -> Vec<vertiport::Object> {
     let mut vertiports: Vec<vertiport::Object> = vec![];
     let sample_cal =
         "DTSTART:20221020T180000Z;DURATION:PT1H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
@@ -219,7 +215,7 @@ async fn generate_vertiports(
 /// generate mock vehicles for each of the given vertiports
 /// vertiports will be used to determine vehicle's last_vertiport_id
 async fn generate_vehicles(
-    client: &GrpcClient<vehicle::RpcServiceClient<Channel>>,
+    client: &VehicleClient,
     vertiports: &Vec<vertiport::Object>,
 ) -> Vec<vehicle::Object> {
     let mut vehicles: Vec<vehicle::Object> = vec![];
@@ -275,7 +271,7 @@ async fn generate_vehicles(
 }
 
 async fn generate_flight_plans(
-    client: &GrpcClient<flight_plan::RpcServiceClient<Channel>>,
+    client: &FlightPlanClient,
     vertipads: &Vec<vertipad::Object>,
     vehicles: &Vec<vehicle::Object>,
 ) -> Vec<flight_plan::Object> {
@@ -403,7 +399,7 @@ async fn generate_flight_plans(
 }
 
 async fn create_flight_plan(
-    client: &GrpcClient<flight_plan::RpcServiceClient<Channel>>,
+    client: &FlightPlanClient,
     vehicle_id: &str,
     departure_vertipad: &vertipad::Object,
     destination_vertipad: &vertipad::Object,
@@ -441,8 +437,8 @@ async fn create_flight_plan(
 
 /// generate mock itinerary for the given flight_plans
 async fn generate_itinerary(
-    client: &GrpcClient<itinerary::RpcServiceClient<Channel>>,
-    link_client: &GrpcClient<ItineraryFlightPlanLinkClient<Channel>>,
+    client: &ItineraryClient,
+    link_client: &ItineraryFlightPlanLinkClient,
     flight_plans: &Vec<flight_plan::Object>,
 ) -> Vec<itinerary::Object> {
     let mut itineraries: Vec<itinerary::Object> = vec![];

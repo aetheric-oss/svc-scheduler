@@ -26,8 +26,7 @@ pub fn init_logger(config: &Config) {
 }
 
 /// Tokio signal handler that will wait for a user to press CTRL+C.
-/// This signal handler can be used in our [`axum::Server`] method `with_graceful_shutdown`
-/// and in our [`tonic::transport::Server`] method `serve_with_shutdown`.
+/// This signal handler can be used in our [`tonic::transport::Server`] method `serve_with_shutdown`.
 ///
 /// # Examples
 ///

@@ -2764,8 +2764,8 @@ dependencies = [
 
 [[package]]
 name = "svc-storage"
-version = "0.10.1-develop.20"
-source = "git+https://github.com/Arrow-air/svc-storage.git?tag=v0.10.1-develop.20#c1bbe62bf12b1a54b2615fdfb080c3f0c261df48"
+version = "0.10.1-develop.21"
+source = "git+https://github.com/Arrow-air/svc-storage.git?tag=v0.10.1-develop.21#547b501d849c2a6cbba7c29f1825b9edd3ed68a3"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -2813,8 +2813,8 @@ dependencies = [
 
 [[package]]
 name = "svc-storage-client-grpc"
-version = "0.10.1-develop.20"
-source = "git+https://github.com/Arrow-air/svc-storage.git?tag=v0.10.1-develop.20#c1bbe62bf12b1a54b2615fdfb080c3f0c261df48"
+version = "0.10.1-develop.21"
+source = "git+https://github.com/Arrow-air/svc-storage.git?tag=v0.10.1-develop.21#547b501d849c2a6cbba7c29f1825b9edd3ed68a3"
 dependencies = [
  "anyhow",
  "cfg-if",

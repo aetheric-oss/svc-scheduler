@@ -46,12 +46,12 @@ pub struct Itinerary {
     /// flight_plan
     #[prost(message, optional, tag = "2")]
     pub flight_plan: ::core::option::Option<
-        ::svc_storage_client_grpc::flight_plan::Object,
+        ::svc_storage_client_grpc::prelude::flight_plan::Object,
     >,
     /// deadhead flight plans
     #[prost(message, repeated, tag = "3")]
     pub deadhead_flight_plans: ::prost::alloc::vec::Vec<
-        ::svc_storage_client_grpc::flight_plan::Object,
+        ::svc_storage_client_grpc::prelude::flight_plan::Object,
     >,
 }
 /// QueryFlightResponse
