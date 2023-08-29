@@ -4,6 +4,9 @@ include!("grpc.rs");
 
 use super::*;
 
+#[cfg(not(feature = "stub_client"))]
+use lib_common::grpc::ClientConnect;
+use lib_common::grpc::{Client, GrpcClient};
 use rpc_service_client::RpcServiceClient;
 /// GrpcClient implementation of the RpcServiceClient
 pub type SchedulerClient = GrpcClient<RpcServiceClient<Channel>>;
@@ -87,8 +90,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
     ) -> Result<tonic::Response<QueryFlightResponse>, tonic::Status> {
         grpc_warn!("(query_flight MOCK) {} client.", self.get_name());
         grpc_debug!("(query_flight MOCK) request: {:?}", request);
-        let flight_plan_data = scheduler_storage::flight_plan::mock::get_future_data_obj();
-        let flight_plan = scheduler_storage::flight_plan::Object {
+        let flight_plan_data = prelude::scheduler_storage::flight_plan::mock::get_future_data_obj();
+        let flight_plan = prelude::scheduler_storage::flight_plan::Object {
             id: uuid::Uuid::new_v4().to_string(),
             data: Some(flight_plan_data),
         };

@@ -6,20 +6,11 @@ use std::time::SystemTime;
 use svc_scheduler_client_grpc::prelude::{scheduler::*, *};
 use tokio::sync::OnceCell;
 
-pub(crate) static CLIENT: OnceCell<SchedulerClient> = OnceCell::const_new();
-
-pub async fn get_client() -> &'static SchedulerClient {
-    CLIENT
-        .get_or_init(|| async move {
-            let (host, port) = get_endpoint_from_env("SERVER_HOSTNAME", "SERVER_PORT_GRPC");
-            SchedulerClient::new_client(&host, port, "scheduler")
-        })
-        .await
-}
-
 #[tokio::test]
 async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
-    let client = get_client().await;
+    let (server_host, server_port) =
+        lib_common::grpc::get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
     let sys_time = SystemTime::now();
     let request = QueryFlightRequest {
         is_cargo: true,
@@ -39,7 +30,9 @@ async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::test]
 async fn test_cancel_itinerary() -> Result<(), Box<dyn std::error::Error>> {
-    let client = get_client().await;
+    let (server_host, server_port) =
+        lib_common::grpc::get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
     let request = Id {
         id: "1234".to_string(),
     };
@@ -52,7 +45,9 @@ async fn test_cancel_itinerary() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::test]
 async fn test_confirm_itinerary() -> Result<(), Box<dyn std::error::Error>> {
-    let client = get_client().await;
+    let (server_host, server_port) =
+        lib_common::grpc::get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
     let request = ConfirmItineraryRequest {
         id: "1234".to_string(),
         user_id: "".to_string(),
@@ -66,7 +61,9 @@ async fn test_confirm_itinerary() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::test]
 async fn test_is_ready() -> Result<(), Box<dyn std::error::Error>> {
-    let client = get_client().await;
+    let (server_host, server_port) =
+        lib_common::grpc::get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
     let request = ReadyRequest {};
 
     let response = client.is_ready(request).await?;

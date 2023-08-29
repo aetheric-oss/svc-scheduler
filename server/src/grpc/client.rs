@@ -47,7 +47,7 @@ impl GrpcClients {
 
 #[cfg(test)]
 mod tests {
-    use svc_compliance_client_grpc::Client as ComplianceServiceClient;
+    use svc_compliance_client_grpc::prelude::ComplianceClient;
 
     use super::*;
 

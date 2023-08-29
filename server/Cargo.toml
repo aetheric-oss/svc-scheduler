@@ -29,11 +29,17 @@ stub_server = ["test_util"]
 stub_client = ["stub_backends"]
 
 [dependencies]
-anyhow           = "1.0"
-cargo-husky      = "1"
-cfg-if           = "1.0"
-chrono           = { version = "0.4", features = ["serde"] }
-chrono-tz        = "0.6"
+anyhow      = "1.0"
+cargo-husky = "1"
+cfg-if      = "1.0"
+chrono      = { version = "0.4", features = ["serde"] }
+chrono-tz   = "0.6"
+# pin clap to 4.3 for now, since 4.4 requires rustc 1.70.0 or newer. Only needed
+# for svc-compliance, can be removed once resolved
+clap = { version = "4.3.24", features = ["derive"] }
+# pin clap_lex to 0.5.0 for now, since 0.5.1 requires rustc 1.70.0 or newer.
+# Only needed for svc-compliance, can be removed once resolved
+clap_lex         = "0.5.0"
 config           = "0.13"
 dotenv           = "0.15"
 futures          = "0.3"
@@ -60,16 +66,16 @@ vecmath          = "1.0"
 
 [dependencies.lib-common]
 git = "https://github.com/Arrow-air/lib-common.git"
-tag = "v0.1.1-develop.2"
+tag = "v0.2.0"
 
 [dependencies.svc-compliance-client-grpc]
 git = "https://github.com/Arrow-air/svc-compliance.git"
-tag = "v0.1.1-develop.5"
+tag = "v0.1.1-develop.8"
 
 [dependencies.svc-storage-client-grpc]
 features = ["flight_plan", "itinerary", "vehicle", "vertipad", "vertiport"]
 git      = "https://github.com/Arrow-air/svc-storage.git"
-tag      = "v0.10.1-develop.21"
+tag      = "v0.10.1-develop.22"
 
 [dependencies.log4rs]
 features = [

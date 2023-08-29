@@ -9,7 +9,7 @@ use svc_scheduler_client_grpc::prelude::{scheduler::*, *};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (host, port) = get_endpoint_from_env("SERVER_HOSTNAME", "SERVER_PORT_GRPC");
     let client = SchedulerClient::new_client(&host, port, "scheduler");
-    println!("Connection created");
+    println!("Client created");
     println!(
         "NOTE: Ensure the server is running on {} or this example will fail.",
         client.get_address()
