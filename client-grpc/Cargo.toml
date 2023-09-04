@@ -2,7 +2,7 @@
 description = "gRPC client for the scheduler service."
 keywords    = ["vtol", "client", "grpc", "scheduler"]  # max 5
 name        = "svc-scheduler-client-grpc"
-version     = "0.3.1-develop.0"
+version     = "0.3.1-develop.1"
 
 authors.workspace      = true
 categories.workspace   = true
@@ -43,12 +43,12 @@ uuid            = "1.2"
 [dependencies.svc-storage-client-grpc]
 features = ["flight_plan", "itinerary"]
 git      = "https://github.com/Arrow-air/svc-storage.git"
-tag      = "v0.10.1-develop.21"
+tag      = "v0.11.0"
 
 [dependencies.lib-common]
 features = ["grpc"]
 git      = "https://github.com/Arrow-air/lib-common.git"
-tag      = "v0.1.1-develop.2"
+tag      = "v0.2.0"
 
 [dependencies.tokio]
 features = ["macros", "rt-multi-thread"]
