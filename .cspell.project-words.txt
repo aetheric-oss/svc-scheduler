@@ -68,3 +68,5 @@ Montara
 oneshot
 owlot
 Refactorings
+timeslot
+timeslots

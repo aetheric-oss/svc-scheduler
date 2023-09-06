@@ -77,7 +77,7 @@ loggers:
     appenders:
       - grpc_clients
   app::router:
-    level: debug
+    level: info
     appenders:
       - router
   test::unit:

@@ -1,6 +1,6 @@
 //! gRPC client implementation
 
-use chrono::{TimeZone, Utc};
+use chrono::{offset::LocalResult::Single, TimeZone, Utc};
 use lib_common::grpc::get_endpoint_from_env;
 use svc_scheduler_client_grpc::prelude::{scheduler::*, *};
 
@@ -19,20 +19,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(ready.ready, true);
 
     let departure_time = match Utc.with_ymd_and_hms(2022, 10, 25, 15, 0, 0) {
-        Ok(time) => time.timestamp()
-        Err(e) => {
-            println!("(main) failed to parse departure time: {}", e);
+        Single(time) => time.timestamp(),
+        _ => {
+            println!("(main) failed to parse arrival time.");
             return Ok(());
         }
-    }
+    };
 
     let arrival_time = match Utc.with_ymd_and_hms(2022, 10, 25, 16, 0, 0) {
-        Ok(time) => time.timestamp()
-        Err(e) => {
-            println!("(main) failed to parse arrival time: {}", e);
+        Single(time) => time.timestamp(),
+        _ => {
+            println!("(main) failed to parse arrival time.");
             return Ok(());
         }
-    }
+    };
 
     let request = QueryFlightRequest {
         is_cargo: true,
@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let response = client.query_flight(request).await?.into_inner().itineraries;
-    let itinerary_id = (&response)[0].id.clone();
+    let itinerary_id = (&response)[0].itinerary_id.clone();
     println!("(main) itinerary id={}", itinerary_id);
 
     let response = client

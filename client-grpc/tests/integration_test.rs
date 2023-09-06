@@ -4,12 +4,10 @@
 use lib_common::grpc::get_endpoint_from_env;
 use std::time::SystemTime;
 use svc_scheduler_client_grpc::prelude::{scheduler::*, *};
-use tokio::sync::OnceCell;
 
 #[tokio::test]
 async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
-    let (server_host, server_port) =
-        lib_common::grpc::get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let (server_host, server_port) = get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
     let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
     let sys_time = SystemTime::now();
     let request = QueryFlightRequest {
@@ -30,8 +28,7 @@ async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::test]
 async fn test_cancel_itinerary() -> Result<(), Box<dyn std::error::Error>> {
-    let (server_host, server_port) =
-        lib_common::grpc::get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let (server_host, server_port) = get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
     let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
     let request = Id {
         id: "1234".to_string(),
@@ -45,8 +42,7 @@ async fn test_cancel_itinerary() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::test]
 async fn test_confirm_itinerary() -> Result<(), Box<dyn std::error::Error>> {
-    let (server_host, server_port) =
-        lib_common::grpc::get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let (server_host, server_port) = get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
     let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
     let request = ConfirmItineraryRequest {
         id: "1234".to_string(),
@@ -61,8 +57,7 @@ async fn test_confirm_itinerary() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::test]
 async fn test_is_ready() -> Result<(), Box<dyn std::error::Error>> {
-    let (server_host, server_port) =
-        lib_common::grpc::get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let (server_host, server_port) = get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
     let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
     let request = ReadyRequest {};
 

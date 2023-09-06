@@ -71,7 +71,8 @@ Does not apply.
 ```mermaid
 sequenceDiagram
     grpc_client->>+scheduler: query_flight(QueryFlightRequest)
-    scheduler->>+storage: get depart and arrive vertiports
+    scheduler->>+storage: get depart and arrive vertiport info
+    schedule->>+storage: get existing flight plans
     storage->>-scheduler: <vertiports>
     scheduler->>+storage: get flights scheduled from depart and to arrive vertiports
     storage->>-scheduler: <flight_plans>

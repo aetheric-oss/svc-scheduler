@@ -33,10 +33,13 @@ impl RpcService for ServerImpl {
     ) -> Result<Response<QueryFlightResponse>, Status> {
         grpc_info!("(query_flight) scheduler server.");
         grpc_debug!("(query_flight) request: {:?}", request);
-        let res = super::queries::query_flight(request).await;
-        if res.is_err() {
-            grpc_error!("{}", res.as_ref().unwrap_err());
+        let res = super::api::query_flight::query_flight(request).await;
+        if let Err(e) = res {
+            grpc_error!("(query_flight) error: {}", e);
+            return Err(e);
         }
+
+        res
     }
 
     ///Confirms the draft itinerary by id.
@@ -46,10 +49,13 @@ impl RpcService for ServerImpl {
     ) -> Result<Response<ConfirmItineraryResponse>, Status> {
         grpc_info!("(confirm_itinerary) scheduler server.");
         grpc_debug!("(confirm_itinerary) request: {:?}", request);
-        let res = super::queries::confirm_itinerary(request).await;
-        if res.is_err() {
-            grpc_error!("{}", res.as_ref().unwrap_err());
+        let res = super::api::confirm_itinerary::confirm_itinerary(request).await;
+        if let Err(e) = res {
+            grpc_error!("(confirm_itinerary) error: {}", e);
+            return Err(e);
         }
+
+        res
     }
 
     /// Cancels the itinerary by id.
@@ -59,10 +65,13 @@ impl RpcService for ServerImpl {
     ) -> Result<Response<CancelItineraryResponse>, Status> {
         grpc_info!("(cancel_itinerary) scheduler server.");
         grpc_debug!("(cancel_itinerary) request: {:?}", request);
-        let res = super::queries::cancel_itinerary(request).await;
-        if res.is_err() {
-            grpc_error!("{}", res.as_ref().unwrap_err());
+        let res = super::api::cancel_itinerary::cancel_itinerary(request).await;
+        if let Err(e) = res {
+            grpc_error!("(cancel_itinerary) error: {}", e);
+            return Err(e);
         }
+
+        res
     }
 
     /// Returns ready:true when service is available
@@ -145,9 +154,8 @@ impl RpcService for ServerImpl {
         };
 
         let itineraries = vec![Itinerary {
-            id: uuid::Uuid::new_v4().to_string(),
-            flight_plan: Some(flight_plan),
-            deadhead_flight_plans: vec![],
+            itinerary_id: uuid::Uuid::new_v4().to_string(),
+            flight_plans: vec![flight_plan],
         }];
 
         Ok(tonic::Response::new(QueryFlightResponse { itineraries }))

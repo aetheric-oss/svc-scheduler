@@ -1,33 +1,12 @@
 /// test utilities. Provides functions to inject mock data.
 use crate::grpc::client::get_clients;
-use crate::router::router_types::location::Location;
-use chrono::{TimeZone, Utc};
+use chrono::DateTime;
 use lib_common::log_macros;
-use ordered_float::OrderedFloat;
 use svc_storage_client_grpc::prelude::*;
 use tokio::sync::OnceCell;
 
 log_macros!("unit_test", "test::unit");
 
-/// SF central location
-pub static SAN_FRANCISCO: Location = Location {
-    latitude: OrderedFloat(37.7749),
-    longitude: OrderedFloat(-122.4194),
-    altitude_meters: OrderedFloat(0.0),
-};
-/// Montara central location
-pub static MONTARA: Location = Location {
-    latitude: OrderedFloat(37.52123),
-    longitude: OrderedFloat(-122.50892),
-    altitude_meters: OrderedFloat(0.0),
-};
-
-/*
-static VERTIPORTS_MOCK: OnceCell<Vec<vertiport::Object>> = tokio::sync::OnceCell::const_new();
-static VERTIPADS_MOCK: OnceCell<Vec<vertipad::Object>> = tokio::sync::OnceCell::const_new();
-static VEHICLES_MOCK: OnceCell<Vec<vehicle::Object>> = tokio::sync::OnceCell::const_new();
-static FLIGHT_PLANS_MOCK: OnceCell<Vec<flight_plan::Object>> = tokio::sync::OnceCell::const_new();
- */
 static INIT_MOCK_DATA: OnceCell<bool> = tokio::sync::OnceCell::const_new();
 async fn init_mock_data() -> bool {
     let clients = get_clients().await;
@@ -116,7 +95,7 @@ async fn generate_vertipads(
 
     for vertiport in vertiports {
         let mut vertipad = vertipad::mock::get_data_obj();
-        vertipad.name = format!("Mock vertipad {}", vertiport.id);
+        vertipad.name = format!("Mock vertipad for vertiport {}", vertiport.id);
         vertipad.schedule = Some(String::from(sample_cal));
         vertipad.vertiport_id = vertiport.id.clone();
 
@@ -153,7 +132,7 @@ async fn generate_vertipads(
 async fn generate_vertiports(client: &VertiportClient) -> Vec<vertiport::Object> {
     let mut vertiports: Vec<vertiport::Object> = vec![];
     let sample_cal =
-        "DTSTART:20221020T180000Z;DURATION:PT1H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
+        "DTSTART:20221020T180000Z;DURATION:PT1H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU";
 
     let geo_locations = vec![
         GeoPolygon {
@@ -415,14 +394,22 @@ async fn create_flight_plan(
     flight_plan.departure_vertipad_id = departure_vertipad.id.clone();
     flight_plan.destination_vertipad_id = destination_vertipad.id.clone();
     flight_plan.scheduled_departure = Some(
-        Utc.datetime_from_str(departure_time_str, "%Y-%m-%d %H:%M:%S")
-            .unwrap()
-            .into(),
+        DateTime::parse_from_str(
+            &(departure_time_str.to_owned() + " +0000"),
+            "%Y-%m-%d %H:%M:%S %z",
+        )
+        .unwrap()
+        .with_timezone(&chrono::Utc)
+        .into(),
     );
     flight_plan.scheduled_arrival = Some(
-        Utc.datetime_from_str(arrival_time_str, "%Y-%m-%d %H:%M:%S")
-            .unwrap()
-            .into(),
+        DateTime::parse_from_str(
+            &(arrival_time_str.to_owned() + " +0000"),
+            "%Y-%m-%d %H:%M:%S %z",
+        )
+        .unwrap()
+        .with_timezone(&chrono::Utc)
+        .into(),
     );
     flight_plan.flight_status = flight_plan::FlightStatus::Ready as i32;
 

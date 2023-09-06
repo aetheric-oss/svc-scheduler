@@ -42,15 +42,10 @@ pub struct ConfirmItineraryRequest {
 pub struct Itinerary {
     /// itinerary id
     #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
+    pub itinerary_id: ::prost::alloc::string::String,
     /// flight_plan
-    #[prost(message, optional, tag = "2")]
-    pub flight_plan: ::core::option::Option<
-        ::svc_storage_client_grpc::prelude::flight_plan::Object,
-    >,
-    /// deadhead flight plans
-    #[prost(message, repeated, tag = "3")]
-    pub deadhead_flight_plans: ::prost::alloc::vec::Vec<
+    #[prost(message, repeated, tag = "2")]
+    pub flight_plans: ::prost::alloc::vec::Vec<
         ::svc_storage_client_grpc::prelude::flight_plan::Object,
     >,
 }

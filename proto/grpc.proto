@@ -36,19 +36,18 @@ message ConfirmItineraryRequest {
     string user_id = 2;
 }
 
-// Dummy message, will be replaced with
-// svc_storage_client_grpc::flight_plan::Object type
+// This is replaced by the FlightPlanObject from svc_storage
+//  during the build process. See build.rs
 message FlightPlanObject {
+    bool arbitrary = 1;
 }
 
 // Itinerary includes id, flight plan and potential deadhead flights
 message Itinerary {
     // itinerary id
-    string id = 1;
+    string itinerary_id = 1;
     //flight_plan
-    FlightPlanObject flight_plan = 2;
-    //deadhead flight plans
-    repeated FlightPlanObject deadhead_flight_plans = 3;
+    repeated FlightPlanObject flight_plans = 2;
 }
 
 //QueryFlightResponse

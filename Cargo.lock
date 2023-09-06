@@ -47,7 +47,7 @@ dependencies = [
  "amq-protocol-types",
  "amq-protocol-uri",
  "cookie-factory",
- "nom 7.1.3",
+ "nom",
  "serde",
 ]
 
@@ -69,7 +69,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "156ff13c8a3ced600b4e54ed826a2ae6242b6069d00dd98466827cef07d3daff"
 dependencies = [
  "cookie-factory",
- "nom 7.1.3",
+ "nom",
  "serde",
  "serde_json",
 ]
@@ -175,12 +175,6 @@ name = "array-init"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d62b7694a562cdf5a74227903507c56ab2cc8bdd1f781ed5cb4cf9c9f810bfc"
-
-[[package]]
-name = "arrayvec"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 
 [[package]]
 name = "arrow-macros-core"
@@ -567,35 +561,13 @@ dependencies = [
 
 [[package]]
 name = "chrono-tz"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29c39203181991a7dd4343b8005bd804e7a9a37afb8ac070e43771e8c820bbde"
-dependencies = [
- "chrono",
- "chrono-tz-build 0.0.3",
- "phf",
-]
-
-[[package]]
-name = "chrono-tz"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1369bc6b9e9a7dfdae2055f6ec151fe9c554a9d23d357c0237cee2e25eaabb7"
 dependencies = [
  "chrono",
- "chrono-tz-build 0.2.0",
+ "chrono-tz-build",
  "phf",
-]
-
-[[package]]
-name = "chrono-tz-build"
-version = "0.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f509c3a87b33437b05e2458750a0700e5bdd6956176773e6c7d6dd15a283a0c"
-dependencies = [
- "parse-zoneinfo",
- "phf",
- "phf_codegen",
 ]
 
 [[package]]
@@ -684,7 +656,7 @@ dependencies = [
  "async-trait",
  "json5",
  "lazy_static",
- "nom 7.1.3",
+ "nom",
  "pathdiff",
  "ron",
  "rust-ini",
@@ -1218,8 +1190,24 @@ dependencies = [
  "geographiclib-rs",
  "log",
  "num-traits",
- "robust",
- "rstar",
+ "robust 0.2.3",
+ "rstar 0.10.0",
+]
+
+[[package]]
+name = "geo"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1645cf1d7fea7dac1a66f7357f3df2677ada708b8d9db8e9b043878930095a96"
+dependencies = [
+ "earcutr",
+ "float_next_after",
+ "geo-types",
+ "geographiclib-rs",
+ "log",
+ "num-traits",
+ "robust 1.1.0",
+ "rstar 0.11.0",
 ]
 
 [[package]]
@@ -1230,7 +1218,8 @@ checksum = "9705398c5c7b26132e74513f4ee7c1d7dafd786004991b375c172be2be0eecaa"
 dependencies = [
  "approx",
  "num-traits",
- "rstar",
+ "rstar 0.10.0",
+ "rstar 0.11.0",
  "serde",
 ]
 
@@ -1554,11 +1543,12 @@ dependencies = [
 
 [[package]]
 name = "iso8601-duration"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60b51dd97fa24074214b9eb14da518957573f4dec3189112610ae1ccec9ac464"
+checksum = "a26adff60a5d3ca10dc271ad37a34ff376595d2a1e5f21d02564929ca888c511"
 dependencies = [
- "nom 5.1.3",
+ "chrono",
+ "nom",
 ]
 
 [[package]]
@@ -1623,19 +1613,6 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
-
-[[package]]
-name = "lexical-core"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6607c62aa161d23d17a9072cc5da0be67cdfc89d3afb1e8d9c842bebc2525ffe"
-dependencies = [
- "arrayvec",
- "bitflags 1.3.2",
- "cfg-if",
- "ryu",
- "static_assertions",
-]
 
 [[package]]
 name = "lib-common"
@@ -1832,17 +1809,6 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
-]
-
-[[package]]
-name = "nom"
-version = "5.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08959a387a676302eebf4ddbcbc611da04285579f76f88ee0506c63b1a61dd4b"
-dependencies = [
- "lexical-core",
- "memchr",
- "version_check",
 ]
 
 [[package]]
@@ -2311,7 +2277,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90fcb95eef784c2ac79119d1dd819e162b5da872ce6f3c3abe1e8ca1c082f72b"
 dependencies = [
  "siphasher",
- "uncased",
 ]
 
 [[package]]
@@ -2828,6 +2793,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5864e7ef1a6b7bcf1d6ca3f655e65e724ed3b52546a0d0a663c991522f552ea"
 
 [[package]]
+name = "robust"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbf4a6aa5f6d6888f39e980649f3ad6b666acdce1d78e95b8a2cb076e687ae30"
+
+[[package]]
 name = "ron"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2845,7 +2816,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "615777991e415d96aa97f6e45e809111911497c029e5d0df7f6d751d218d28e8"
 dependencies = [
  "chrono",
- "chrono-tz 0.8.3",
+ "chrono-tz",
  "lazy_static",
  "log",
  "regex",
@@ -2857,6 +2828,17 @@ name = "rstar"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f39465655a1e3d8ae79c6d9e007f4953bfc5d55297602df9dc38f9ae9f1359a"
+dependencies = [
+ "heapless",
+ "num-traits",
+ "smallvec",
+]
+
+[[package]]
+name = "rstar"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73111312eb7a2287d229f06c00ff35b51ddee180f017ab6dec1f69d62ac098d6"
 dependencies = [
  "heapless",
  "num-traits",
@@ -3260,12 +3242,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
-name = "static_assertions"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
 name = "stringprep"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3318,7 +3294,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "svc-gis-client-grpc 0.0.1-develop.8 (git+https://github.com/Arrow-air/svc-gis.git?tag=v0.1.0)",
+ "svc-gis-client-grpc",
  "thiserror",
  "tokio",
  "tokio-util",
@@ -3346,8 +3322,9 @@ dependencies = [
 [[package]]
 name = "svc-gis"
 version = "0.0.1-develop.8"
-source = "git+https://github.com/Arrow-air/svc-gis.git?tag=v0.0.1-develop.8#02b3543665891b0a11ee915b6aa8d460da80caa6"
+source = "git+https://github.com/Arrow-air/svc-gis.git?tag=v0.1.0#cfc7ca0589119b5b547759aa5bbfcb3bd2e41650"
 dependencies = [
+ "anstyle",
  "anyhow",
  "axum",
  "cargo-husky",
@@ -3391,7 +3368,7 @@ dependencies = [
 [[package]]
 name = "svc-gis-client-grpc"
 version = "0.0.1-develop.8"
-source = "git+https://github.com/Arrow-air/svc-gis.git?tag=v0.0.1-develop.8#02b3543665891b0a11ee915b6aa8d460da80caa6"
+source = "git+https://github.com/Arrow-air/svc-gis.git?tag=v0.1.0#cfc7ca0589119b5b547759aa5bbfcb3bd2e41650"
 dependencies = [
  "cfg-if",
  "chrono",
@@ -3409,39 +3386,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "svc-gis-client-grpc"
-version = "0.0.1-develop.8"
-source = "git+https://github.com/Arrow-air/svc-gis.git?tag=v0.1.0#cfc7ca0589119b5b547759aa5bbfcb3bd2e41650"
-dependencies = [
- "cfg-if",
- "chrono",
- "lib-common",
- "log",
- "num-derive",
- "num-traits",
- "postgres-types",
- "prost",
- "prost-types",
- "prost-wkt-types",
- "tonic",
- "uuid",
-]
-
-[[package]]
 name = "svc-scheduler"
 version = "0.3.1-develop.1"
 dependencies = [
+ "anstyle",
+ "anstyle-parse",
  "anyhow",
  "cargo-husky",
  "cfg-if",
  "chrono",
- "chrono-tz 0.6.3",
+ "chrono-tz",
  "clap",
  "clap_lex",
  "config",
  "dotenv",
  "futures",
- "geo",
+ "geo 0.26.0",
  "iso8601-duration",
  "lazy_static",
  "lib-common",
@@ -3460,7 +3420,7 @@ dependencies = [
  "serde",
  "serial_test",
  "svc-compliance-client-grpc",
- "svc-gis-client-grpc 0.0.1-develop.8 (git+https://github.com/Arrow-air/svc-gis.git?tag=v0.0.1-develop.8)",
+ "svc-gis-client-grpc",
  "svc-scheduler",
  "svc-storage-client-grpc",
  "tokio",
@@ -3478,7 +3438,7 @@ version = "0.3.1-develop.1"
 dependencies = [
  "cfg-if",
  "chrono",
- "chrono-tz 0.8.3",
+ "chrono-tz",
  "futures",
  "lib-common",
  "log",
@@ -3553,7 +3513,7 @@ dependencies = [
  "cfg-if",
  "chrono",
  "futures",
- "geo",
+ "geo 0.25.1",
  "geo-types",
  "lazy_static",
  "lib-common",
@@ -4033,15 +3993,6 @@ name = "ucd-trie"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed646292ffc8188ef8ea4d1e0e0150fb15a5c2e12ad9b8fc191ae7a8a7f3c4b9"
-
-[[package]]
-name = "uncased"
-version = "0.9.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b9bc53168a4be7402ab86c3aad243a84dd7381d09be0eddc81280c1da95ca68"
-dependencies = [
- "version_check",
-]
 
 [[package]]
 name = "unicase"

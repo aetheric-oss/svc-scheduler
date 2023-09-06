@@ -3,6 +3,6 @@
 
 #[macro_use]
 pub mod macros;
+pub mod api;
 pub mod client;
-pub mod queries;
 pub mod server;

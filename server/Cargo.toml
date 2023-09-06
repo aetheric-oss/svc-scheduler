@@ -12,14 +12,13 @@ license-file.workspace = true
 repository.workspace   = true
 
 [features]
-default          = []
-dev              = ["mock"]
-test_util        = [
+default = []
+dev = ["mock"]
+test_util = [
   "mock",
   "stub_backends",
   "svc-storage-client-grpc/mock",
   "svc-compliance-client-grpc/mock",
-  # "svc-gis-client-grpc/mock",
 ]
 
 vendored-openssl = ["openssl/vendored"]
@@ -37,11 +36,14 @@ stub_server = ["test_util"]
 stub_client = ["stub_backends"]
 
 [dependencies]
+# pin anstyle and anstyle-parse until R4 when rust version is bumped
+anstyle     = "=1.0.2"
+anstyle-parse = "=0.2.1"
 anyhow      = "1.0"
 cargo-husky = "1"
 cfg-if      = "1.0"
 chrono      = { version = "0.4", features = ["serde"] }
-chrono-tz   = "0.6"
+chrono-tz   = "0.8"
 # pin clap to 4.3 for now, since 4.4 requires rustc 1.70.0 or newer. Only needed
 # for svc-compliance, can be removed once resolved
 clap = { version = "=4.3.24", features = ["derive"] }
@@ -51,8 +53,8 @@ clap_lex         = "=0.5.0"
 config           = "0.13"
 dotenv           = "0.15"
 futures          = "0.3"
-geo              = "0.25"
-iso8601-duration = "0.1"
+geo              = "0.26"
+iso8601-duration = { version = "0.2", features = ["chrono"] }
 lazy_static      = "1.4"
 log              = "0.4"
 openssl          = "0.10"
@@ -87,7 +89,7 @@ tag      = "v0.11.0"
 
 [dependencies.svc-gis-client-grpc]
 git = "https://github.com/Arrow-air/svc-gis.git"
-tag = "v0.0.1-develop.8"
+tag = "v0.1.0"
 
 [dependencies.log4rs]
 features = [

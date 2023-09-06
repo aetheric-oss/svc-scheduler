@@ -55,9 +55,6 @@ impl GrpcClients {
 
 #[cfg(test)]
 mod tests {
-    use svc_compliance_client_grpc::prelude::ComplianceClient;
-    use svc_gis_client_grpc::Client as GisServiceClient;
-
     use super::*;
 
     #[tokio::test]

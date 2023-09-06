@@ -97,9 +97,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         };
 
         let itineraries = vec![Itinerary {
-            id: uuid::Uuid::new_v4().to_string(),
-            flight_plan: Some(flight_plan),
-            deadhead_flight_plans: vec![],
+            itinerary_id: uuid::Uuid::new_v4().to_string(),
+            flight_plans: vec![flight_plan],
         }];
 
         Ok(tonic::Response::new(QueryFlightResponse { itineraries }))
