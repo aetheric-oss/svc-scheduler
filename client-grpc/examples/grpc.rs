@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let response = client.query_flight(request).await?.into_inner().itineraries;
-    let itinerary_id = (&response)[0].itinerary_id.clone();
+    let itinerary_id = (&response)[0].id.clone();
     println!("(main) itinerary id={}", itinerary_id);
 
     let response = client

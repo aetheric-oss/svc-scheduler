@@ -108,7 +108,7 @@ mod tests {
         std::env::set_var("STORAGE_HOST_GRPC", "test_host_storage_grpc");
         std::env::set_var("STORAGE_PORT_GRPC", "12345");
         std::env::set_var("GIS_HOST_GRPC", "test_host_gis_grpc");
-        std::env::set_var("GIS_PORT_GRPC", "12345");
+        std::env::set_var("GIS_PORT_GRPC", "54321");
         std::env::set_var("LOG_CONFIG", "config_file.yaml");
 
         let config = Config::try_from_env();
@@ -129,6 +129,6 @@ mod tests {
         assert_eq!(config.log_config, String::from("config_file.yaml"));
 
         assert_eq!(config.gis_host_grpc, String::from("test_host_gis_grpc"));
-        assert_eq!(config.gis_port_grpc, 12345);
+        assert_eq!(config.gis_port_grpc, 54321);
     }
 }

@@ -37,13 +37,13 @@ stub_client = ["stub_backends"]
 
 [dependencies]
 # pin anstyle and anstyle-parse until R4 when rust version is bumped
-anstyle     = "=1.0.2"
+anstyle       = "=1.0.2"
 anstyle-parse = "=0.2.1"
-anyhow      = "1.0"
-cargo-husky = "1"
-cfg-if      = "1.0"
-chrono      = { version = "0.4", features = ["serde"] }
-chrono-tz   = "0.8"
+anyhow        = "1.0"
+cargo-husky   = "1"
+cfg-if        = "1.0"
+chrono        = { version = "0.4", features = ["serde"] }
+chrono-tz     = "0.8"
 # pin clap to 4.3 for now, since 4.4 requires rustc 1.70.0 or newer. Only needed
 # for svc-compliance, can be removed once resolved
 clap = { version = "=4.3.24", features = ["derive"] }

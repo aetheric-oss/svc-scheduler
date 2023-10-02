@@ -291,7 +291,7 @@ pub async fn query_flight(
 
         super::cancel_itinerary_after_timeout(itinerary_id.clone());
         response.itineraries.push(Itinerary {
-            itinerary_id,
+            id: itinerary_id,
             flight_plans,
         });
     }

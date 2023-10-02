@@ -97,7 +97,7 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         };
 
         let itineraries = vec![Itinerary {
-            itinerary_id: uuid::Uuid::new_v4().to_string(),
+            id: uuid::Uuid::new_v4().to_string(),
             flight_plans: vec![flight_plan],
         }];
 

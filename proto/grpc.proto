@@ -45,7 +45,7 @@ message FlightPlanObject {
 // Itinerary includes id, flight plan and potential deadhead flights
 message Itinerary {
     // itinerary id
-    string itinerary_id = 1;
+    string id = 1;
     //flight_plan
     repeated FlightPlanObject flight_plans = 2;
 }

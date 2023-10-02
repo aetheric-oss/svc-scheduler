@@ -18,8 +18,6 @@ pub enum AircraftType {
 /// TODO(R4): Hardcoded for the demo. This is solely used to
 ///  estimate a duration of a flight.
 const AVERAGE_CARGO_AIRCRAFT_CRUISE_VELOCITY_M_PER_S: f32 = 10.0;
-/// Ignore aircraft that haven't reported in the last hour
-const AIRCRAFT_TIMEOUT_MINUTES: i64 = 60;
 
 /// Reasons for unavailable aircraft
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -163,11 +161,8 @@ async fn get_aircraft(clients: &GrpcClients) -> Result<Vec<Aircraft>, VehicleErr
     //   private aircraft
     //   disabled aircraft
 
-    // Ignore aircraft that haven't been updated recently
-    let mut filter = AdvancedSearchFilter::search_greater(
-        "updated_at".to_owned(),
-        (Utc::now() - Duration::minutes(AIRCRAFT_TIMEOUT_MINUTES)).to_string(),
-    );
+    // TODO(R4): Ignore aircraft that haven't been updated recently
+    let mut filter = AdvancedSearchFilter::default();
 
     // We should further limit this, but for now we'll just get all aircraft
     //  Need something to sort by, ascending distance from the

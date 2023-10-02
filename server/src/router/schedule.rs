@@ -280,22 +280,32 @@ impl FromStr for Calendar {
 impl Display for Calendar {
     /// Formats `Calendar` into multiline string which can be stored in the database
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let err_msg = String::from("Error writing to string");
         for event in &self.events {
-            writeln!(
+            if let Err(e) = writeln!(
                 f,
                 "DTSTART:{};DURATION:{}",
                 datetime_to_ical_format(event.rrule_set.get_dt_start()),
                 &event.duration
-            )
-            .expect(&err_msg);
-            for rrule in event.rrule_set.get_rrule() {
-                writeln!(f, "RRULE:{}", rrule).expect(&err_msg);
+            ) {
+                router_error!("(Calendar fmt) {}", e);
+                return Err(std::fmt::Error);
             }
+
+            for rrule in event.rrule_set.get_rrule() {
+                if let Err(e) = writeln!(f, "RRULE:{}", rrule) {
+                    router_error!("(Calendar fmt) {}", e);
+                    return Err(std::fmt::Error);
+                }
+            }
+
             for rdate in event.rrule_set.get_rdate() {
-                writeln!(f, "RDATE:{}", datetime_to_ical_format(rdate)).expect(&err_msg);
+                if let Err(e) = writeln!(f, "RDATE:{}", datetime_to_ical_format(rdate)) {
+                    router_error!("(Calendar fmt) {}", e);
+                    return Err(std::fmt::Error);
+                }
             }
         }
+
         Ok(())
     }
 }

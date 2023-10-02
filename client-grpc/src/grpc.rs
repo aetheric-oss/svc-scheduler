@@ -42,7 +42,7 @@ pub struct ConfirmItineraryRequest {
 pub struct Itinerary {
     /// itinerary id
     #[prost(string, tag = "1")]
-    pub itinerary_id: ::prost::alloc::string::String,
+    pub id: ::prost::alloc::string::String,
     /// flight_plan
     #[prost(message, repeated, tag = "2")]
     pub flight_plans: ::prost::alloc::vec::Vec<

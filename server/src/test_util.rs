@@ -91,7 +91,7 @@ async fn generate_vertipads(
 ) -> Vec<vertipad::Object> {
     let mut vertipads: Vec<vertipad::Object> = vec![];
     let sample_cal =
-        "DTSTART:20221020T180000Z;DURATION:PT1H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
+        "DTSTART:20221020T180000Z;DURATION:PT24H\nRRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR";
 
     for vertiport in vertiports {
         let mut vertipad = vertipad::mock::get_data_obj();
@@ -132,7 +132,7 @@ async fn generate_vertipads(
 async fn generate_vertiports(client: &VertiportClient) -> Vec<vertiport::Object> {
     let mut vertiports: Vec<vertiport::Object> = vec![];
     let sample_cal =
-        "DTSTART:20221020T180000Z;DURATION:PT1H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU";
+        "DTSTART:20221020T180000Z;DURATION:PT24H\nRRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA,SU";
 
     let geo_locations = vec![
         GeoPolygon {
@@ -199,7 +199,7 @@ async fn generate_vehicles(
 ) -> Vec<vehicle::Object> {
     let mut vehicles: Vec<vehicle::Object> = vec![];
     let sample_cal =
-        "DTSTART:20221020T180000Z;DURATION:PT1H\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
+        "DTSTART:20221020T180000Z;DURATION:PT24H\nRRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR";
 
     // Vehicle at vertiport 1
     let mut vehicle = vehicle::mock::get_data_obj();

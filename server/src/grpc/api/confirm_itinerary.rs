@@ -183,6 +183,7 @@ mod tests {
     use crate::init_logger;
     use crate::test_util::{ensure_storage_mock_data, get_vertiports_from_storage};
 
+    #[cfg(feature = "stub_backends")]
     #[tokio::test]
     async fn test_confirm_and_cancel_itinerary() {
         init_logger(&Config::try_from_env().unwrap_or_default());
@@ -201,7 +202,7 @@ mod tests {
         let res = query_flight(Request::new(QueryFlightRequest {
             is_cargo: true,
             persons: None,
-            weight_grams: Some(100.0),
+            weight_grams: Some(100),
             earliest_departure_time: Some(Utc::now().into()),
             latest_arrival_time: Some((Utc::now() + chrono::Duration::hours(1)).into()),
             vertiport_depart_id: vertiports[0].id.clone(),
@@ -213,9 +214,7 @@ mod tests {
             res
         );
         assert!(res.is_ok());
-        let id = res.unwrap().into_inner().itineraries[0]
-            .itinerary_id
-            .clone();
+        let id = res.unwrap().into_inner().itineraries[0].id.clone();
         let res = confirm_itinerary(Request::new(ConfirmItineraryRequest {
             id,
             user_id: "".to_string(),

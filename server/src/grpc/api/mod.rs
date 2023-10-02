@@ -33,20 +33,22 @@ pub fn unconfirmed_flight_plans() -> &'static Mutex<HashMap<String, flight_plan:
 
 /// Gets itinerary from hash map of unconfirmed itineraries
 pub fn get_draft_itinerary_by_id(id: &str) -> Option<Vec<String>> {
-    unconfirmed_itineraries()
-        .lock()
-        .expect("Mutex Lock Error getting itinerary from temp storage")
-        .get(id)
-        .cloned()
+    let Ok(itineraries) = unconfirmed_itineraries().lock() else {
+        grpc_error!("(get_draft_itinerary_by_id) mutex Lock Error getting itinerary from temp storage");
+        return None;
+    };
+
+    itineraries.get(id).cloned()
 }
 
 /// Gets flight plan from hash map of unconfirmed flight plans
 pub fn get_draft_fp_by_id(id: &str) -> Option<flight_plan::Data> {
-    unconfirmed_flight_plans()
-        .lock()
-        .expect("Mutex Lock Error getting flight plan from temp storage")
-        .get(id)
-        .cloned()
+    let Ok(flight_plans) = unconfirmed_flight_plans().lock() else {
+        grpc_error!("(get_draft_fp_by_id) mutex Lock Error getting flight plan from temp storage");
+        return None;
+    };
+
+    flight_plans.get(id).cloned()
 }
 
 /// spawns a thread that will cancel the itinerary after a certain amount of time (ITINERARY_EXPIRATION_S)
@@ -60,9 +62,10 @@ fn cancel_itinerary_after_timeout(id: String) {
 
 /// Removes flight plan from hash map of unconfirmed flight plans
 fn remove_draft_fp_by_id(id: &str) -> bool {
-    let mut flight_plans = unconfirmed_flight_plans()
-        .lock()
-        .expect("(remove_draft_fp_by_id) mutex Lock Error removing flight plan from temp storage.");
+    let Ok(mut flight_plans) = unconfirmed_flight_plans().lock() else {
+        grpc_error!("(remove_draft_fp_by_id) mutex Lock Error removing flight plan from temp storage.");
+        return false;
+    };
 
     match flight_plans.remove(id) {
         Some(_) => {
@@ -84,9 +87,10 @@ fn remove_draft_fp_by_id(id: &str) -> bool {
 
 /// Removes itinerary from hash map of unconfirmed flight plans
 fn remove_draft_itinerary_by_id(id: &str) -> bool {
-    let mut itineraries = unconfirmed_itineraries().lock().expect(
-        "(remove_draft_itinerary_by_id) mutex Lock Error removing itinerary from temp storage.",
-    );
+    let Ok(mut itineraries) = unconfirmed_itineraries().lock() else {
+        grpc_error!("(remove_draft_itinerary_by_id) mutex Lock Error removing itinerary from temp storage.");
+        return false;
+    };
 
     let Some(itinerary) = itineraries.get(id) else {
         grpc_debug!("(remove_draft_itinerary_by_id) no such itinerary with ID {} in cache.", &id);
