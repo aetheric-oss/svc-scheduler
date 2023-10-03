@@ -6,7 +6,7 @@ use svc_scheduler::*;
 #[tokio::main]
 #[cfg(not(tarpaulin_include))]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("(svc-scheduler) server startup.");
+    println!("(main) server startup.");
 
     // Will use default config settings if no environment vars are found.
     let config = Config::try_from_env().unwrap_or_default();
@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Make sure all log message are written/ displayed before shutdown
     log::logger().flush();
 
-    info!("(svc-scheduler) server shutdown.");
+    info!("(main) server shutdown.");
 
     Ok(())
 }

@@ -87,11 +87,7 @@ impl TryFrom<vehicle::Object> for Aircraft {
         let vehicle_uuid = match Uuid::parse_str(&vehicle.id) {
             Ok(uuid) => uuid.to_string(),
             Err(e) => {
-                router_error!(
-                    "(Aircraft::try_from) Vehicle {} has invalid UUID: {}",
-                    vehicle.id,
-                    e
-                );
+                router_error!("(try_from) Vehicle {} has invalid UUID: {}", vehicle.id, e);
 
                 return Err(VehicleError::InvalidData);
             }
@@ -99,7 +95,7 @@ impl TryFrom<vehicle::Object> for Aircraft {
 
         let Some(data) = vehicle.data else {
             router_error!(
-                "(Aircraft::try_from) Vehicle doesn't have data: {:?}",
+                "(try_from) Vehicle doesn't have data: {:?}",
                 vehicle
             );
 
@@ -108,7 +104,7 @@ impl TryFrom<vehicle::Object> for Aircraft {
 
         let Some(last_vertiport_id) = data.last_vertiport_id else {
             router_error!(
-                "(Aircraft::try_from) Vehicle {} doesn't have last_vertiport_id.",
+                "(try_from) Vehicle {} doesn't have last_vertiport_id.",
                 vehicle_uuid
             );
 
@@ -119,7 +115,7 @@ impl TryFrom<vehicle::Object> for Aircraft {
             Ok(uuid) => uuid.to_string(),
             Err(e) => {
                 router_error!(
-                    "(Aircraft::try_from) Vehicle {} has invalid last_vertiport_id: {}",
+                    "(try_from) Vehicle {} has invalid last_vertiport_id: {}",
                     vehicle_uuid,
                     e
                 );
@@ -137,7 +133,7 @@ impl TryFrom<vehicle::Object> for Aircraft {
 
         let Ok(vehicle_calendar) = Calendar::from_str(&calendar) else {
             router_debug!(
-                "(is_vehicle_available) Invalid schedule for vehicle {}: {}",
+                "(try_from) Invalid schedule for vehicle {}: {}",
                 vehicle_uuid,
                 calendar
             );
@@ -162,12 +158,14 @@ async fn get_aircraft(clients: &GrpcClients) -> Result<Vec<Aircraft>, VehicleErr
     //   disabled aircraft
 
     // TODO(R4): Ignore aircraft that haven't been updated recently
-    let mut filter = AdvancedSearchFilter::default();
-
     // We should further limit this, but for now we'll just get all aircraft
     //  Need something to sort by, ascending distance from the
     //  departure vertiport or charge level before cutting off the list
-    filter.results_per_page = 1000;
+    let filter = AdvancedSearchFilter {
+        results_per_page: 1000,
+        ..Default::default()
+    };
+
     let Ok(response) = clients
         .storage
         .vehicle
@@ -190,12 +188,12 @@ async fn get_aircraft(clients: &GrpcClients) -> Result<Vec<Aircraft>, VehicleErr
 /// Estimate should be rather generous to block resources instead of potentially overloading them
 pub fn estimate_flight_time_seconds(distance_meters: &f32) -> Duration {
     router_debug!(
-        "(estimate_flight_time_minutes) distance_meters: {}",
+        "(estimate_flight_time_seconds) distance_meters: {}",
         *distance_meters
     );
 
     let aircraft = AircraftType::Cargo; // TODO(R4): Hardcoded for demo
-    router_debug!("(estimate_flight_time_minutes) aircraft: {:?}", aircraft);
+    router_debug!("(estimate_flight_time_seconds) aircraft: {:?}", aircraft);
 
     match aircraft {
         AircraftType::Cargo => {
@@ -269,7 +267,7 @@ pub async fn get_aircraft_gaps(
             schedule.push(fp.clone());
         } else {
             router_warn!(
-                "(query_flight) Flight plan for unknown aircraft: {}",
+                "(get_aircraft_gaps) Flight plan for unknown aircraft: {}",
                 fp.vehicle_id
             );
         }
@@ -280,7 +278,7 @@ pub async fn get_aircraft_gaps(
     for vehicle in aircraft.into_iter() {
         let Some(schedule) = aircraft_schedules.get_mut(&vehicle.vehicle_uuid) else {
             router_warn!(
-                "(query_flight) Flight plan for unknown aircraft: {}",
+                "(get_aircraft_gaps) Flight plan for unknown aircraft: {}",
                 vehicle.vehicle_uuid
             );
 

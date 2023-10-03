@@ -38,7 +38,7 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
     fn try_from(flight_plan: flight_plan::Object) -> Result<Self, Self::Error> {
         let Some(data) = flight_plan.data else {
             router_error!(
-                "(get_flight_plan_schedule) Flight plan [{}] has no data.",
+                "(try_from) Flight plan [{}] has no data.",
                 flight_plan.id
             );
             return Err(FlightPlanError::InvalidData)
@@ -51,7 +51,7 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
             Some(departure_time) => departure_time.into(),
             None => {
                 router_error!(
-                    "(get_flight_plan_schedule) Flight plan [{}] has no scheduled departure.",
+                    "(try_from) Flight plan [{}] has no scheduled departure.",
                     flight_plan.id
                 );
                 return Err(FlightPlanError::InvalidData);
@@ -62,7 +62,7 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
             Some(arrival_time) => arrival_time.into(),
             None => {
                 router_error!(
-                    "(get_flight_plan_schedule) Flight plan [{}] has no scheduled arrival.",
+                    "(try_from) Flight plan [{}] has no scheduled arrival.",
                     flight_plan.id
                 );
                 return Err(FlightPlanError::InvalidData);
@@ -74,7 +74,7 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
         //
         let Some(departure_vertiport_id) = data.departure_vertiport_id else {
             router_error!(
-                "(get_flight_plan_schedule) Flight plan [{}] has no departure vertiport.",
+                "(try_from) Flight plan [{}] has no departure vertiport.",
                 flight_plan.id
             );
             return Err(FlightPlanError::InvalidData)
@@ -84,7 +84,7 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
             Ok(id) => id.to_string(),
             Err(e) => {
                 router_error!(
-                    "(get_flight_plan_schedule) Flight plan [{}] has invalid departure vertiport id: {}",
+                    "(try_from) Flight plan [{}] has invalid departure vertiport id: {}",
                     flight_plan.id,
                     e
                 );
@@ -94,7 +94,7 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
 
         let Some(arrival_vertiport_id) = data.destination_vertiport_id else {
             router_error!(
-                "(get_flight_plan_schedule) Flight plan [{}] has no arrival vertiport.",
+                "(try_from) Flight plan [{}] has no arrival vertiport.",
                 flight_plan.id
             );
             return Err(FlightPlanError::InvalidData)
@@ -104,7 +104,7 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
             Ok(id) => id.to_string(),
             Err(e) => {
                 router_error!(
-                    "(get_flight_plan_schedule) Flight plan [{}] has invalid arrival vertiport id: {}",
+                    "(try_from) Flight plan [{}] has invalid arrival vertiport id: {}",
                     flight_plan.id,
                     e
                 );
@@ -117,7 +117,7 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
         //
         let Ok(vehicle_id) = Uuid::parse_str(&data.vehicle_id) else {
             router_error!(
-                "(get_flight_plan_schedule) Flight plan [{}] has no vehicle.",
+                "(try_from) Flight plan [{}] has no vehicle.",
                 flight_plan.id
             );
             return Err(FlightPlanError::InvalidData)

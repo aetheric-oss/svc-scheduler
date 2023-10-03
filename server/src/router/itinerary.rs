@@ -81,9 +81,7 @@ pub async fn get_itineraries(
                 Ok(itinerary) => itineraries.push(itinerary),
                 Err(ItineraryError::ClientError) => {
                     // exit immediately if svc-gis is down, don't allow new flights
-                    router_error!(
-                        "(get_vehicle_availability) Could not determine path; client error."
-                    );
+                    router_error!("(get_itineraries) Could not determine path; client error.");
                     return Err(ItineraryError::ClientError);
                 }
                 _ => {
@@ -126,7 +124,7 @@ async fn aircraft_selection(
             }
             Err(ItineraryError::ClientError) => {
                 // exit immediately if svc-gis is down, don't allow new flights
-                router_error!("(get_vehicle_availability) Could not determine path; client error.");
+                router_error!("(aircraft_selection) Could not determine path; client error.");
                 return Err(ItineraryError::ClientError);
             }
             _ => {
@@ -152,7 +150,7 @@ async fn get_itinerary(
     // Must be some overlap between the flight window and the available timeslot
     let Ok(overlap) = availability.timeslot.overlap(flight_window) else {
         router_debug!(
-            "(is_aircraft_available) No overlap between flight window and available timeslot."
+            "(get_itinerary) No overlap between flight window and available timeslot."
         );
 
         return Err(ItineraryError::ScheduleConflict);
@@ -160,7 +158,7 @@ async fn get_itinerary(
 
     let Some(ref departure_vertiport_id) = flight_plan.departure_vertiport_id else {
         router_error!(
-            "(get_vehicle_itinerary) Flight plan doesn't have departure_vertiport_id.",
+            "(get_itinerary) Flight plan doesn't have departure_vertiport_id.",
         );
 
         return Err(ItineraryError::InvalidData);
@@ -168,7 +166,7 @@ async fn get_itinerary(
 
     let Some(ref arrival_vertiport_id) = flight_plan.destination_vertiport_id else {
         router_error!(
-            "(get_vehicle_itinerary) Flight plan doesn't have destination_vertiport_id.",
+            "(get_itinerary) Flight plan doesn't have destination_vertiport_id.",
         );
 
         return Err(ItineraryError::InvalidData);
@@ -199,7 +197,7 @@ async fn get_itinerary(
                     //  is blocking journeys from this depart timeslot
                     // Break out and try the next depart timeslot
                     router_debug!(
-                        "(get_vehicle_availability) No path found from vertiport {}
+                        "(get_itinerary) No path found from vertiport {}
                 to vertiport {} (from {} to {}).",
                         availability.vertiport_id,
                         departure_vertiport_id,
@@ -211,7 +209,7 @@ async fn get_itinerary(
                 }
                 Err(BestPathError::ClientError) => {
                     // exit immediately if svc-gis is down, don't allow new flights
-                    router_error!("(get_vehicle_availability) Could not determine path.");
+                    router_error!("(get_itinerary) Could not determine path.");
                     return Err(ItineraryError::ClientError);
                 }
             };
@@ -227,9 +225,7 @@ async fn get_itinerary(
         if scheduled_arrival > availability.timeslot.time_end {
             // This flight plan would end after the available timeslot
             //  Break out and try the next available timeslot
-            router_debug!(
-                "(get_vehicle_availability) Flight plan would end after available timeslot."
-            );
+            router_debug!("(get_itinerary) Flight plan would end after available timeslot.");
 
             return Err(ItineraryError::ScheduleConflict);
         }
@@ -257,9 +253,7 @@ async fn get_itinerary(
             Some(last) => match &last.scheduled_arrival {
                 Some(s) => s.clone().into(),
                 None => {
-                    router_error!(
-                        "(get_vehicle_availability) Last flight plan has no scheduled arrival."
-                    );
+                    router_error!("(get_itinerary) Last flight plan has no scheduled arrival.");
 
                     return Err(ItineraryError::InvalidData);
                 }
@@ -272,9 +266,7 @@ async fn get_itinerary(
         if scheduled_arrival > availability.timeslot.time_end {
             // This flight plan would end after the available timeslot
             //  Break out and try the next available timeslot
-            router_debug!(
-                "(get_vehicle_availability) Flight plan would end after available timeslot."
-            );
+            router_debug!("(get_itinerary) Flight plan would end after available timeslot.");
 
             return Err(ItineraryError::ScheduleConflict);
         }
@@ -282,7 +274,7 @@ async fn get_itinerary(
         if scheduled_arrival > flight_window.time_end {
             // This flight plan would end after the flight window
             //  Break out and try the next available timeslot
-            router_debug!("(get_vehicle_availability) Flight plan would end after flight window.");
+            router_debug!("(get_itinerary) Flight plan would end after flight window.");
 
             return Err(ItineraryError::ScheduleConflict);
         }
@@ -303,7 +295,7 @@ async fn get_itinerary(
         //  right now it boomerangs back to its original last_vertiport_id
         let Some(last) = flight_plans.last() else {
             router_error!(
-                "(get_vehicle_availability) No flight plans found for vehicle {}.",
+                "(get_itinerary) No flight plans found for vehicle {}.",
                 vehicle_id
             );
 
@@ -312,7 +304,7 @@ async fn get_itinerary(
 
         let Some(last_arrival) = &last.scheduled_arrival else {
             router_error!(
-                "(get_vehicle_availability) Last flight plan has no scheduled arrival."
+                "(get_itinerary) Last flight plan has no scheduled arrival."
             );
 
             return Err(ItineraryError::InvalidData);
@@ -336,7 +328,7 @@ async fn get_itinerary(
                     //  is blocking journeys from this depart timeslot
                     // Break out and try the next depart timeslot
                     router_debug!(
-                        "(get_vehicle_availability) No path found from vertiport {}
+                        "(get_itinerary) No path found from vertiport {}
                 to vertiport {} (from {} to {}).",
                         arrival_vertiport_id,
                         availability.vertiport_id,
@@ -348,7 +340,7 @@ async fn get_itinerary(
                 }
                 Err(BestPathError::ClientError) => {
                     // exit immediately if svc-gis is down, don't allow new flights
-                    router_error!("(get_vehicle_availability) Could not determine path.");
+                    router_error!("(get_itinerary) Could not determine path.");
                     return Err(ItineraryError::ClientError);
                 }
             };
@@ -360,9 +352,7 @@ async fn get_itinerary(
         if scheduled_arrival > availability.timeslot.time_end {
             // This flight plan would end after the available timeslot
             //  Break out and try the next available timeslot
-            router_debug!(
-                "(get_vehicle_availability) Flight plan would end after available timeslot."
-            );
+            router_debug!("(get_itinerary) Flight plan would end after available timeslot.");
 
             return Err(ItineraryError::ScheduleConflict);
         }

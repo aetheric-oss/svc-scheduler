@@ -18,7 +18,7 @@ pub fn init_logger(config: &Config) {
         let log_cfg: &str = config.log_config.as_str();
         if let Err(e) = log4rs::init_file(log_cfg, Default::default()) {
             panic!(
-                "(logger) could not parse log config {} found in config {:?}: {}.",
+                "(init_logger) could not parse log config {} found in config {:?}: {}.",
                 log_cfg, config, e
             );
         }

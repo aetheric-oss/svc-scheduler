@@ -129,11 +129,7 @@ impl Sub for Timeslot {
             }];
         }
 
-        router_warn!(
-            "(timeslot_collision) Unhandled case: {:?} {:?}",
-            self,
-            other
-        );
+        router_warn!("(sub) Unhandled case: {:?} {:?}", self, other);
 
         vec![]
     }
@@ -207,22 +203,22 @@ impl FromStr for Calendar {
     ///   "DTSTART:20221020T180000Z;DURATION:PT1H" not "DURATION:PT1H;DTSTART:20221020T180000Z"
     /// Duration is in ISO8601 format (`iso8601_duration` crate)
     fn from_str(calendar_str: &str) -> Result<Self, Self::Err> {
-        router_debug!("(Calendar from_str) Parsing calendar: {}", calendar_str);
+        router_debug!("(from_str) Parsing calendar: {}", calendar_str);
         let rrule_sets: Vec<&str> = calendar_str
             .split("DTSTART:")
             .filter(|s| !s.is_empty())
             .collect();
-        router_debug!("(Calendar from_str) rrule_sets: {:?}", rrule_sets);
+        router_debug!("(from_str) rrule_sets: {:?}", rrule_sets);
         let mut recurrent_events: Vec<RecurrentEvent> = Vec::new();
         for rrule_set_str in rrule_sets {
-            router_debug!("(Calendar from_str) rrule_set_str: {}", rrule_set_str);
+            router_debug!("(from_str) rrule_set_str: {}", rrule_set_str);
             let rrules_with_header: Vec<&str> = rrule_set_str
                 .split('\n')
                 .filter(|s| !s.is_empty())
                 .collect();
             if rrules_with_header.len() < 2 {
                 router_error!(
-                    "(Calendar from_str) Invalid rrule {} with header length: {}",
+                    "(from_str) Invalid rrule {} with header length: {}",
                     calendar_str,
                     rrules_with_header.len()
                 );
@@ -236,7 +232,7 @@ impl FromStr for Calendar {
                 .collect();
             if header_parts.len() != 2 {
                 router_error!(
-                    "(Calendar from_str) Invalid header parts length: {}",
+                    "(from_str) Invalid header parts length: {}",
                     header_parts.len()
                 );
                 return Err(CalendarError::HeaderPartsLength);
@@ -245,12 +241,12 @@ impl FromStr for Calendar {
             let dtstart = header_parts[0];
             let duration: &str = header_parts[1];
             let Ok(duration) = duration.parse::<Iso8601Duration>() else {
-                router_error!("(Calendar from_str) Invalid duration: {:?}", duration);
+                router_error!("(from_str) Invalid duration: {:?}", duration);
                 return Err(CalendarError::Duration);
             };
 
             let Some(duration) = duration.to_chrono() else {
-                router_error!("(Calendar from_str) Could not convert duration to chrono::DateTime: {:?}", duration);
+                router_error!("(from_str) Could not convert duration to chrono::DateTime: {:?}", duration);
                 return Err(CalendarError::Duration);
             };
 
@@ -258,7 +254,7 @@ impl FromStr for Calendar {
             let rrset_res = RRuleSet::from_str(&str);
 
             let Ok(rrule_set) = rrset_res else {
-                router_error!("(Calendar from_str) Invalid rrule set: {:?}", rrset_res.unwrap_err());
+                router_error!("(from_str) Invalid rrule set: {:?}", rrset_res.unwrap_err());
                 return Err(CalendarError::RruleSet);
             };
 
@@ -267,10 +263,7 @@ impl FromStr for Calendar {
                 duration,
             });
         }
-        router_debug!(
-            "(Calendar from_str) Parsed calendar: {:?}",
-            recurrent_events
-        );
+        router_debug!("(from_str) Parsed calendar: {:?}", recurrent_events);
         Ok(Calendar {
             events: recurrent_events,
         })

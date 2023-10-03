@@ -34,7 +34,7 @@ pub fn unconfirmed_flight_plans() -> &'static Mutex<HashMap<String, flight_plan:
 /// Gets itinerary from hash map of unconfirmed itineraries
 pub fn get_draft_itinerary_by_id(id: &str) -> Option<Vec<String>> {
     let Ok(itineraries) = unconfirmed_itineraries().lock() else {
-        grpc_error!("(get_draft_itinerary_by_id) mutex Lock Error getting itinerary from temp storage");
+        grpc_error!("(get_draft_itinerary_by_id) mutex Lock Error getting itinerary from temp storage.");
         return None;
     };
 
@@ -44,7 +44,7 @@ pub fn get_draft_itinerary_by_id(id: &str) -> Option<Vec<String>> {
 /// Gets flight plan from hash map of unconfirmed flight plans
 pub fn get_draft_fp_by_id(id: &str) -> Option<flight_plan::Data> {
     let Ok(flight_plans) = unconfirmed_flight_plans().lock() else {
-        grpc_error!("(get_draft_fp_by_id) mutex Lock Error getting flight plan from temp storage");
+        grpc_error!("(get_draft_fp_by_id) mutex Lock Error getting flight plan from temp storage.");
         return None;
     };
 
