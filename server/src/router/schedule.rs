@@ -9,6 +9,9 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::Sub;
 use std::str::FromStr;
 
+/// The maximum number of events to return from an RRULE
+const MAX_EVENT_COUNT: u16 = 100;
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Timeslot {
     pub time_start: DateTime<Utc>,
@@ -321,30 +324,27 @@ impl Calendar {
         let mut timeslots = vec![];
         for event in &self.events {
             let rrule = event.rrule_set.clone().after(start).before(end);
-            let Some(dt) = rrule.all(1).dates.pop() else {
-                router_debug!("(Calendar to_timeslots) No timeslots found for event: {:?}", event);
-                continue;
-            };
+            for dt in rrule.all(MAX_EVENT_COUNT).dates {
+                router_debug!(
+                    "(Calendar to_timeslots) Found timeslot for event {:?}: {:?}",
+                    event,
+                    dt
+                );
 
-            router_debug!(
-                "(Calendar to_timeslots) Found timeslot for event {:?}: {:?}",
-                event,
-                dt
-            );
+                let slot_start = dt.with_timezone(&Utc);
+                let slot_end = slot_start + event.duration;
+                if slot_start >= *time_end || slot_end <= *time_start {
+                    continue;
+                }
 
-            let slot_start = dt.with_timezone(&Utc);
-            let slot_end = slot_start + event.duration;
-            if slot_start >= *time_end || slot_end <= *time_start {
-                continue;
+                let timeslot = Timeslot {
+                    time_start: max(slot_start, *time_start),
+                    time_end: min(slot_end, *time_end),
+                };
+
+                router_debug!("(Calendar to_timeslots) timeslot: {:?}", &timeslot);
+                timeslots.push(timeslot);
             }
-
-            let timeslot = Timeslot {
-                time_start: max(slot_start, *time_start),
-                time_end: min(slot_end, *time_end),
-            };
-
-            router_debug!("(Calendar to_timeslots) timeslot: {:?}", &timeslot);
-            timeslots.push(timeslot)
         }
 
         timeslots
@@ -358,20 +358,20 @@ mod tests {
     use std::str::FromStr;
 
     const CAL_WORKDAYS_8AM_6PM: &str = "DTSTART:20221020T180000Z;DURATION:PT14H\n\
-    RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\n\
+    RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR\n\
     DTSTART:20221022T000000Z;DURATION:PT24H\n\
-    RRULE:FREQ=WEEKLY;BYDAY=SA,SU";
+    RRULE:FREQ=DAILY;BYDAY=SA,SU";
 
     const _WITH_1HR_DAILY_BREAK: &str = "\n\
     DTSTART:20221020T120000Z;DURATION:PT1H\n\
-    RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
+    RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR";
 
     const _WITH_ONE_OFF_BLOCK: &str = "\n\
     DTSTART:20221026T133000Z;DURATION:PT3H\n\
     RDATE:20221026T133000Z";
 
     const INVALID_CALENDAR: &str = "DURATION:PT3H;DTSTART:20221026T133000Z;\n\
-    RRULE:FREQ=WEEKLY;BYDAY=SA,SU";
+    RRULE:FREQ=DAILY;BYDAY=SA,SU";
 
     #[test]
     fn test_parse_calendar() {
@@ -402,9 +402,9 @@ mod tests {
     fn test_calendar_to_timeslots() {
         // 8AM to 12PM, 2PM to 6PM
         let calendar = "DTSTART:20221020T080000Z;DURATION:PT4H\n\
-        RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\n\
+        RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR\n\
         DTSTART:20221020T140000Z;DURATION:PT4H\n\
-        RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\n";
+        RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR\n";
 
         let calendar = Calendar::from_str(calendar).unwrap();
         assert_eq!(calendar.events.len(), 2);
@@ -434,9 +434,9 @@ mod tests {
     fn test_calendar_to_timeslots_cropped() {
         // 8AM to 12PM, 2PM to 6PM
         let calendar = "DTSTART:20221020T080000Z;DURATION:PT4H\n\
-        RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\n\
+        RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR\n\
         DTSTART:20221020T140000Z;DURATION:PT4H\n\
-        RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\n";
+        RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR\n";
 
         let calendar = Calendar::from_str(calendar).unwrap();
         assert_eq!(calendar.events.len(), 2);
@@ -468,9 +468,9 @@ mod tests {
     fn test_calendar_to_timeslots_cropped_to_single() {
         // 8AM to 12PM, 2PM to 6PM
         let calendar = "DTSTART:20221020T080000Z;DURATION:PT4H\n\
-        RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\n\
+        RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR\n\
         DTSTART:20221020T140000Z;DURATION:PT4H\n\
-        RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\n";
+        RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR\n";
 
         let calendar = Calendar::from_str(calendar).unwrap();
         assert_eq!(calendar.events.len(), 2);
@@ -489,6 +489,41 @@ mod tests {
         // Get full day schedule
         let timeslots = calendar.to_timeslots(&start, &end);
         assert_eq!(timeslots.len(), 1);
+        assert_eq!(timeslots, expected_timeslots);
+    }
+
+    #[test]
+    fn test_calendar_to_timeslots_future() {
+        // 8AM to 12PM, 2PM to 6PM
+        let calendar = "DTSTART:20221020T080000Z;DURATION:PT4H\n\
+        RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA,SU\n\
+        DTSTART:20221020T140000Z;DURATION:PT4H\n\
+        RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA,SU"
+            .to_string();
+
+        let calendar = Calendar::from_str(&calendar).unwrap();
+        assert_eq!(calendar.events.len(), 2);
+
+        let cal_start = Utc.with_ymd_and_hms(2023, 10, 20, 8, 0, 0).unwrap();
+
+        // Crop to 10AM to 6PM
+        let start: DateTime<Utc> = cal_start - Duration::hours(2);
+        let end: DateTime<Utc> = cal_start + Duration::hours(16);
+
+        let expected_timeslots = vec![
+            Timeslot {
+                time_start: cal_start,                    // 8
+                time_end: cal_start + Duration::hours(4), // 12
+            },
+            Timeslot {
+                time_start: cal_start + Duration::hours(6), // 14
+                time_end: cal_start + Duration::hours(10),  // 18
+            },
+        ];
+
+        // Get full day schedule
+        let timeslots = calendar.to_timeslots(&start, &end);
+        assert_eq!(timeslots.len(), 2);
         assert_eq!(timeslots, expected_timeslots);
     }
 }

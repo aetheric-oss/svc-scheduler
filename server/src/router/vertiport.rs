@@ -70,7 +70,22 @@ pub async fn get_vertipads(
         .into_inner()
         .list
         .into_iter()
-        .map(|vp| vp.id)
+        // in R3 the search filter is not working, do an extra filter here
+        .filter_map(|vp| {
+            let Some(data) = vp.data else {
+                return None;
+            };
+
+            if data.vertiport_id != *vertiport_id {
+                return None;
+            }
+
+            if !data.enabled {
+                return None;
+            }
+
+            Some(vp.id)
+        })
         .collect::<Vec<String>>())
 }
 
@@ -153,9 +168,9 @@ async fn get_available_timeslots(
     //  need to rebuild each pad's schedule from flight plans each time
     let occupied_slots = build_timeslots_from_flight_plans(vertiport_id, existing_flight_plans);
 
-    router_info!("(get_available_timeslots): vertiport: {:?}", vertiport_id);
-    router_info!("(get_available_timeslots): vertipads {:?}", timeslots);
-    router_info!(
+    router_debug!("(get_available_timeslots): vertiport: {:?}", vertiport_id);
+    router_debug!("(get_available_timeslots): vertipads {:?}", timeslots);
+    router_debug!(
         "(get_available_timeslots): occupied {:?}",
         occupied_slots
             .iter()
