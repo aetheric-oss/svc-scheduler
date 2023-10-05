@@ -3,10 +3,11 @@
 use crate::grpc::client::GrpcClients;
 use chrono::{DateTime, Utc};
 use prost_wkt_types::Timestamp;
+use std::collections::BinaryHeap;
 use svc_storage_client_grpc::prelude::*;
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq)]
 pub struct FlightPlanSchedule {
     pub departure_vertiport_id: String,
     pub departure_vertipad_id: String,
@@ -15,6 +16,25 @@ pub struct FlightPlanSchedule {
     pub arrival_vertipad_id: String,
     pub arrival_time: DateTime<Utc>,
     pub vehicle_id: String,
+    pub draft: bool,
+}
+
+impl PartialEq for FlightPlanSchedule {
+    fn eq(&self, other: &Self) -> bool {
+        self.departure_time == other.departure_time
+    }
+}
+
+impl PartialOrd for FlightPlanSchedule {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.departure_time.cmp(&other.departure_time))
+    }
+}
+
+impl Ord for FlightPlanSchedule {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.departure_time.cmp(&other.departure_time)
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -131,6 +151,7 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
             arrival_vertipad_id: data.destination_vertipad_id,
             arrival_time,
             vehicle_id: vehicle_id.to_string(),
+            draft: false,
         })
     }
 }
@@ -140,7 +161,7 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
 pub async fn get_sorted_flight_plans(
     latest_arrival_time: &DateTime<Utc>,
     clients: &GrpcClients,
-) -> Result<Vec<FlightPlanSchedule>, FlightPlanError> {
+) -> Result<BinaryHeap<FlightPlanSchedule>, FlightPlanError> {
     let latest_arrival_time: Timestamp = (*latest_arrival_time).into();
 
     // TODO(R4): Further filter by vehicle type, etc.
@@ -185,7 +206,7 @@ pub async fn get_sorted_flight_plans(
         .list
         .into_iter()
         .filter_map(|fp| FlightPlanSchedule::try_from(fp).ok())
-        .collect::<Vec<FlightPlanSchedule>>())
+        .collect::<BinaryHeap<FlightPlanSchedule>>())
 }
 
 #[cfg(test)]

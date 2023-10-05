@@ -1,6 +1,7 @@
 //! This module contains the gRPC query_flight endpoint implementation.
 
 use chrono::{DateTime, Duration, Utc};
+use std::collections::BinaryHeap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
@@ -149,7 +150,7 @@ pub async fn query_flight(
     //   get existing flight plans with the vertipad_timeslot call planned for R4
     // Get all flight plans from this time to latest departure time (including partially fitting flight plans)
     // - this assumes that all landed flights have updated vehicle.last_vertiport_id (otherwise we would need to look in to the past)
-    let existing_flight_plans =
+    let mut existing_flight_plans: BinaryHeap<FlightPlanSchedule> =
         match get_sorted_flight_plans(&request.latest_arrival_time, clients).await {
             Ok(plans) => plans,
             Err(e) => {
@@ -160,24 +161,42 @@ pub async fn query_flight(
         };
 
     // Add draft flight plans to the "existing" flight plans
-    // let Ok(draft_flight_plans) = super::unconfirmed_flight_plans().lock() else {
-    //     let error_str = "Could not get draft flight plans.";
-    //     grpc_error!("(query_flight) {} {}", error_str, e);
-    //     return Err(Status::internal(error_str));
-    // };
+    {
+        let Ok(draft_flight_plans) = super::unconfirmed_flight_plans().lock() else {
+            let error_str = "Could not get draft flight plans.";
+            grpc_error!("(query_flight) {}", error_str);
+            return Err(Status::internal(error_str));
+        };
 
-    // draft_flight_plans.iter().for_each(|(_, fp)| {
-    //     // only push flight plans for aircraft that we have in our list
-    //     // don't want to schedule new flights for removed aircraft
-    //     if let Some(schedule) = aircraft.get_mut(&fp.vehicle_id) {
-    //         schedule.push(fp.clone());
-    //     } else {
-    //         grpc_warn!(
-    //             "(query_flight) Flight plan for unknown aircraft: {}",
-    //             fp.vehicle_id
-    //         );
-    //     }
-    // });
+        draft_flight_plans
+            .iter()
+            .filter_map(|(id, fp)| {
+                let object = FlightPlanObject {
+                    id: id.clone(),
+                    data: Some(fp.clone()),
+                };
+
+                match FlightPlanSchedule::try_from(object) {
+                    Ok(mut schedule) => {
+                        schedule.draft = true;
+                        Some(schedule)
+                    }
+                    Err(e) => {
+                        grpc_error!(
+                            "(query_flight) Could not parse draft flight plan with id {}: {}",
+                            &id,
+                            e
+                        );
+                        None
+                    }
+                }
+            })
+            .collect::<Vec<FlightPlanSchedule>>()
+            .into_iter()
+            .for_each(|fp| existing_flight_plans.push(fp));
+    }
+
+    let existing_flight_plans = existing_flight_plans.into_sorted_vec();
 
     //
     // TODO(R4): Determine if there's an open space for cargo on an existing flight plan
@@ -220,14 +239,13 @@ pub async fn query_flight(
     //
     // Get all aircraft availabilities
     //
-    let Ok(aircraft_gaps) = get_aircraft_gaps(
-        &existing_flight_plans,
-        clients
-    ).await else {
-        let error_str = "Could not get aircraft availabilities.";
+    let Ok(aircraft)= get_aircraft(clients).await else {
+        let error_str = "Could not get aircraft.";
         grpc_error!("(query_flight) {}", error_str);
         return Err(Status::internal(error_str));
     };
+
+    let aircraft_gaps = get_aircraft_gaps(&existing_flight_plans, &aircraft, &timeslot);
 
     //
     // See which aircraft are available to fly the route,

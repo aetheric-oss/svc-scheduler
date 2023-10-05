@@ -3,7 +3,7 @@ use crate::router::flight_plan::*;
 use crate::router::schedule::*;
 use svc_storage_client_grpc::prelude::*;
 
-use chrono::{Duration, Utc};
+use chrono::Duration;
 use std::collections::HashMap;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -46,7 +46,7 @@ pub struct Aircraft {
     last_vertiport_id: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Availability {
     pub timeslot: Timeslot,
     pub vertiport_id: String,
@@ -55,7 +55,7 @@ pub struct Availability {
 }
 
 impl Availability {
-    fn subtract(&self, flight_plan: &FlightPlanSchedule) -> Result<Vec<Self>, VehicleError> {
+    fn subtract(&self, flight_plan: &FlightPlanSchedule) -> Vec<Self> {
         let mut slots = vec![];
 
         let flight_plan_timeslot = Timeslot {
@@ -63,8 +63,15 @@ impl Availability {
             time_end: flight_plan.arrival_time,
         };
 
-        for timeslot in self.timeslot - flight_plan_timeslot {
-            let vertiport_id = if self.timeslot.time_start < flight_plan_timeslot.time_start {
+        let timeslots = self.timeslot - flight_plan_timeslot;
+        router_debug!(
+            "(Availability::subtract) self: {:?}, fp: {:?}",
+            self.timeslot,
+            flight_plan_timeslot
+        );
+        router_debug!("(Availability::subtract) result: {:?}", timeslots);
+        for timeslot in timeslots {
+            let vertiport_id = if timeslot.time_start < flight_plan_timeslot.time_start {
                 self.vertiport_id.clone()
             } else {
                 flight_plan.arrival_vertiport_id.clone()
@@ -76,7 +83,7 @@ impl Availability {
             });
         }
 
-        Ok(slots)
+        slots
     }
 }
 
@@ -150,7 +157,7 @@ impl TryFrom<vehicle::Object> for Aircraft {
 }
 
 /// Request a list of all aircraft from svc-storage
-async fn get_aircraft(clients: &GrpcClients) -> Result<Vec<Aircraft>, VehicleError> {
+pub async fn get_aircraft(clients: &GrpcClients) -> Result<Vec<Aircraft>, VehicleError> {
     // TODO(R4): Private aircraft, disabled aircraft, etc. should be filtered out here
     //  This is a lot of aircraft. Possible filters:
     //   geographical area within N kilometers of request departure vertiport
@@ -208,63 +215,53 @@ pub fn estimate_flight_time_seconds(distance_meters: &f32) -> Duration {
     }
 }
 
-/// From an aircraft's calendar and list of busy timeslots, determine
-///  the aircraft's availability and location at a given time.
-fn get_aircraft_availability(
-    aircraft: Aircraft,
-    aircraft_schedule: &[FlightPlanSchedule],
-) -> Vec<Availability> {
-    // Get timeslots from vehicle's general calendar
-    //  e.g. 8AM to 12PM, 2PM to 6PM
-    let mut availability = aircraft
-        .vehicle_calendar
-        .to_timeslots(
-            // 2 hours before earliest departure time
-            &(Utc::now() - Duration::hours(2)),
-            // 2 hours after latest arrival time
-            &(Utc::now() + Duration::hours(2)),
-        )
-        .into_iter()
-        .map(|slot| {
-            Availability {
-                timeslot: slot,
-                vertiport_id: aircraft.last_vertiport_id.clone(),
-                // vertipad_id: aircraft.last_vertipad_id.clone(),
-            }
-        })
-        .collect::<Vec<Availability>>();
-
-    // Existing flight plans modify availability
-    for fp in aircraft_schedule {
-        availability = availability
-            .into_iter()
-            // Remove any slots that overlap with the occupied slot
-            .filter_map(|availability| availability.subtract(fp).ok())
-            .flatten()
-            .collect::<Vec<Availability>>()
-    }
-
-    availability
-}
-
 /// Build out a list of available aircraft (and their scheduled locations)
 ///  given a list of existing flight plans.
-pub async fn get_aircraft_gaps(
+pub fn get_aircraft_gaps(
     existing_flight_plans: &[FlightPlanSchedule],
-    clients: &GrpcClients,
-) -> Result<HashMap<String, Vec<Availability>>, VehicleError> {
-    let aircraft: Vec<Aircraft> = get_aircraft(clients).await?;
-    let mut aircraft_schedules = aircraft
-        .iter()
-        .map(|a| (a.vehicle_uuid.clone(), vec![]))
-        .collect::<HashMap<String, Vec<FlightPlanSchedule>>>();
+    aircraft: &[Aircraft],
+    timeslot: &Timeslot,
+) -> HashMap<String, Vec<Availability>> {
+    router_debug!("(get_aircraft_gaps) aircraft: {:?}", aircraft);
+    let deadhead_padding: Duration = Duration::hours(2);
+
+    let mut aircraft_availabilities: HashMap<String, Vec<Availability>> = HashMap::new();
+    for a in aircraft.iter() {
+        let home_vertiport_id = a.last_vertiport_id.clone(); // TODO(R4): home vertiport
+
+        // Aircraft also needs time to deadhead before and after primary flight
+        // Base availability from vehicle calendar
+        a.vehicle_calendar
+            .to_timeslots(
+                &(timeslot.time_start - deadhead_padding),
+                &(timeslot.time_end + deadhead_padding),
+            )
+            .into_iter()
+            .for_each(|timeslot| {
+                aircraft_availabilities
+                    .entry(a.vehicle_uuid.clone())
+                    .or_insert_with(Vec::new)
+                    .push(Availability {
+                        timeslot,
+                        vertiport_id: home_vertiport_id.clone(),
+                    });
+            });
+    }
+
+    router_debug!(
+        "(get_aircraft_gaps) aircraft base availabilities: {:?}",
+        aircraft_availabilities
+    );
 
     // Group flight plans by vehicle_id
     existing_flight_plans.iter().for_each(|fp| {
         // only push flight plans for aircraft that we have in our list
         // don't want to schedule new flights for removed aircraft
-        if let Some(schedule) = aircraft_schedules.get_mut(&fp.vehicle_id) {
-            schedule.push(fp.clone());
+        if let Some(availabilities) = aircraft_availabilities.get_mut(&fp.vehicle_id) {
+            *availabilities = availabilities
+                .iter()
+                .flat_map(|a| a.subtract(fp))
+                .collect::<Vec<Availability>>();
         } else {
             router_warn!(
                 "(get_aircraft_gaps) Flight plan for unknown aircraft: {}",
@@ -273,23 +270,258 @@ pub async fn get_aircraft_gaps(
         }
     });
 
-    // Convert to a hashmap of vehicle_id to list of availabilities
-    let mut gaps = HashMap::new();
-    for vehicle in aircraft.into_iter() {
-        let Some(schedule) = aircraft_schedules.get_mut(&vehicle.vehicle_uuid) else {
-            router_warn!(
-                "(get_aircraft_gaps) Flight plan for unknown aircraft: {}",
-                vehicle.vehicle_uuid
-            );
+    router_debug!(
+        "(get_aircraft_gaps) aircraft availabilities after flight plans: {:?}",
+        aircraft_availabilities
+    );
 
-            continue;
+    aircraft_availabilities
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeZone, Utc};
+
+    #[test]
+    fn test_subtract_flight_plan() {
+        let vertiport_start_id = Uuid::new_v4().to_string();
+        let vertiport_middle_id = Uuid::new_v4().to_string();
+        let aircraft_id = Uuid::new_v4().to_string();
+
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 20, 0, 0, 0) else {
+            panic!();
         };
 
-        gaps.insert(
-            vehicle.vehicle_uuid.clone(),
-            get_aircraft_availability(vehicle, schedule),
+        let availability = Availability {
+            timeslot: Timeslot {
+                time_start: dt_start,
+                time_end: dt_start + Duration::hours(2),
+            },
+            vertiport_id: vertiport_start_id.clone(),
+        };
+
+        let flight_plans = vec![
+            FlightPlanSchedule {
+                vehicle_id: aircraft_id.clone(),
+                departure_vertiport_id: vertiport_start_id.clone(),
+                arrival_vertiport_id: vertiport_middle_id.clone(),
+                departure_time: dt_start + Duration::minutes(10),
+                arrival_time: dt_start + Duration::minutes(20),
+                arrival_vertipad_id: Uuid::new_v4().to_string(),
+                departure_vertipad_id: Uuid::new_v4().to_string(),
+                draft: false,
+            },
+            FlightPlanSchedule {
+                vehicle_id: aircraft_id.clone(),
+                departure_vertiport_id: vertiport_middle_id.clone(),
+                arrival_vertiport_id: vertiport_start_id.clone(),
+                departure_time: dt_start + Duration::minutes(25),
+                arrival_time: dt_start + Duration::minutes(35),
+                arrival_vertipad_id: Uuid::new_v4().to_string(),
+                departure_vertipad_id: Uuid::new_v4().to_string(),
+                draft: false,
+            },
+        ];
+
+        let result = availability.subtract(&flight_plans[0]);
+        assert_eq!(result.len(), 2);
+        assert_eq!(
+            result[0],
+            Availability {
+                timeslot: Timeslot {
+                    time_start: dt_start,
+                    time_end: flight_plans[0].departure_time,
+                },
+                vertiport_id: vertiport_start_id.clone(),
+            }
+        );
+        assert_eq!(
+            result[1],
+            Availability {
+                timeslot: Timeslot {
+                    time_start: flight_plans[0].arrival_time,
+                    time_end: dt_start + Duration::hours(2),
+                },
+                vertiport_id: vertiport_middle_id.clone(),
+            }
+        );
+
+        let result = availability.subtract(&flight_plans[1]);
+        assert_eq!(result.len(), 2);
+        assert_eq!(
+            result[0],
+            Availability {
+                timeslot: Timeslot {
+                    time_start: dt_start,
+                    time_end: flight_plans[1].departure_time,
+                },
+                vertiport_id: vertiport_start_id.clone(),
+            }
+        );
+        assert_eq!(
+            result[1],
+            Availability {
+                timeslot: Timeslot {
+                    time_start: flight_plans[1].arrival_time,
+                    time_end: dt_start + Duration::hours(2),
+                },
+                vertiport_id: vertiport_start_id.clone(),
+            }
+        );
+
+        //
+        // Multiple flight plans
+        //
+        let mut availabilities = vec![availability];
+        for fp in &flight_plans {
+            availabilities = availabilities
+                .iter_mut()
+                .flat_map(|availability| availability.subtract(&fp))
+                .collect::<Vec<Availability>>();
+        }
+
+        assert_eq!(availabilities.len(), 3);
+        assert_eq!(
+            availabilities[0],
+            Availability {
+                timeslot: Timeslot {
+                    time_start: dt_start,
+                    time_end: flight_plans[0].departure_time,
+                },
+                vertiport_id: vertiport_start_id.clone(),
+            }
+        );
+        assert_eq!(
+            availabilities[1],
+            Availability {
+                timeslot: Timeslot {
+                    time_start: flight_plans[0].arrival_time,
+                    time_end: flight_plans[1].departure_time,
+                },
+                vertiport_id: vertiport_middle_id.clone(),
+            }
+        );
+        assert_eq!(
+            availabilities[2],
+            Availability {
+                timeslot: Timeslot {
+                    time_start: flight_plans[1].arrival_time,
+                    time_end: dt_start + Duration::hours(2),
+                },
+                vertiport_id: vertiport_start_id.clone(),
+            }
         );
     }
 
-    Ok(gaps)
+    #[test]
+    fn test_get_aircraft_gaps() {
+        let vehicle_duration_hours = 3;
+        let schedule = Calendar::from_str(&format!(
+            "DTSTART:20230920T000000Z;DURATION:PT{vehicle_duration_hours}H\n\
+        RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA,SU"
+        ))
+        .unwrap();
+
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 20, 0, 0, 0) else {
+            panic!();
+        };
+
+        let timeslots = schedule
+            .clone()
+            .to_timeslots(&dt_start, &(dt_start + Duration::hours(2)));
+        assert_eq!(timeslots.len(), 1);
+        assert_eq!(
+            timeslots[0],
+            Timeslot {
+                time_start: dt_start,
+                time_end: dt_start + Duration::hours(2),
+            }
+        );
+
+        let vertiport_start_id = Uuid::new_v4().to_string();
+        let vertiport_middle_id = Uuid::new_v4().to_string();
+        let aircraft_id = Uuid::new_v4().to_string();
+
+        let aircraft = vec![Aircraft {
+            vehicle_uuid: aircraft_id.clone(),
+            vehicle_calendar: schedule,
+            last_vertiport_id: vertiport_start_id.clone(),
+        }];
+
+        let timeslot = Timeslot {
+            time_start: dt_start,
+            time_end: dt_start + Duration::hours(2),
+        };
+
+        let flight_plans = vec![
+            FlightPlanSchedule {
+                vehicle_id: aircraft_id.clone(),
+                departure_vertiport_id: vertiport_start_id.clone(),
+                arrival_vertiport_id: vertiport_middle_id.clone(),
+                departure_time: dt_start + Duration::minutes(10),
+                arrival_time: dt_start + Duration::minutes(20),
+                arrival_vertipad_id: Uuid::new_v4().to_string(),
+                departure_vertipad_id: Uuid::new_v4().to_string(),
+                draft: false,
+            },
+            FlightPlanSchedule {
+                vehicle_id: aircraft_id.clone(),
+                departure_vertiport_id: vertiport_middle_id.clone(),
+                arrival_vertiport_id: vertiport_start_id.clone(),
+                departure_time: dt_start + Duration::minutes(25),
+                arrival_time: dt_start + Duration::minutes(35),
+                arrival_vertipad_id: Uuid::new_v4().to_string(),
+                departure_vertipad_id: Uuid::new_v4().to_string(),
+                draft: false,
+            },
+        ];
+
+        let mut gaps = get_aircraft_gaps(&flight_plans, &aircraft, &timeslot);
+
+        println!("gaps: {:?}", gaps);
+
+        assert_eq!(gaps.len(), 1);
+        let gaps = gaps.get_mut(&aircraft_id).unwrap();
+
+        println!("gaps: {:?}", gaps);
+
+        assert_eq!(gaps.len(), 3);
+        gaps.sort_by(|a, b| b.timeslot.time_start.cmp(&a.timeslot.time_start));
+        assert_eq!(
+            gaps.pop().unwrap(),
+            Availability {
+                timeslot: Timeslot {
+                    time_start: dt_start,
+                    time_end: flight_plans[0].departure_time
+                },
+                vertiport_id: vertiport_start_id.clone(),
+            }
+        );
+
+        assert_eq!(
+            gaps.pop().unwrap(),
+            Availability {
+                timeslot: Timeslot {
+                    time_start: flight_plans[0].arrival_time,
+                    time_end: flight_plans[1].departure_time
+                },
+                vertiport_id: vertiport_middle_id.clone(),
+            }
+        );
+
+        assert_eq!(
+            gaps.pop().unwrap(),
+            Availability {
+                timeslot: Timeslot {
+                    time_start: flight_plans[1].arrival_time,
+                    // see 'deadhead_padding' in the function
+                    // the vehicle schedule in this example is 3 hours long, less than the deadhead padding,
+                    //  so the end time is the end of the vehicle schedule in this case
+                    time_end: dt_start + Duration::hours(vehicle_duration_hours), // the vehicle schedule is 3 hours long
+                },
+                vertiport_id: vertiport_start_id,
+            }
+        );
+    }
 }

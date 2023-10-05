@@ -526,4 +526,151 @@ mod tests {
         assert_eq!(timeslots.len(), 2);
         assert_eq!(timeslots, expected_timeslots);
     }
+
+    /// |         a         |
+    ///           -
+    ///      |    b    |
+    ///           =
+    /// |    |         |    |
+    #[test]
+    fn test_timeslot_sub_cleave() {
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
+            panic!();
+        };
+
+        let timeslot_a = Timeslot {
+            time_start: dt_start,
+            time_end: dt_start + Duration::hours(3),
+        };
+
+        let timeslot_b = Timeslot {
+            time_start: dt_start + Duration::hours(1),
+            time_end: dt_start + Duration::hours(2),
+        };
+
+        let timeslots = timeslot_a - timeslot_b;
+        assert_eq!(timeslots.len(), 2);
+        assert_eq!(
+            timeslots,
+            vec![
+                Timeslot {
+                    time_start: dt_start,
+                    time_end: dt_start + Duration::hours(1),
+                },
+                Timeslot {
+                    time_start: dt_start + Duration::hours(2),
+                    time_end: dt_start + Duration::hours(3),
+                },
+            ]
+        );
+    }
+
+    /// |         a         |
+    ///           -
+    ///                |    b    |
+    ///           =
+    /// |              |
+    #[test]
+    fn test_timeslot_sub_crop_end() {
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
+            panic!();
+        };
+
+        let timeslot_a = Timeslot {
+            time_start: dt_start,
+            time_end: dt_start + Duration::hours(3),
+        };
+
+        let timeslot_b = Timeslot {
+            time_start: dt_start + Duration::hours(2),
+            time_end: dt_start + Duration::hours(4),
+        };
+
+        let timeslots = timeslot_a - timeslot_b;
+        assert_eq!(timeslots.len(), 1);
+        assert_eq!(
+            timeslots,
+            vec![Timeslot {
+                time_start: dt_start,
+                time_end: dt_start + Duration::hours(2),
+            },]
+        );
+    }
+
+    ///       |         a         |
+    ///           -
+    /// |    b    |
+    ///           =
+    ///           |               |
+    #[test]
+    fn test_timeslot_sub_crop_start() {
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
+            panic!();
+        };
+
+        let timeslot_a = Timeslot {
+            time_start: dt_start + Duration::hours(1),
+            time_end: dt_start + Duration::hours(3),
+        };
+
+        let timeslot_b = Timeslot {
+            time_start: dt_start,
+            time_end: dt_start + Duration::hours(2),
+        };
+
+        let timeslots = timeslot_a - timeslot_b;
+        assert_eq!(timeslots.len(), 1);
+        assert_eq!(
+            timeslots,
+            vec![Timeslot {
+                time_start: dt_start + Duration::hours(2),
+                time_end: dt_start + Duration::hours(3),
+            },]
+        );
+    }
+
+    #[test]
+    fn test_timeslot_sub_no_overlap() {
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
+            panic!();
+        };
+
+        //           |         a         |
+        //           -
+        // |    b    |
+        //           =
+        //           |               |
+        let timeslot_a = Timeslot {
+            time_start: dt_start + Duration::hours(2),
+            time_end: dt_start + Duration::hours(3),
+        };
+
+        let timeslot_b = Timeslot {
+            time_start: dt_start,
+            time_end: dt_start + Duration::hours(2),
+        };
+
+        let timeslots = timeslot_a - timeslot_b;
+        assert_eq!(timeslots.len(), 1);
+        assert_eq!(timeslots, vec![timeslot_a]);
+
+        // |         a         |
+        //           -
+        //                     |    b    |
+        //           =
+        //           |               |
+        let timeslot_a = Timeslot {
+            time_start: dt_start,
+            time_end: dt_start + Duration::hours(1),
+        };
+
+        let timeslot_b = Timeslot {
+            time_start: dt_start + Duration::hours(1),
+            time_end: dt_start + Duration::hours(2),
+        };
+
+        let timeslots = timeslot_a - timeslot_b;
+        assert_eq!(timeslots.len(), 1);
+        assert_eq!(timeslots, vec![timeslot_a]);
+    }
 }

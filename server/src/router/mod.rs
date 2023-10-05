@@ -32,7 +32,7 @@ pub async fn best_path(
     request: &BestPathRequest,
     clients: &GrpcClients,
 ) -> Result<(GeoLineString, f64), BestPathError> {
-    let path = match clients.gis.best_path(request.clone()).await {
+    let mut path = match clients.gis.best_path(request.clone()).await {
         Ok(response) => response.into_inner().segments,
         Err(e) => {
             router_error!("(best_path) Failed to get best path: {e}");
@@ -40,34 +40,42 @@ pub async fn best_path(
         }
     };
 
-    let (last_lat, last_lon) = match path.last() {
-        Some(last) => (last.end_latitude, last.end_longitude),
-        None => {
-            router_error!("(best_path) No path found.");
-            return Err(BestPathError::NoPathFound);
-        }
-    };
+    if path.is_empty() {
+        router_error!("(best_path) No path found.");
+        return Err(BestPathError::NoPathFound);
+    }
+
+    path.sort_by(|a, b| a.index.cmp(&b.index));
+    router_debug!("(best_path) svc-gis Path: {:?}", path);
 
     let total_distance_meters = path.iter().map(|x| x.distance_meters as f64).sum();
 
-    router_debug!("(best_path) Path: {:?}", path);
+    // convert segments to GeoLineString
+    let points: Vec<GeoPoint> = path
+        .into_iter()
+        .enumerate()
+        .flat_map(|(i, x)| {
+            let end = GeoPoint {
+                latitude: x.end_latitude as f64,
+                longitude: x.end_longitude as f64,
+            };
+
+            if i == 0 {
+                let start = GeoPoint {
+                    latitude: x.start_latitude as f64,
+                    longitude: x.start_longitude as f64,
+                };
+
+                vec![start, end]
+            } else {
+                vec![end]
+            }
+        })
+        .collect::<Vec<GeoPoint>>();
+
+    router_debug!("(best_path) Points: {:?}", points);
     router_debug!("(best_path) Cost: {:?}", total_distance_meters);
 
-    // convert segments to GeoLineString
-    let mut points: Vec<GeoPoint> = path
-        .iter()
-        .map(|x| GeoPoint {
-            latitude: x.start_latitude as f64,
-            longitude: x.start_longitude as f64,
-        })
-        .collect();
-
-    points.push(GeoPoint {
-        latitude: last_lat as f64,
-        longitude: last_lon as f64,
-    });
-
     let path = GeoLineString { points };
-
     Ok((path, total_distance_meters))
 }

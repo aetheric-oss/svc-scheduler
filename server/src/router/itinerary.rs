@@ -45,6 +45,9 @@ pub async fn get_itineraries(
 ) -> Result<Vec<Vec<flight_plan::Data>>, ItineraryError> {
     let mut itineraries: Vec<Vec<flight_plan::Data>> = vec![];
 
+    router_debug!("(get_itineraries) aircraft_gaps: {:#?}", aircraft_gaps);
+    router_debug!("(get_itineraries) timeslot_pairs: {:#?}", timeslot_pairs);
+
     // For each available aircraft, see if it can do the flight
     for (aircraft_id, aircraft_availability) in aircraft_gaps {
         // Try different timeslots for the aircraft
@@ -85,12 +88,17 @@ pub async fn get_itineraries(
                     return Err(ItineraryError::ClientError);
                 }
                 _ => {
+                    router_debug!(
+                        "(get_itineraries) No itinerary found for aircraft {}.",
+                        aircraft_id
+                    );
                     continue;
                 }
             }
         }
     }
 
+    router_info!("(get_itineraries) found {} itineraries.", itineraries.len());
     Ok(itineraries)
 }
 
@@ -106,6 +114,8 @@ async fn aircraft_selection(
     flight_window: &Timeslot,
     clients: &GrpcClients,
 ) -> Result<Vec<flight_plan::Data>, ItineraryError> {
+    router_debug!("(aircraft_selection) availabilities: {:#?}", availability);
+
     for gap in availability.iter() {
         match get_itinerary(
             flight_plan.clone(),
@@ -128,6 +138,10 @@ async fn aircraft_selection(
                 return Err(ItineraryError::ClientError);
             }
             _ => {
+                router_debug!(
+                    "(aircraft_selection) No itinerary found for aircraft {}.",
+                    flight_plan.vehicle_id
+                );
                 continue;
             }
         }
@@ -179,6 +193,7 @@ async fn get_itinerary(
     //
     let mut flight_plans = vec![];
     if *departure_vertiport_id != availability.vertiport_id {
+        router_debug!("(get_itinerary) Deadhead to departure vertiport.");
         // See what the path and cost would be for a flight between the starting
         // available timeslot and the ending flight time
         let best_path_request = BestPathRequest {
@@ -249,6 +264,8 @@ async fn get_itinerary(
     // Create the flight plan for the requested flight
     //
     {
+        router_debug!("(get_itinerary) Primary flight plan.");
+
         let scheduled_departure: DateTime<Utc> = match flight_plans.last() {
             Some(last) => match &last.scheduled_arrival {
                 Some(s) => s.clone().into(),
@@ -291,6 +308,8 @@ async fn get_itinerary(
     //  when flight is completed
     //
     if *arrival_vertiport_id != availability.vertiport_id {
+        router_debug!("(get_itinerary) Deadhead to next vertiport.");
+
         // TODO(R4) - Get nearest open rest stop/hangar, direct to it
         //  right now it boomerangs back to its original last_vertiport_id
         let Some(last) = flight_plans.last() else {
@@ -372,6 +391,7 @@ async fn get_itinerary(
         });
     }
 
+    router_debug!("(get_itinerary) flight_plans: {:#?}", flight_plans);
     Ok(flight_plans)
 }
 
