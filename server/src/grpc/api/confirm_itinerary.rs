@@ -182,6 +182,7 @@ mod tests {
     use crate::grpc::server::grpc_server::QueryFlightRequest;
     use crate::init_logger;
     use crate::test_util::{ensure_storage_mock_data, get_vertiports_from_storage};
+    use chrono::{Duration, Utc};
 
     #[cfg(feature = "stub_backends")]
     #[tokio::test]
@@ -197,14 +198,17 @@ mod tests {
         //test confirming a flight that does not exist will return an error
         assert_eq!(res.is_err(), true);
 
+        let date = (Utc::now() + Duration::days(10)).date_naive();
+        let dt_start = date.and_hms_opt(0, 0, 0).unwrap();
+
         let vertiports = get_vertiports_from_storage().await;
         println!("vertiports: {:#?}", vertiports);
         let res = query_flight(Request::new(QueryFlightRequest {
             is_cargo: true,
             persons: None,
             weight_grams: Some(100),
-            earliest_departure_time: Some(Utc::now().into()),
-            latest_arrival_time: Some((Utc::now() + chrono::Duration::hours(1)).into()),
+            earliest_departure_time: Some(dt_start.into()),
+            latest_arrival_time: Some((dt_start + chrono::Duration::hours(1)).into()),
             vertiport_depart_id: vertiports[0].id.clone(),
             vertiport_arrive_id: vertiports[1].id.clone(),
         }))
