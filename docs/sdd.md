@@ -19,7 +19,7 @@ Draft itineraries are held in memory temporarily and discarded if not confirmed 
 | Attribute     | Description                                                       |
 | ------------- |-------------------------------------------------------------------|
 | Maintainer(s) | [Services Team](https://github.com/orgs/Arrow-air/teams/services) |
-| Stuckee       | [romanmandryk](https://github.com/romanmandryk)                   |
+| Stuckee       | [Alex M. Smith](https://github.com/servicedog)                   |
 | Status        | Development                                                       |
 
 ## :books: Related Documents
@@ -70,26 +70,51 @@ Does not apply.
 
 ```mermaid
 sequenceDiagram
-    grpc_client->>+scheduler: query_flight(QueryFlightRequest)
-    scheduler->>+storage: get depart and arrive vertiport info
-    schedule->>+storage: get existing flight plans
-    storage->>-scheduler: <vertiports>
-    scheduler->>+storage: get flights scheduled from depart and to arrive vertiports
-    storage->>-scheduler: <flight_plans>
-    scheduler->>scheduler: Check there are now flights scheduled for the requested time window
-    scheduler->>+storage: get aircrafts associated with vertipads and their scheduled flights
-    storage->>-scheduler: <aircrafts>, <flight_plans>
-    scheduler->>scheduler: Check there are now flights scheduled for used aircraft
-    Note over scheduler: get_possible_flights()
-    Note over scheduler: find route from depart to arrive vertiport and cost/distance
-    Note over scheduler: estimate flight time based on the distance<br>check schedules of vertiports and aircrafts<br>include deadhead legs
-    Note over scheduler: produce draft itineraries
-    scheduler->>scheduler: store draft plans in to memory for 30 seconds
-    alt at least one flight found
-        scheduler->>grpc_client: return <QueryFlightPlans>
-    else no flights found
-        scheduler-->>-grpc_client: return Error
+    participant client as gRPC Client
+
+    client->>+scheduler: query_flight(...)<br>(Time Window,<br>Vertiports)
+    alt for_each (target vertiports, vertipads, all aircraft, existing flight plans)
+        scheduler->>storage: search(...)
+        storage->>scheduler: Error
+        scheduler->>client: GrpcError::Internal
+        Note over client: end
     end
+    
+    Note over scheduler: Build vertipads' availabilities<br>given existing flight plans<br>and the vertipad's operating hours.
+    
+    alt for_each (possible departure timeslot, possible arrival timeslot)
+        Note over scheduler: Calculate flight duration <br>between the two vertiports at<br>this time (considering temporary<br>no-fly zones and waypoints).
+        Note over scheduler: If an aircraft can depart, travel,<br>and land within available<br>timeslots, append to results.
+    end
+
+    alt no timeslot pairings
+        scheduler->>client: GrpcError::NotFound
+        Note over client: end
+    end
+
+    Note over scheduler: Build aircraft availabilities<br>given existing flight plans.
+
+    alt for_each aircraft and timeslot_pair
+        Note over scheduler: If an aircraft is available<br>from the departure timeslot until<br>the arrival timeslot, append<br>the combination to results.
+    end
+
+    alt for_each (timeslot pair, aircraft availability)
+        Note over scheduler: Calculate the duration<br> of the deadhead flight(s)<br>to the departure vertiport<br>and from the destination vertiport<br>to its next obligation.
+        Note over scheduler: If the aircraft availability<br>can't fit either deadheads,<br> discard.
+        Note over scheduler: Otherwise, append flight itinerary<br>to results and consider no other<br>itineraries with this specific<br>aircraft (max 1 result per aircraft).
+    end
+
+    alt no itineraries
+        scheduler->>client: GrpcError::NotFound
+        Note over client: end
+    end
+
+    alt for_each itinerary
+        Note over scheduler: Create a draft itinerary in memory<br>with a unique UUID. Create draft<br>flight plans for each leg of the itinerary.
+    end
+
+    scheduler->>client: QueryFlightResponse<br>List of Itineraries with IDs
+
 ```
 
 ### `confirm_flight` 
