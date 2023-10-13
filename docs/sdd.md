@@ -117,46 +117,56 @@ sequenceDiagram
 
 ```
 
-### `confirm_flight` 
-- Takes id of the draft flight plan returned from the query_flight and confirms the flight.
+### `confirm_itinerary` 
+- Takes the UUID of the draft itinerary returned from the query_flight and confirms the itinerary.
 
 ```mermaid
 sequenceDiagram
-    grpc_client->>+scheduler: query_flight(QueryFlightRequest)
+    grpc_client->>+scheduler: confirm_itinerary(...)
     scheduler->>scheduler: find draft flight plan in memory
-    alt flight plan found
-        scheduler->>+storage: insert_flight_plan(draft)
-        storage->>-scheduler: <flight_plan> with permanent id
-        scheduler->>scheduler: remove draft flight plan from memory
-        scheduler->>-grpc_client: return <ConfirmFlightResponse> with permanent id
-    else flight not found
+    alt itinerary not found
         scheduler-->>grpc_client: return Error
     end
+
+    alt for_each draft flight plan in itinerary
+        scheduler->>+storage: insert flight plan
+        storage->>-scheduler: <flight_plan> with permanent id
+        scheduler->>scheduler: remove draft flight plan from memory
+    end
+
+    scheduler->>+storage: insert itinerary
+    storage->>-scheduler: <itinerary> with permanent id
+    scheduler->>scheduler: remove draft itinerary from memory
 ```
 
 
-### `cancel_flight`
-- Takes id of the flight plan (either draft or confirmed) and cancels the flight.
+### `cancel_itinerary`
+- Takes id of an itinerary (either draft or confirmed) and cancels all flights associated with that itinerary.
+
 ```mermaid
 sequenceDiagram
-    grpc_client->>+scheduler: query_flight(QueryFlightRequest)
-    scheduler->>scheduler: find draft flight plan in memory
-    alt flight plan found in memory
-        scheduler->>scheduler: remove draft flight plan from memory
-        scheduler->>grpc_client: return CancelFlightResponse
-    else flight not found in memory 
-        scheduler->>+storage: flight_plan_by_id(id)
-        storage-->>-scheduler: <flight_plan> or None
-        alt flight plan found in storage
-            scheduler->>+storage: update_flight_plan(draft with status Cancelled)
-            storage-->>-scheduler: Ok or Error
-            scheduler->>grpc_client: return CancelFlightResponse
-        else flight plan not found in storage
+    grpc_client->>+scheduler: cancel_itinerary(...)
+    alt itinerary found in memory
+        scheduler->>scheduler: remove all associated draft<br> flight plans from memory
+        scheduler->>scheduler: remove itinerary from memory
+        scheduler->>grpc_client: return CancelItineraryResponse
+    else itinerary not found in memory 
+        scheduler->>+storage: search(itinerary id)
+        storage-->>-scheduler: <itinerary> or None
+        alt flight not plan found in storage
             scheduler-->>grpc_client: return Error
         end
+    
+        scheduler->>+storage: update itinerary to status "Cancelled"
+        storage-->>-scheduler: Ok or Error
+
+        scheduler->>+storage: get linked flight plans to the itinerary
+        storage->>-scheduler: flight plans
+
+        alt for_each flight plan
+            scheduler->>+storage: update flight plan status to "Cancelled"
+            storage->>-scheduler: Ok or Error
+        end
+        scheduler->>grpc_client: return CancelFlightResponse
     end
 ```
-
-## Tests
-
-### Unit Tests

@@ -43,9 +43,9 @@ See [High-Level Services ICD](https://github.com/Arrow-air/se-services/blob/deve
 
 ### gRPC Server Methods ("Services")
 
-| Service          | Arguments                                                                                                                                                                                        | Description                                                                                                                                                  |
-|------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `is_ready`       | (empty)                                                                                                                                                                                          | Returns `true` if server is up and running.                                                                                                                  |
-| `query_flight`   | `bool` isCargo<br/>`uint32` persons<br/>`uint32` weight_grams<br/>`Timestamp` departure_time<br/>`Timestamp` arrival_time<br/>`string` vertiport_depart_id<br/>`string` vertiport_arrive_id<br/> | Takes requested departure and arrival vertiport ids and departure/arrival time window and returns next available flight draft. (as an array with one result) |
-| `confirm_flight` | id                                                                                                                                                                                               | Takes `id` of the draft flight plan returned from the `query_flight` and confirms the flight.                                                                |
-| `cancel_flight`  | id                                                                                                                                                                                               | Takes `id` of the flight plan (either draft or confirmed) and cancels the flight.                                                                            |
+| Service | Arguments | Description |
+| --- | --- | --- |
+| `is_ready` | (empty) | Returns `true` if server is up and running. |
+| `confirm_itinerary` | `string` id<br>`string` user_id | Takes `id` (UUID) of the draft itinerary and the user's UUID and confirms the flight. |
+| `cancel_itinerary`  | `string` id | Takes `id` (UUID) of the itinerary (either draft or confirmed) and cancels it. |
+| `query_flight` | `bool` isCargo<br/>`uint32` persons<br/>`uint32` weight_grams<br/>`Timestamp` earliest departure time<br/>`Timestamp` latest arrival time<br/>`string` vertiport_depart_id<br/>`string` vertiport_arrive_id<br/> | Takes requested departure and arrival vertiport UUIDs and a time window for the itinerary to occur and returns a number of draft itineraries. |
