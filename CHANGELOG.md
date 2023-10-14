@@ -1,3 +1,36 @@
+## [Release 0.4.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.4.0)
+
+### ✨ Features
+
+- add prelude module ([`21f68f8`](https://github.com/Arrow-air/svc-scheduler/commit/21f68f8178e2ccec093b0f85f295da7bf513d053))
+- use svc-gis for routing ([`f9d5298`](https://github.com/Arrow-air/svc-scheduler/commit/f9d52987a4780c24630619939a09e0517604dee0))
+
+### 🐛 Fixes
+
+- re-export required modules ([`2d23258`](https://github.com/Arrow-air/svc-scheduler/commit/2d23258ee847ae16de05841e245468d791929d77))
+- schedule bug ([`f7bf638`](https://github.com/Arrow-air/svc-scheduler/commit/f7bf638c5a96272f4b741b2868124c561ff2cb41))
+- unit test confirm cancel datetime bug ([`40bf0b6`](https://github.com/Arrow-air/svc-scheduler/commit/40bf0b604f545030d9c2efbfddab006028ba5a13))
+
+### 🔥 Refactorings
+
+-  **server:** use lib-common traits and add mock features ([`12c5337`](https://github.com/Arrow-air/svc-scheduler/commit/12c5337f13fb58bdb1753b1568a7b2bff71943f3))
+-  **client:** use lib-common traits and add mock features ([`998b6a7`](https://github.com/Arrow-air/svc-scheduler/commit/998b6a7c669a70155474de2c5f39a7eaa9882088))
+- vertipad timeslots and best path ([`86d83ed`](https://github.com/Arrow-air/svc-scheduler/commit/86d83ed48990b87d7dfb12e1162af915a2853e64))
+
+### 🛠 Maintenance
+
+- terraform provisioned file changes ([`20040ef`](https://github.com/Arrow-air/svc-scheduler/commit/20040ef4563a0f492939e05d4c2fc3b8c714cdbc))
+- use latest svc-storage-client-grpc with prelude ([`81b10e1`](https://github.com/Arrow-air/svc-scheduler/commit/81b10e158b95cdcb75bf7a69cd105c95ee67d1af))
+- reviewer comments ([`4c436bd`](https://github.com/Arrow-air/svc-scheduler/commit/4c436bdbab6090e9073c4f5923590812a6cbf200))
+- add unit test for FlightQuery try_from ([`40506a2`](https://github.com/Arrow-air/svc-scheduler/commit/40506a2ed4fdff385e40bf47b84c90984cf4e4e9))
+- add unit tests ([`103b258`](https://github.com/Arrow-air/svc-scheduler/commit/103b258332ab6034c5bb186c6e5c81d90618caa6))
+- r3 final cleanup ([`3717b66`](https://github.com/Arrow-air/svc-scheduler/commit/3717b6669a69e8033478064946167c6ee6cf2966))
+- reviewer comments ([`8622c28`](https://github.com/Arrow-air/svc-scheduler/commit/8622c28b00d3a7e40a9a9415fb9b5f0bc2b592b4))
+
+### 📚 Documentation
+
+- fix headings, icons, and banners ([`ba1073c`](https://github.com/Arrow-air/svc-scheduler/commit/ba1073c546b3e5dd0eb810f6df9c8033d6c8ec85))
+
 ## [Release 0.3.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.3.0)
 
 ### ✨ Features

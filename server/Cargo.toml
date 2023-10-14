@@ -2,7 +2,7 @@
 description = "Arrow fleet routing and vertiport scheduling with gRPC API."
 keywords    = ["vtol", "server", "grpc", "rest", "scheduler"]               # max 5
 name        = "svc-scheduler"
-version     = "0.3.1-develop.2"
+version     = "0.4.0"
 
 authors.workspace      = true
 categories.workspace   = true
