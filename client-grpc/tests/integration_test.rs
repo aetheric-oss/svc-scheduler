@@ -1,26 +1,24 @@
 //! Example for writing an integration test.
 //! More information: https://doc.rust-lang.org/book/testing-rust.html#integration-tests
 
+use lib_common::grpc::get_endpoint_from_env;
 use std::time::SystemTime;
-use svc_scheduler_client_grpc::grpc::{
-    rpc_service_client::RpcServiceClient, ConfirmItineraryRequest, Id, QueryFlightRequest,
-    ReadyRequest,
-};
+use svc_scheduler_client_grpc::prelude::{scheduler::*, *};
 
 #[tokio::test]
-#[ignore = "integration test env not yet implemented"]
 async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = RpcServiceClient::connect("http://[::1]:50051").await?;
+    let (server_host, server_port) = get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
     let sys_time = SystemTime::now();
-    let request = tonic::Request::new(QueryFlightRequest {
+    let request = QueryFlightRequest {
         is_cargo: true,
         persons: Some(0),
         weight_grams: Some(5000),
-        earliest_departure_time: Some(prost_types::Timestamp::from(sys_time)),
+        earliest_departure_time: Some(sys_time.into()),
         latest_arrival_time: None,
         vertiport_depart_id: "123".to_string(),
         vertiport_arrive_id: "456".to_string(),
-    });
+    };
 
     let response = client.query_flight(request).await?;
     //println!("RESPONSE={:?}", response.into_inner());
@@ -29,12 +27,12 @@ async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-#[ignore = "integration test env not yet implemented"]
 async fn test_cancel_itinerary() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = RpcServiceClient::connect("http://[::1]:50051").await?;
-    let request = tonic::Request::new(Id {
+    let (server_host, server_port) = get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
+    let request = Id {
         id: "1234".to_string(),
-    });
+    };
 
     let response = client.cancel_itinerary(request).await?;
     //println!("RESPONSE={:?}", response.into_inner());
@@ -43,13 +41,13 @@ async fn test_cancel_itinerary() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-#[ignore = "integration test env not yet implemented"]
 async fn test_confirm_itinerary() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = RpcServiceClient::connect("http://[::1]:50051").await?;
-    let request = tonic::Request::new(ConfirmItineraryRequest {
+    let (server_host, server_port) = get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
+    let request = ConfirmItineraryRequest {
         id: "1234".to_string(),
         user_id: "".to_string(),
-    });
+    };
 
     let response = client.confirm_itinerary(request).await?;
     //println!("RESPONSE={:?}", response.into_inner());
@@ -58,10 +56,10 @@ async fn test_confirm_itinerary() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-#[ignore = "integration test env not yet implemented"]
 async fn test_is_ready() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = RpcServiceClient::connect("http://[::1]:50051").await?;
-    let request = tonic::Request::new(ReadyRequest {});
+    let (server_host, server_port) = get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
+    let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
+    let request = ReadyRequest {};
 
     let response = client.is_ready(request).await?;
     //println!("RESPONSE={:?}", response.into_inner());

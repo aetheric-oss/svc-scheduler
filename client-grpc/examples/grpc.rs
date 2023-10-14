@@ -1,34 +1,40 @@
 //! gRPC client implementation
 
-///module svc_scheduler generated from svc-scheduler-grpc.proto
-pub mod scheduler_grpc {
-    #![allow(unused_qualifications)]
-    include!("../src/grpc.rs");
-}
-use chrono::{TimeZone, Utc};
-use prost_types::Timestamp;
-use scheduler_grpc::rpc_service_client::RpcServiceClient;
-use scheduler_grpc::{ConfirmItineraryRequest, QueryFlightRequest};
-use tonic::Request;
+use chrono::{offset::LocalResult::Single, TimeZone, Utc};
+use lib_common::grpc::get_endpoint_from_env;
+use svc_scheduler_client_grpc::prelude::{scheduler::*, *};
 
-/// Example svc-scheduler-client
-/// Assuming the server is running on localhost:50051, this method calls `client.query_flight` and
-/// should receive a valid response from the server
+/// Example svc-scheduler-client-grpc
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = RpcServiceClient::connect("http://[::1]:50052").await?;
+    let (host, port) = get_endpoint_from_env("SERVER_HOSTNAME", "SERVER_PORT_GRPC");
+    let client = SchedulerClient::new_client(&host, port, "scheduler");
+    println!("Client created");
+    println!(
+        "NOTE: Ensure the server is running on {} or this example will fail.",
+        client.get_address()
+    );
 
-    let departure_time = Utc
-        .with_ymd_and_hms(2022, 10, 25, 15, 0, 0)
-        .unwrap()
-        .timestamp();
+    let ready = client.is_ready(ReadyRequest {}).await?.into_inner();
+    assert_eq!(ready.ready, true);
 
-    let arrival_time = Utc
-        .with_ymd_and_hms(2022, 10, 25, 16, 0, 0)
-        .unwrap()
-        .timestamp();
+    let departure_time = match Utc.with_ymd_and_hms(2022, 10, 25, 15, 0, 0) {
+        Single(time) => time.timestamp(),
+        _ => {
+            println!("(main) failed to parse arrival time.");
+            return Ok(());
+        }
+    };
 
-    let request = Request::new(QueryFlightRequest {
+    let arrival_time = match Utc.with_ymd_and_hms(2022, 10, 25, 16, 0, 0) {
+        Single(time) => time.timestamp(),
+        _ => {
+            println!("(main) failed to parse arrival time.");
+            return Ok(());
+        }
+    };
+
+    let request = QueryFlightRequest {
         is_cargo: true,
         persons: Some(0),
         weight_grams: Some(5000),
@@ -42,26 +48,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             seconds: arrival_time,
             nanos: 0,
         }),
-    });
+    };
 
     let response = client.query_flight(request).await?.into_inner().itineraries;
     let itinerary_id = (&response)[0].id.clone();
-    println!("itinerary id={}", itinerary_id);
+    println!("(main) itinerary id={}", itinerary_id);
 
     let response = client
-        .confirm_itinerary(Request::new(ConfirmItineraryRequest {
+        .confirm_itinerary(ConfirmItineraryRequest {
             id: itinerary_id,
             user_id: "".to_string(),
-        }))
+        })
         .await?;
 
-    println!("RESPONSE={:?}", &response);
-
-    /*let response = client
-    .cancel_flight(Request::new(Id {
-        id: "b32c8a28-bfb4-4fe9-8819-e119e18991c0".to_string(),
-    }))
-    .await?;*/
+    println!("(main) RESPONSE={:?}", &response);
 
     Ok(())
 }

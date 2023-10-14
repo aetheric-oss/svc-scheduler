@@ -1,7 +1,11 @@
-//! gRPC client library exposing svc_scheduler module
+#![doc = include_str!("../README.md")]
 
-///module svc_scheduler generated from svc-scheduler-grpc.proto
-pub mod grpc {
-    #![allow(unused_qualifications)]
-    include!("grpc.rs");
-}
+pub mod client;
+pub mod prelude;
+pub mod service;
+
+use client::*;
+
+use lib_common::log_macros;
+use tonic::async_trait;
+use tonic::transport::Channel;

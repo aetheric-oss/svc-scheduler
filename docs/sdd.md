@@ -1,23 +1,8 @@
-# `svc-scheduler`- Software Design Document (SDD)
+![Arrow Banner](https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png)
 
-<center>
+# Software Design Document (SDD) - `svc-scheduler`
 
-<img src="https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png" style="height:250px" />
-
-</center>
-
-### Metadata
-
-| Item | Description                                                       |
-| --- |-------------------------------------------------------------------|
-| Maintainer(s) | [Services Team](https://github.com/orgs/Arrow-air/teams/services) |
-| Primary Contact | [romanmandryk](https://github.com/romanmandryk)                      |
-
-## Overview
-
-Attribute | Description
---- | ---
-Status | :yellow_circle: Development
+## :telescope: Overview
 
 This document details the software implementation of `svc-scheduler` (scheduler module).
 
@@ -29,29 +14,33 @@ Draft itineraries are held in memory temporarily and discarded if not confirmed 
 
 *This document is under development as Arrow operates on a pre-revenue and pre-commercial stage. Scheduler logics may evolve as per business needs, which may result in architectural/implementation changes to the scheduler module.*
 
-## Related Documents
+### Metadata
+
+| Attribute     | Description                                                       |
+| ------------- |-------------------------------------------------------------------|
+| Maintainer(s) | [Services Team](https://github.com/orgs/Arrow-air/teams/services) |
+| Stuckee       | [Alex M. Smith](https://github.com/servicedog)                   |
+| Status        | Development                                                       |
+
+## :books: Related Documents
 
 Document | Description
 --- | ----
 [High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md) | Overview of Arrow microservices.
 [High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Arrow microservices.
-[Concept of Operations - `svc-scheduler`](./conops.md) | Concept of Operations for `svc-scheduler`.
-[Interface Control Document - `svc-scheduler`](./icd.md)| Interface Control Document for `svc-scheduler`.
-[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements for this service.
+[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
+[Concept of Operations - `svc-scheduler`](./conops.md) | Defines the motivation and duties of this microservice.
+[Interface Control Document - `svc-scheduler`](./icd.md)| Defines the inputs and outputs of this microservice.
+[Routing Scenarios](https://docs.google.com/presentation/d/1Nt91KVIczhxngurfyeIJtG8J0m_38jGU1Cnqm1_BfPc/edit#slide=id.g1454d6dfbcf_0_731) | Graphical representation of various routing scenarios
 
-## Location
-
-Server-side service.
-
-## Module Attributes
+## :dna: Module Attributes
 
 | Attribute       | Applies | Explanation                                                                              |
 |-----------------|---------|------------------------------------------------------------------------------------------|
 | Safety Critical | No      | Scheduler is business critical but has no direct impact to the operational safety.       |
 | Realtime        | No      | Scheduler is only used to fetch viable flights, and will not be used during the flights. |
 
-
-## Logic
+## :gear: Logic
 
 ### Initialization
 
@@ -74,76 +63,110 @@ Does not apply.
 
 Does not apply.
 
-## Interface Handlers
-
-See [the ICD](./icd.md) for this microservice.
+## :speech_balloon: gRPC Handlers
 
 ### `query_flight` 
 - Takes requested departure and arrival vertiport ids and departure/arrival time window and returns next available flight(s).
 
 ```mermaid
 sequenceDiagram
-    grpc_client->>+scheduler: query_flight(QueryFlightRequest)
-    scheduler->>+storage: get depart and arrive vertiports
-    storage->>-scheduler: <vertiports>
-    scheduler->>+storage: get flights scheduled from depart and to arrive vertiports
-    storage->>-scheduler: <flight_plans>
-    scheduler->>scheduler: Check there are now flights scheduled for the requested time window
-    scheduler->>+storage: get aircrafts associated with vertipads and their scheduled flights
-    storage->>-scheduler: <aircrafts>, <flight_plans>
-    scheduler->>scheduler: Check there are now flights scheduled for used aircraft
-    Note over scheduler: get_possible_flights()
-    Note over scheduler: find route from depart to arrive vertiport and cost/distance
-    Note over scheduler: estimate flight time based on the distance<br>check schedules of vertiports and aircrafts<br>include deadhead legs
-    Note over scheduler: produce draft itineraries
-    scheduler->>scheduler: store draft plans in to memory for 30 seconds
-    alt at least one flight found
-        scheduler->>grpc_client: return <QueryFlightPlans>
-    else no flights found
-        scheduler-->>-grpc_client: return Error
+    participant client as gRPC Client
+
+    client->>+scheduler: query_flight(...)<br>(Time Window,<br>Vertiports)
+    alt for_each (target vertiports, vertipads, all aircraft, existing flight plans)
+        scheduler->>storage: search(...)
+        storage->>scheduler: Error
+        scheduler->>client: GrpcError::Internal
+        Note over client: end
     end
+    
+    Note over scheduler: Build vertipads' availabilities<br>given existing flight plans<br>and the vertipad's operating hours.
+    
+    alt for_each (possible departure timeslot, possible arrival timeslot)
+        Note over scheduler: Calculate flight duration <br>between the two vertiports at<br>this time (considering temporary<br>no-fly zones and waypoints).
+        Note over scheduler: If an aircraft can depart, travel,<br>and land within available<br>timeslots, append to results.
+    end
+
+    alt no timeslot pairings
+        scheduler->>client: GrpcError::NotFound
+        Note over client: end
+    end
+
+    Note over scheduler: Build aircraft availabilities<br>given existing flight plans.
+
+    alt for_each aircraft and timeslot_pair
+        Note over scheduler: If an aircraft is available<br>from the departure timeslot until<br>the arrival timeslot, append<br>the combination to results.
+    end
+
+    alt for_each (timeslot pair, aircraft availability)
+        Note over scheduler: Calculate the duration<br> of the deadhead flight(s)<br>to the departure vertiport<br>and from the destination vertiport<br>to its next obligation.
+        Note over scheduler: If the aircraft availability<br>can't fit either deadheads,<br> discard.
+        Note over scheduler: Otherwise, append flight itinerary<br>to results and consider no other<br>itineraries with this specific<br>aircraft (max 1 result per aircraft).
+    end
+
+    alt no itineraries
+        scheduler->>client: GrpcError::NotFound
+        Note over client: end
+    end
+
+    alt for_each itinerary
+        Note over scheduler: Create a draft itinerary in memory<br>with a unique UUID. Create draft<br>flight plans for each leg of the itinerary.
+    end
+
+    scheduler->>client: QueryFlightResponse<br>List of Itineraries with IDs
+
 ```
 
-### `confirm_flight` 
-- Takes id of the draft flight plan returned from the query_flight and confirms the flight.
+### `confirm_itinerary` 
+- Takes the UUID of the draft itinerary returned from the query_flight and confirms the itinerary.
 
 ```mermaid
 sequenceDiagram
-    grpc_client->>+scheduler: query_flight(QueryFlightRequest)
+    grpc_client->>+scheduler: confirm_itinerary(...)
     scheduler->>scheduler: find draft flight plan in memory
-    alt flight plan found
-        scheduler->>+storage: insert_flight_plan(draft)
-        storage->>-scheduler: <flight_plan> with permanent id
-        scheduler->>scheduler: remove draft flight plan from memory
-        scheduler->>-grpc_client: return <ConfirmFlightResponse> with permanent id
-    else flight not found
+    alt itinerary not found
         scheduler-->>grpc_client: return Error
     end
+
+    alt for_each draft flight plan in itinerary
+        scheduler->>+storage: insert flight plan
+        storage->>-scheduler: <flight_plan> with permanent id
+        scheduler->>scheduler: remove draft flight plan from memory
+    end
+
+    scheduler->>+storage: insert itinerary
+    storage->>-scheduler: <itinerary> with permanent id
+    scheduler->>scheduler: remove draft itinerary from memory
 ```
 
 
-### `cancel_flight`
-- Takes id of the flight plan (either draft or confirmed) and cancels the flight.
+### `cancel_itinerary`
+- Takes id of an itinerary (either draft or confirmed) and cancels all flights associated with that itinerary.
+
 ```mermaid
 sequenceDiagram
-    grpc_client->>+scheduler: query_flight(QueryFlightRequest)
-    scheduler->>scheduler: find draft flight plan in memory
-    alt flight plan found in memory
-        scheduler->>scheduler: remove draft flight plan from memory
-        scheduler->>grpc_client: return CancelFlightResponse
-    else flight not found in memory 
-        scheduler->>+storage: flight_plan_by_id(id)
-        storage-->>-scheduler: <flight_plan> or None
-        alt flight plan found in storage
-            scheduler->>+storage: update_flight_plan(draft with status Cancelled)
-            storage-->>-scheduler: Ok or Error
-            scheduler->>grpc_client: return CancelFlightResponse
-        else flight plan not found in storage
+    grpc_client->>+scheduler: cancel_itinerary(...)
+    alt itinerary found in memory
+        scheduler->>scheduler: remove all associated draft<br> flight plans from memory
+        scheduler->>scheduler: remove itinerary from memory
+        scheduler->>grpc_client: return CancelItineraryResponse
+    else itinerary not found in memory 
+        scheduler->>+storage: search(itinerary id)
+        storage-->>-scheduler: <itinerary> or None
+        alt flight not plan found in storage
             scheduler-->>grpc_client: return Error
         end
+    
+        scheduler->>+storage: update itinerary to status "Cancelled"
+        storage-->>-scheduler: Ok or Error
+
+        scheduler->>+storage: get linked flight plans to the itinerary
+        storage->>-scheduler: flight plans
+
+        alt for_each flight plan
+            scheduler->>+storage: update flight plan status to "Cancelled"
+            storage->>-scheduler: Ok or Error
+        end
+        scheduler->>grpc_client: return CancelFlightResponse
     end
 ```
-
-## Tests
-
-### Unit Tests

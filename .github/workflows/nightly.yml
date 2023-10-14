@@ -1,7 +1,7 @@
 ## DO NOT EDIT!
 # This file was provisioned by Terraform
 # File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/.github/workflows/nightly.yml
-#
+
 on:
   schedule:
     - cron: '0 4 * * *' # run at 4 AM UTC

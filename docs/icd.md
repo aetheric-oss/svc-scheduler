@@ -1,34 +1,36 @@
+![Arrow Banner](https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png)
+
 # Interface Control Document (ICD) - `svc-scheduler`
 
-<center>
-
-<img src="https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png" style="height:250px" />
-
-</center>
-
-## Overview
+## :telescope: Overview
 
 This document defines the gRPC interface unique to the `svc-scheduler` microservice.
 
-Attribute | Description
---- | ---
-Status | Draft
+### Metadata
 
-## Related Documents
+| Attribute     | Description                                                       |
+| ------------- |-------------------------------------------------------------------|
+| Maintainer(s) | [Services Team](https://github.com/orgs/Arrow-air/teams/services) |
+| Stuckee       | A.M. Smith ([@ServiceDog](https://github.com/servicedog))         |
+| Status        | Development                                                       |
+
+## :books: Related Documents
 
 Document | Description
 --- | ---
-[High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md)| Overview of Arrow microservices.
-[High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md) | Interfaces and frameworks common to all Arrow microservices.
-[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements for this service.
+[High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md) | Overview of Arrow microservices.
+[High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Arrow microservices.
+[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
 [Concept of Operations - `svc-scheduler`](./conops.md) | Defines the motivation and duties of this microservice.
+[Interface Control Document (ICD) - `svc-scheduler`](./icd.md) | Defines the inputs and outputs of this microservice.
 [Software Design Document (SDD) - `svc-scheduler`](./sdd.md) | Specifies the internal activity of this microservice.
+[Routing Scenarios](https://docs.google.com/presentation/d/1Nt91KVIczhxngurfyeIJtG8J0m_38jGU1Cnqm1_BfPc/edit#slide=id.g1454d6dfbcf_0_731) | Graphical representation of various routing scenarios
 
-## Frameworks
+## :hammer: Frameworks
 
-See the High-Level ICD.
+See [High-Level Services ICD](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md).
 
-## gRPC
+## :speech_balloon: gRPC
 
 ### Files
 
@@ -37,13 +39,13 @@ See the High-Level ICD.
 
 ### Integrated Authentication & Encryption
 
-See the High-Level ICD.
+See [High-Level Services ICD](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md).
 
 ### gRPC Server Methods ("Services")
 
-| Service          | Arguments                                                                                                                                                                                        | Description                                                                                                                                                  |
-|------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `is_ready`       | (empty)                                                                                                                                                                                          | Returns `true` if server is up and running.                                                                                                                  |
-| `query_flight`   | `bool` isCargo<br/>`uint32` persons<br/>`uint32` weight_grams<br/>`Timestamp` departure_time<br/>`Timestamp` arrival_time<br/>`string` vertiport_depart_id<br/>`string` vertiport_arrive_id<br/> | Takes requested departure and arrival vertiport ids and departure/arrival time window and returns next available flight draft. (as an array with one result) |
-| `confirm_flight` | id                                                                                                                                                                                               | Takes `id` of the draft flight plan returned from the `query_flight` and confirms the flight.                                                                |
-| `cancel_flight`  | id                                                                                                                                                                                               | Takes `id` of the flight plan (either draft or confirmed) and cancels the flight.                                                                            |
+| Service | Arguments | Description |
+| --- | --- | --- |
+| `is_ready` | (empty) | Returns `true` if server is up and running. |
+| `confirm_itinerary` | `string` id<br>`string` user_id | Takes `id` (UUID) of the draft itinerary and the user's UUID and confirms the flight. |
+| `cancel_itinerary`  | `string` id | Takes `id` (UUID) of the itinerary (either draft or confirmed) and cancels it. |
+| `query_flight` | `bool` isCargo<br/>`uint32` persons<br/>`uint32` weight_grams<br/>`Timestamp` earliest departure time<br/>`Timestamp` latest arrival time<br/>`string` vertiport_depart_id<br/>`string` vertiport_arrive_id<br/> | Takes requested departure and arrival vertiport UUIDs and a time window for the itinerary to occur and returns a number of draft itineraries. |

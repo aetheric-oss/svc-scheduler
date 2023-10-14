@@ -3,17 +3,22 @@
 # File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/.github/workflows/rust_ci.yml
 
 on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - "**/*.rs"
+      - "Cargo.lock"
+      - "**/Cargo.toml"
   pull_request:
     branches:
       - develop
       - main
     paths:
-      - server/**
-      - client-grpc/**
-      - client-rest/**
-      - src/**
-      - Cargo.lock
-      - Cargo.toml
+      - "**/*.rs"
+      - "Cargo.lock"
+      - "**/Cargo.toml"
 
 name: Rust Checks
 
@@ -21,54 +26,102 @@ env:
   TERM: xterm
 
 jobs:
-  check:
-    name: Checks
-    runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.head_commit.message, 'provisioned by terraform') }}
-    steps:
-      - uses: actions/checkout@v2
-      - run: make rust-check
-
-  build_and_test_debug:
-    name: Build & Test
-    runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.head_commit.message, 'provisioned by terraform') }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Build
-        run: make build
-      - name: Test
-        run: make rust-test
-
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - run: make rust-fmt
+
+  check:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
+      - run: make rust-check
+
+  build:
+    name: Build
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
+      - run: make rust-build
+      - name: Cache .env file for next jobs
+        uses: actions/cache/save@v3
+        id: cache
+        with:
+          path: .env
+          key: dot-env-${{ github.run_id }}
+
+  test:
+    name: Test
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
+      - name: Get .env file from cache
+        uses: actions/cache/restore@v3
+        with:
+          path: .env
+          key: dot-env-${{ github.run_id }}
+      - name: Test
+        run: make rust-test
 
   clippy:
     name: Clippy
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
       - run: make rust-clippy
 
   # Validates the code examples in doc comments
   doc:
     name: Rustdoc
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
       - run: make rust-doc
 
   coverage:
     name: Unit Test Coverage
+    needs: build
     runs-on: ubuntu-latest
     env:
       NODE_COVERALLS_DEBUG: 1
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-ci"
+          cache-directories: "${{ github.workspace }}/.cargo"
+      - name: Get .env file from cache
+        uses: actions/cache/restore@v3
+        with:
+          path: .env
+          key: dot-env-${{ github.run_id }}
       - run: |
           mkdir -p coverage
           make rust-coverage | tee coverage/ut.txt

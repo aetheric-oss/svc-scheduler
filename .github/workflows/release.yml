@@ -111,7 +111,7 @@ jobs:
 
       - name: Commit and push release updates
         env:
-          CHANGED_FILES: ".terraform_init Cargo.lock client-grpc/Cargo.toml server/Cargo.toml CHANGELOG.md"
+          CHANGED_FILES: "${{ vars.RELEASE_COMMIT_FILES }}"
           GIT_AUTHOR_NAME: ${{ steps.import-gpg.outputs.name }}
           GIT_AUTHOR_EMAIL: ${{ steps.import-gpg.outputs.email }}
           GIT_COMMITTER_NAME: ${{ steps.import-gpg.outputs.name }}

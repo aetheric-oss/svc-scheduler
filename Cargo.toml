@@ -2,13 +2,13 @@
 members = ["server", "client-grpc"]
 
 [workspace.package]
-edition = "2021"
-homepage = "https://www.arrowair.com/docs/documentation/services/intro"
-license = "BUSL-1.1"
+authors      = ["arrow-services <group-services@arrowair.com>"]
+edition      = "2021"
+homepage     = "https://www.arrowair.com/docs/documentation/services/intro"
 license-file = "LICENSE"
-repository = "https://github.com/Arrow-air/svc-scheduler"
+repository   = "https://github.com/Arrow-air/svc-scheduler"
+
 categories = [
   "aerospace::drones",
   "aerospace::protocols",
 ] # max 5 -- https://crates.io/category_slugs
-keywords = ["vtol", "server", "scheduler"] # max 5

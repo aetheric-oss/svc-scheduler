@@ -1,30 +1,67 @@
 [package]
-description = "GRPC client for the scheduler service."
+description = "gRPC client for the scheduler service."
+keywords    = ["vtol", "client", "grpc", "scheduler"]  # max 5
 name        = "svc-scheduler-client-grpc"
-version     = "0.3.0"
+version     = "0.3.1-develop.2"
 
+authors.workspace      = true
 categories.workspace   = true
 edition.workspace      = true
 homepage.workspace     = true
-keywords.workspace     = true
 license-file.workspace = true
 repository.workspace   = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/scheduler/reference/manifest.html
+[features]
+dev       = ["mock", "tokio", "futures"]
+test_util = ["mock", "stub_backends"]
+# Will add a 'mock' module for the enabled resources, providing access to mock data generation functions
+mock = ["svc-storage-client-grpc/mock"]
+# Will use a stubbed server connection, only use for tests!
+stub_backends = [
+  "svc-scheduler/stub_server",
+  "lib-common/grpc_mock",
+  "tower",
+  "tokio",
+]
+# Will implement stub functions for the client, only use for tests!
+stub_client = ["svc-scheduler", "svc-storage-client-grpc/mock"]
 
 [dependencies]
-chrono      = "0.4"
-chrono-tz   = "0.8"
-prost       = "0.11"
-prost-types = "0.11"
-tonic       = "0.8"
+cfg-if          = "1.0"
+chrono          = "0.4"
+chrono-tz       = "0.8"
+futures         = { version = "0.3", optional = true }
+log             = { version = "0.4" }
+prost           = "0.11"
+prost-types     = "0.11"
+prost-wkt-types = "0.4"
+svc-scheduler   = { path = "../server", optional = true }
+tonic           = "0.8"
+tower           = { version = "0.4", optional = true }
+uuid            = "1.2"
+
+[dependencies.svc-storage-client-grpc]
+features = ["flight_plan", "itinerary"]
+git      = "https://github.com/Arrow-air/svc-storage.git"
+tag      = "v0.11.0"
+
+[dependencies.lib-common]
+features = ["grpc"]
+git      = "https://github.com/Arrow-air/lib-common.git"
+tag      = "v0.2.0"
+
+[dependencies.tokio]
+features = ["macros", "rt-multi-thread"]
+optional = true
+version  = "1.28"
 
 [dev-dependencies]
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+logtest = "2.0"
 
-[lib]
-name = "svc_scheduler_client_grpc"
-path = "src/lib.rs"
+# Make sure we enable the 'mock_services' features when running tests
+[dev-dependencies.svc-scheduler-client-grpc]
+features = ["dev"]
+path     = "."
 
 [[example]]
 name = "grpc"
