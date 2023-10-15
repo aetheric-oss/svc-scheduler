@@ -1,0 +1,37 @@
+## DO NOT EDIT!
+# This file was provisioned by Terraform
+# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/.github/workflows/rust_ci.yml
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+name: Release Checklist
+
+jobs:
+  release_checklist:
+    name: Release Checklist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          make release-checklist > release_checklist.md
+          echo CHECKLIST_OUTPUT=$(sed -n -e '/#/,$p' release_checklist.md) >> $GITHUB_ENV
+      - uses: thollander/actions-comment-pull-request@v1
+        continue-on-error: true
+        with:
+          message: |
+            :clipboard: Release Checklist :white_check_mark:
+
+            :house_with_garden: Check locally with `make release-checklist`
+
+            <details>
+
+            ${{ env.CHECKLIST_OUTPUT }}
+
+            </details>
+
+            :warning: *Comments and test sections not checked by default. Check locally with `make release-checklist-full`*
+          comment_includes: ':clipboard: Release Checklist :white_check_mark:'
