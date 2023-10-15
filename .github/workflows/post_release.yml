@@ -113,10 +113,12 @@ jobs:
         with:
           images: ${{ env.DOCKER_IMAGE }}
           tags: |
+            type=edge,branch=main
             type=ref,event=branch
-            type=ref,event=pr
+            type=ref,event=workflow_dispatch
             type=semver,pattern=v{{version}},value=${{ github.ref_name }}
             type=semver,pattern=v{{major}}.{{minor}},value=${{ github.ref_name }}
+            type=semver,pattern=v{{major}},value=${{ github.ref_name }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v3
