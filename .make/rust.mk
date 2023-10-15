@@ -3,7 +3,7 @@
 # File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/all/.make/rust.mk
 
 RUST_IMAGE_NAME     ?= ghcr.io/arrow-air/tools/arrow-rust
-RUST_IMAGE_TAG      ?= 1.1
+RUST_IMAGE_TAG      ?= 1.2
 CARGO_MANIFEST_PATH ?= Cargo.toml
 CARGO_INCREMENTAL   ?= 1
 RUSTC_BOOTSTRAP     ?= 0
@@ -116,8 +116,8 @@ rust-example-%: check-cargo-registry check-logs-dir rust-docker-pull
 		-e EXAMPLE_TARGET=$(EXAMPLE_TARGET) \
 		-e SERVER_PORT_GRPC=$(DOCKER_PORT_GRPC) \
 		-e SERVER_PORT_REST=$(DOCKER_PORT_REST) \
-		-e SERVER_HOSTNAME=$(DOCKER_NAME)-example-server \
-		example && docker compose down
+		-e SERVER_HOSTNAME=$(DOCKER_NAME)-web-server \
+		example ; docker compose down
 
 rust-clippy: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running clippy...$(SGR0)"
@@ -158,8 +158,17 @@ rust-grpc-api:
 		pseudomuto/protoc-gen-doc \
 		--doc_opt=json,$(PACKAGE_NAME)-grpc-api.json
 
-rust-coverage: ADDITIONAL_OPT = --security-opt seccomp='unconfined'
-rust-coverage: check-cargo-registry rust-docker-pull
+rust-it-coverage: check-cargo-registry check-logs-dir rust-docker-pull
+	@docker compose run \
+		--rm \
+		--user `id -u`:`id -g` \
+		-e SERVER_PORT_GRPC=$(DOCKER_PORT_GRPC) \
+		-e SERVER_PORT_REST=$(DOCKER_PORT_REST) \
+		-e SERVER_HOSTNAME=$(DOCKER_NAME)-web-server \
+		it-coverage ; docker compose down
+
+rust-ut-coverage: ADDITIONAL_OPT = --security-opt seccomp='unconfined'
+rust-ut-coverage: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Rebuilding and testing with profiling enabled...$(SGR0)"
 	@mkdir -p coverage/
 	@$(call cargo_run,tarpaulin,\
