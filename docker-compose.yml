@@ -6,7 +6,7 @@ version: '3.6'
 services:
   web-server:
     container_name: ${DOCKER_NAME}-web-server
-    image: ${PACKAGE_NAME}:latest
+    image: ${PACKAGE_NAME}:${DOCKER_IMAGE_TAG}
     ports:
       - ${HOST_PORT_REST}:${DOCKER_PORT_REST}
       - ${HOST_PORT_GRPC}:${DOCKER_PORT_GRPC}
