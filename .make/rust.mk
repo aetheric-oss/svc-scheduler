@@ -117,6 +117,7 @@ rust-example-%: check-cargo-registry check-logs-dir rust-docker-pull
 		-e SERVER_PORT_GRPC=$(DOCKER_PORT_GRPC) \
 		-e SERVER_PORT_REST=$(DOCKER_PORT_REST) \
 		-e SERVER_HOSTNAME=$(DOCKER_NAME)-web-server \
+		-e DOCKER_IMAGE_TAG=dev \
 		example ; docker compose down
 
 rust-clippy: check-cargo-registry rust-docker-pull
@@ -165,6 +166,7 @@ rust-it-coverage: check-cargo-registry check-logs-dir rust-docker-pull
 		-e SERVER_PORT_GRPC=$(DOCKER_PORT_GRPC) \
 		-e SERVER_PORT_REST=$(DOCKER_PORT_REST) \
 		-e SERVER_HOSTNAME=$(DOCKER_NAME)-web-server \
+		-e DOCKER_IMAGE_TAG=latest \
 		it-coverage ; docker compose down
 
 rust-ut-coverage: ADDITIONAL_OPT = --security-opt seccomp='unconfined'
