@@ -71,3 +71,11 @@ Refactorings
 timeslot
 timeslots
 anstyle
+HSET
+ZADD
+BZPOPMIN
+HGETALL
+HGET
+HINCRBY
+EXPIREAT
+ZREM

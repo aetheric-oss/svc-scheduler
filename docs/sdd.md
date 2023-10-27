@@ -49,81 +49,57 @@ For the scheduler server, `DOCKER_PORT_GRPC` is the port number where the server
 
 For the client, `HOST_PORT_GRPC` is needed to connect to the scheduler server. This env var should be the server's port. If not provided, `50051` will be used as a fallback port. In most cases, one may assume `HOST_PORT_GRPC` to have the same value as `DOCKER_PORT_GRPC`.
 
+### Redis
 
-### `Order` Type
+This microservice makes use of the [Redis sorted set](https://redis.io/docs/data-types/sorted-sets/) and [Redis Hash](https://redis.io/docs/data-types/hashes/) for prioritizing requests.
 
-An Order is a request to svc-scheduler to perform some action
+The following Redis sorted sets will be defined:
+- `scheduler:emergency`
+- `scheduler:high`
+- `scheduler:medium`
+- `scheduler:low`
 
-Orders will have the following metadata in svc-storage, which will convert to a struct in Rust.
+The following Redis hash(es) will be defined:
+- `scheduler:tasks`
+
+#### SchedulerTasks
+
+SchedulerTasks result from requests originating within or outside of `svc-scheduler`. The task, when created, is given a unique task ID and stored as a value at `scheduler:tasks:<task_id>`.
+
+All tasks have the following common fields:
 
 | Field | Description | Type |
 | --- | --- | --- |
-| OrderId | A unique "ticket" number for this request.<br>Clients can query the status of a ticket.<br>Same UUID as the order record in storage. | UUID |
-| OrderType | `CREATE_ITINERARY`, `CANCEL_ITINERARY`, `REROUTE` | Enum |
-| OrderDetails | Details of this order. Vertiports, aircraft, itineraries to delete, etc. | String (JSON)
-| OrderPriority | `EMERGENCY`, `HIGH`, `MEDIUM`, `LOW` | Enum |
-| OrderCreatedAt | When this order was created. | DateTime
-| OrderExpiry | When this order expires. | DateTime
-| OrderStatus | `QUEUED`, `REJECTED`, `COMPLETE` | Enum |
-| OrderStatusRationale | `ID_NOT_FOUND`, `EXPIRED`, `SCHEDULE_CONFLICT`, `CLIENT_CANCELLED`, `PRIORITY_CHANGE` | Option\<Enum\>
-| OrderItineraryId | If an itinerary is linked to this order (one is created, changed, or deleted), this field should indicate the itinerary UUID. | Option\<UUID\>
+| type | `CANCEL_ITINERARY`, `REROUTE`, `CREATE_ITINERARY` | Enum
+| status | `QUEUED`, `REJECTED`, `COMPLETE` | Enum |
+| status_rationale | `ID_NOT_FOUND`, `EXPIRED`, `SCHEDULE_CONFLICT`, `CLIENT_CANCELLED`, `PRIORITY_CHANGE` | Enum or nil
+| itinerary_id | If an itinerary is linked to this task (one is created, changed, or deleted), this field should indicate the itinerary UUID. | UUID or nil
 
-Other notes:
--  Emergency requests may only be issued by the network itself, or authorized sources (such as hospitals, government, etc.)
+The CREATE_ITINERARY and REROUTE tasks will have additional fields containing the departure and arrival vertiports, time windows, and other information needed to plan a journey.
+
+Tasks are marked to expire automatically (a Redis feature) at some time. The duration is usually some time after a task is completed, so that requests for task status are possible for a period after task completion. This is separate from the expiry/score used in the sorted sets, discussed below.
+
+#### Priority Queues (Sorted Set)
+
+After creation, a task ID is pushed into the appropriate sorted set matching its priority level. Sorted sets sort their elements via a "score". In most cases, we provide the departure time of the itinerary as the score so that the nearest events are prioritized first, hopefully before the itinerary is active.
+
+For example, a low priority CANCEL_ITINERARY request may result in a new task with ID `1234` which will then be pushed to the Redis sorted set `scheduler:low`, using the expiry date of the request as the score.
+
+The two commands to Redis would be similar to the following:
+```redis
+HSET scheduler:tasks:1234 type CANCEL_ITINERARY itinerary_id <UUID> ...
+ZADD scheduler:low <2023-10-27T13:20:22+00 as seconds> 1234
+```
+
+When task IDs are popped from a sorted set, the ID is used to get the task details from `scheduler:tasks`. If for some reason the task doesn't exist in the hash map (was removed or has expired), a log entry is made and the task is skipped.
 
 ### Initialization
 
 The `main` function in [`/server/src/main.rs`](../server/src/main.rs) will spin up a gRPC server at the provided port.
 
-Additionally, unfulfilled orders will be queried from svc-storage. This is in the event of a reboot or system crash, where unfulfilled emergency orders should be recoverable.
-
-Orders recovered from svc-storage are pushed onto a binary heap that we will refer to as the `PriorityQueue`.
-
-```mermaid
-%%{
-  init: {
-    'theme': 'base',
-    'themeVariables': {
-      'primaryColor': '#1B202C',
-      'primaryBorderColor': '#4060FF',
-      'primaryTextColor': '#CCC',
-      'actorLineColor': '#fff',
-      'labelBoxBkgColor': '#FF8A78',
-      'labelTextColor': '#222',
-      'sequenceNumberColor': '#1B202C',
-      'noteBkgColor': '#D6D6D6',
-      'noteTextColor': '#222',
-      'activationBkgColor': '#FF8A78'
-    }
-  }
-}%%
-sequenceDiagram
-    participant scheduler as svc-scheduler
-    participant storage as svc-storage
-
-    Note over scheduler: On Boot
-
-    loop
-        scheduler->>storage: orders::search(...)<br>WHERE order.status == QUEUED
-        break Successful Retrieval
-            storage->>scheduler: List of orders of size 0+
-            scheduler->>scheduler: Populate PriorityQueue
-        end
-
-        storage->>scheduler: ClientError
-    end
-```
-
 ### Control Loop
 
-A single thread will iterate through an order book in local memory, implementing one order at a time.
-
-Finished orders are removed from the `PriorityQueue` and pushed to another temporary collection, referred to as `FinishedMap`, to permit status queries up to some duration after the completion of the order.
-
-Updates to order status will be pushed to svc-storage, so that a system reboot or crash can recover orders that haven't been acted on.
-
-Note: In future implementations, opportunities for concurrent actions may be identified. Single thread behavior is simplest to validate for an early prototype of the system with low demand.
-
+A single thread will iterate through the redis sorted sets, using the `BZPOPMIN` redis command to get the first item off the top of the priority queues (starting with `scheduler:emergency` and iterating through the rest by descending priority).
 
 ```mermaid
 %%{
@@ -145,30 +121,44 @@ Note: In future implementations, opportunities for concurrent actions may be ide
 }%%
 sequenceDiagram
     participant scheduler as svc-scheduler
-    participant storage as svc-storage
+    participant redis as Redis
 
-    opt every N runs
-        scheduler->>scheduler: Remove expired orders<br>from the PriorityQueue<br>and FinishedMap
+    scheduler->>redis: BZPOPMIN<br>scheduler:emergency<br>scheduler:high<br>scheduler:medium<br>scheduler:low<br><timeout>
+
+    break result is nil
+      redis->>scheduler: nil
     end
-
-    scheduler->>scheduler: "Pop" (remove and read) order from priority queue
     
-    alt expired
-        scheduler->>scheduler: order.status = REJECTED<br>order.status_rationale = EXPIRED
-    else order.status =/= QUEUED
-        Note over scheduler: i.e order was cancelled or re-prioritized by client
-    else CANCEL_ITINERARY
-        scheduler->>scheduler: cancel_itinerary_impl(&order)
-    else CREATE_ITINERARY
-        scheduler->>scheduler: create_itinerary_impl(&order)
-    else REROUTE
-        scheduler->>scheduler: reroute_impl(&order)
+    redis->>scheduler: (<set name>, <task_id>, <score/expiry>)
+    break expiry < now()
+      Note over scheduler: Discard
     end
 
-    scheduler->>storage: orders::update(...)<br>order details
+    scheduler->>redis: HGETALL scheduler:tasks <task_id>
+    break Task doesn't exist or expired
+      redis->>scheduler: []
+    end
 
-    scheduler->>scheduler: Push record onto FinishedMap
+    redis->>scheduler: <task details>
+    break task.status != QUEUED
+      Note over scheduler: Task was cancelled or already completed.
+    end
+
+    alt task.type == CANCEL_ITINERARY
+        scheduler->>scheduler: cancel_itinerary_impl(&task)
+    else task.type == CREATE_ITINERARY
+        scheduler->>scheduler: create_itinerary_impl(&task)
+    else task.type == REROUTE
+        scheduler->>scheduler: reroute_impl(&task)
+    end
+
+    scheduler->>redis: HSET scheduler:tasks:<task_id> <task details>
+    scheduler->>redis: EXPIRE scheduler:tasks:<task_id> <timeout> GT
 ```
+
+Finished tasks are updated in Redis with the result of the action and its rationale, along with any other new information. The expiry date is bumped to allow retrieval for N more hours. This permits task status queries up to some duration after the completion of the task.
+
+Note: In future implementations, opportunities for concurrent actions may be identified. Single thread behavior is simplest to validate for an early prototype of the system with low demand.
 
 #### `cancel_itinerary_impl`
 - Cancels an itinerary
@@ -197,10 +187,11 @@ sequenceDiagram
     participant scheduler as svc-scheduler
     participant storage as svc-storage
 
+    scheduler->>scheduler: main control loop<br>cancel_itinerary_impl(&task)
     scheduler->>+storage: search(itinerary id)
     storage-->>-scheduler: <itinerary> or None
     break not found in storage
-        scheduler-->>scheduler: order.status = REJECTED<br>order.status_rationale = ID_NOT_FOUND
+        scheduler-->>scheduler: task.status = REJECTED<br>task.status_rationale = ID_NOT_FOUND
     end
 
     Note over scheduler: TODO(R4): Seal the gap created by the removed flight<br>plans. For now, just mark itinerary as cancelled.
@@ -215,7 +206,7 @@ sequenceDiagram
         storage->>-scheduler: Ok or Error
     end
 
-    scheduler->>scheduler: order.status = COMPLETE
+    scheduler->>scheduler: task.status = COMPLETE
 ```
 
 #### `create_itinerary_impl`
@@ -244,12 +235,13 @@ sequenceDiagram
     participant scheduler as svc-scheduler
     participant storage as svc-storage
 
+    scheduler->>scheduler: main control loop<br>create_itinerary_impl(&task)
     scheduler->>+storage: search(...)<br>1 Aircraft, 2 Vertipads Information
     storage->>scheduler: Records for the aircraft and<br>vertipads in proposed itinerary
     scheduler->>scheduler: Confirm that itinerary is possible
 
     break invalid itinerary
-        scheduler->>scheduler: order.status = REJECTED<br>order.status_rationale = SCHEDULE_CONFLICT
+        scheduler->>scheduler: task.status = REJECTED<br>task.status_rationale = SCHEDULE_CONFLICT
     end
     
     loop flight plans in proposed itinerary
@@ -259,7 +251,7 @@ sequenceDiagram
 
     scheduler->>storage: itinerary::insert(...)
     storage->>scheduler: <itinerary_id>
-    scheduler->>scheduler: order.status = COMPLETE<br>order.itinerary_id = Some(itinerary_id)
+    scheduler->>scheduler: task.status = COMPLETE<br>task.itinerary_id = Some(itinerary_id)
 
 ```
 
@@ -267,16 +259,15 @@ sequenceDiagram
 
 :warning: This is not yet implemented.
 
-#### `alter_order_priority_impl`
+#### `alter_task_priority_impl`
 
-The scheduler or an external client (such as svc-atc, or air traffic control) might need to escalate or de-escalate an order.
+The scheduler or an external client (such as svc-atc, or air traffic control) might need to escalate or de-escalate a task.
 
 - Takes as arguments:
-    - The UUID of the order
-    - The new OrderPriority to set
+    - The task id
+    - The new SchedulerTaskPriority to set
 
-This will REJECT the given order and insert a QUEUED copy of it (with a new priority and creation time) into the binary heap, where it will traverse upward toward its new position. 
-
+This will mark the given task as REJECTED, create a new task with similar information, and insert the new task ID into the appropriate sorted set.
 
 ```mermaid
 %%{
@@ -299,38 +290,36 @@ This will REJECT the given order and insert a QUEUED copy of it (with a new prio
 sequenceDiagram
     participant caller
     participant scheduler as svc-scheduler
-    participant storage as svc-storage
+    participant redis as Redis
 
-    scheduler->>scheduler: check for order in FinishedMap
-    break order UUID in FinishedMap
-        scheduler->>caller: Error<br>(Order Completed)
+    caller->>scheduler: alter_task_priority_impl(<task_id>, <new_priority>)
+    scheduler->>redis: HGET scheduler:tasks:<task_id> status
+
+    break task doesn't exist
+        redis->>scheduler: []
+        scheduler->>caller: Error
     end
 
-    scheduler->>scheduler: Find order in PriorityQueue
-
-    break order UUID not in PriorityQueue
-        scheduler->>caller: Error<br>Not Found
+    break task.status != QUEUED
+        redis->>scheduler: <task details>
+        scheduler->>caller: Error
     end
 
-    break order priority same as new priority
-        scheduler->>caller: Success
-    end
+    scheduler->>scheduler: Create a copy of the task with<br>new_task.created_at = <now><br>new_task.status_rationale = None<br>new_task.status = QUEUED
 
-    scheduler->>scheduler: Create a copy of the order with<br>new_order.priority = <new priority><br>new_order.created_at = <now><br>new_order.status_rationale = None<br>new_order.status = QUEUED
+    scheduler->>redis: HINCRBY scheduler:tasks counter 1
+    redis->>scheduler: (new task_id)
 
-    scheduler->>storage: orders::insert(...)<br>New order
-    storage->>scheduler: New Order UUID
-    scheduler->>scheduler: new_order.id = <New Order UUID>
-
-    scheduler->>scheduler: original_order.status = REJECTED<br>original_order.status_rationale = PRIORITY_CHANGE
-
-    scheduler->>scheduler: Insert new_order into PriorityQueue
-
+    scheduler->>redis: HSET scheduler:tasks:<new task_id> <task details>
+    
+    scheduler->>redis: HSET scheduler:tasks:<old task_id><br>status REJECTED<br>status_rationale PRIORITY_CHANGE
+  
+    scheduler->>redis: ZADD scheduler:<new priority> <expiry> <new task_id>
+    scheduler->>caller: <new task_id>
 ```
 
 Notes:
-- Notice that we don't remove the original order until we're certain we could create the new order.
-- Notice that we first REJECT the original order before inserting the new order, to not have two concurrently QUEUED orders for the same flight with different priorities.
+- Notice that we first REJECT the original task before inserting the new task, to not have two concurrently QUEUED tasks for the same flight with different priorities.
 
 ### Cleanup
 
@@ -339,31 +328,6 @@ Does not apply.
 ## :speech_balloon: gRPC Handlers
 
 The gRPC handlers allow the creation, retrieval, or deletion of orders from the `PriorityQueue` or `FinishedMap`.
-
-Order insertions into the `PriorityQueue` will use the following factors (in order) for comparison:
-1) OrderPriority
-    1) EMERGENCY
-    2) HIGH
-    3) MEDIUM
-    4) LOW
-2) OrderExpiry (ascending)
-    - Indicates the urgency of the request
-3) OrderType
-    1) CANCEL_ITINERARY (frees up availability)
-    2) REROUTE (potentially active flights)
-    3) CREATE_ITINERARY (new flights)
-4) OrderCreatedAt (ascending)
-    - All else equal, the first request is handled first
-
-An example of the results of this ordering:
-| Queue Position | Id | Priority | Type | Expiry | CreatedAt | ...
-| --- | --- | --- | --- | --- | --- | -- |
-| 0 | ... | EMERGENCY | CREATE_ITINERARY | 2023-10-19T12:59:59 | 2023-10-19T12:32:32 | ...
-| 1 | ... | EMERGENCY | REROUTE | 2023-10-19T13:00:00 | 2023-10-19T12:32:32 | ...
-| 2 | ... | EMERGENCY | CREATE_ITINERARY | 2023-10-19T13:01:00 | 2023-10-19T12:32:32 | ...
-| 3 | ... | MEDIUM | CANCEL_ITINERARY | 2023-10-19T12:01:00 | 2023-10-19T12:00:30 | ...
-| 4 | ... | MEDIUM | CANCEL_ITINERARY | 2023-10-19T12:01:00 | 2023-10-19T12:00:31 | ...
-| 5 | ... | LOW | REROUTE | 2023-10-19T12:00:00 | 2023-10-19T12:00:31 | ...
 
 ### `create_itinerary` 
 - Client provides UUIDs and timeslots for an aircraft and two vertipads, obtained from `query_itinerary` call.
@@ -391,6 +355,7 @@ sequenceDiagram
     participant grpc_client as gRPC client
     participant scheduler as svc-scheduler
     participant storage as svc-storage
+    participant redis as Redis
 
     grpc_client->>scheduler: create_itinerary(<details>)
 
@@ -401,10 +366,12 @@ sequenceDiagram
         scheduler->>grpc_client: Error
     end
 
-    scheduler->>storage: orders::insert(...)<br>CREATE_ITINERARY order information
-    storage->>scheduler: order UUID
-    scheduler->>scheduler: Add order to<br>local priority queue
-    scheduler->>grpc_client: order UUID
+    scheduler->>redis: HINCRBY scheduler:tasks counter 1
+    redis->>scheduler: <new task id>
+    scheduler->>redis: HSET scheduler:tasks:<new task_id> <task details>
+    scheduler->>redis: EXPIREAT scheduler:tasks:<new task_id> <itinerary departure time>
+    scheduler->>redis: ZADD scheduler:<priority> <expiry> <new task_id>
+    scheduler->>grpc_client: task_id
 ```
 
 ### `cancel_itinerary`
@@ -432,6 +399,7 @@ sequenceDiagram
     participant grpc_client as gRPC client
     participant scheduler as svc-scheduler
     participant storage as svc-storage
+    participant redis as Redis
 
     grpc_client->>+scheduler: cancel_itinerary(Id)
 
@@ -442,17 +410,19 @@ sequenceDiagram
         scheduler->>grpc_client: Error
     end
 
-    scheduler->>storage: orders::insert(...)<br>CANCEL_ITINERARY order information
-    storage->>scheduler: order UUID
-    scheduler->>scheduler: Add order to<br>local priority queue
-    scheduler->>grpc_client: order UUID
+    scheduler->>redis: HINCRBY scheduler:tasks counter 1
+    redis->>scheduler: <new task id>
+    
+    scheduler->>redis: HSET scheduler:tasks:<new task_id> <task details>
+    scheduler->>redis: EXPIREAT scheduler:tasks:<new task_id> <itinerary departure time>
+    scheduler->>redis: ZADD scheduler:<priority> <expiry> <new task_id>
+    scheduler->>grpc_client: task_id
 ```
 
 
-### `get_order_status`
-- Takes the UUID of an order and returns the Order record.
-- If the order is not in the `PriorityQueue` or `FinishedQueue`, return NOT_FOUND.
-- Orders that have status `COMPLETE` should also contain the associated itinerary UUID, allowing further requests such as cancel_itinerary().
+### `get_task_status`
+- Takes the id of a task and returns the SchedulerTask record.
+- SchedulerTasks that have status `COMPLETE` should also contain the associated itinerary UUID, allowing further requests such as cancel_itinerary().
 
 
 ```mermaid
@@ -476,30 +446,27 @@ sequenceDiagram
 sequenceDiagram
     participant grpc_client as gRPC client
     participant scheduler as svc-scheduler
+    participant redis as Redis
 
-    grpc_client->>scheduler: get_order_status(Id)
-    break invalid ID
+    grpc_client->>scheduler: get_order_status(task_id)
+    break invalid task_id
         scheduler->>grpc_client: BAD_REQUEST
     end
 
-    scheduler->>scheduler: Check FinishedMap
+    scheduler->>redis: HGETALL scheduler:tasks:<task_id>
 
-    break in FinishedMap
-        scheduler->>grpc_client: Request Record
+    break task doesn't exist
+        redis->>scheduler: []
+        scheduler->>grpc_client: Error (Not Found)
     end 
 
-    scheduler->>scheduler: Check PriorityQueue
-
-    break in PriorityQueue
-        scheduler->>grpc_client: Order Details
-    end
-
-    scheduler->>grpc_client: NOT_FOUND
+    redis->>scheduler: <task details>
+    scheduler->>grpc_client: <task details>
 ```
 
 
-### `cancel_order`
-- Takes the UUID of an order and removes it from the priority queue.
+### `cancel_task`
+- Removes a task from the `scheduler:tasks` hash.
 
 ```mermaid
 %%{
@@ -522,32 +489,37 @@ sequenceDiagram
 sequenceDiagram
     participant grpc_client as gRPC client
     participant scheduler as svc-scheduler
+    participant redis as Redis
 
-    grpc_client->>scheduler: get_order_status(Id)
+    grpc_client->>scheduler: cancel_task(task_id)
     alt invalid ID
-        scheduler->>grpc_client: Error<br>BAD_REQUEST
+        scheduler->>grpc_client: Error (Bad Request)
     end
 
-    scheduler->>scheduler: Check FinishedMap
-
-    break in FinishedMap
-        scheduler->>grpc_client: Error<br>(Order Complete)
-    end
-    
-    scheduler->>scheduler: Check PriorityQueue
-    break in PriorityQueue
-        scheduler->>scheduler: order.status = REJECTED<br>order.status_rationale = CLIENT_CANCELLED
-        scheduler->>grpc_client: Success
+    scheduler->>redis: HGET scheduler:tasks:<task_id> status
+    break key doesn't exist
+      redis->>scheduler: []
+      scheduler->>grpc_client: Error (Not Found)
     end
 
-    scheduler->>grpc_client: Error<br>NOT_FOUND
+    redis->>scheduler: <task status>
+
+    break status != QUEUED
+      scheduler->>grpc_client: Error (Task Finished)
+    end
+
+    scheduler->>redis: HSET scheduler:tasks:<task_id><br>status REJECTED<br>status_rationale CLIENT_CANCEL
+    scheduler->>redis: EXPIRE scheduler:tasks:<task_id> <timeout> GT
+    scheduler->>scheduler: log task cancellation
+
+    scheduler->>grpc_client: Success
 ```
 
 ### `query_flight` 
-- :warning: This does NOT interact with the `PriorityQueue` or `FinishedMap`.
+- :warning: This does NOT create any tasks or itineraries.
 - Takes requested departure and arrival vertiport ids and departure/arrival time window and returns possible itineraries.
 - This does not "reserve" any flights, as in earlier releases. In the priority queue system, higher priority requests may invalidate a queried flight.
-- Flight information that is returned from this read-only query can be used in a request to create an itinerary, which will be checked for validity when the order is handled in the priority queue control loop.
+- Flight information that is returned from this read-only query can be used in a request to create an itinerary, which will be checked for validity when the task is handled in the priority queue control loop.
 
 ```mermaid
 %%{

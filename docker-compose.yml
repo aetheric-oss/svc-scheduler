@@ -1,0 +1,52 @@
+version: '3.8'
+
+configs:
+  log4rs:
+    file: log4rs.yaml
+  dot-env:
+    file: .env
+
+volumes:
+  redis-data:
+
+services:
+  redis:
+    container_name: svc-scheduler-redis
+    image: redis:7.2-alpine
+    restart: always
+    command: redis-server --save 20 1 --loglevel warning
+    ports:
+      - 6379:6379
+    healthcheck:
+      test: ["CMD", "redis-cli","ping"]
+      interval: 2s
+      timeout: 1s
+      retries: 3
+    volumes:
+      - redis-data:/data
+    environment:
+      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL,CONFIG
+      - ALLOW_EMPTY_PASSWORD=yes
+
+  web-server:
+    depends_on:
+      redis:
+        condition: service_healthy
+    extends:
+      file: docker-compose-base.yml
+      service: web-server
+
+  example:
+    extends:
+      file: docker-compose-base.yml
+      service: example
+
+  ut-coverage:
+    extends:
+      file: docker-compose-base.yml
+      service: ut-coverage
+
+  it-coverage:
+    extends:
+      file: docker-compose-base.yml
+      service: it-coverage
