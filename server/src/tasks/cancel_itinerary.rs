@@ -1,0 +1,170 @@
+//! This module contains the gRPC cancel_itinerary endpoint implementation.
+
+use crate::grpc::client::get_clients;
+use crate::grpc::server::grpc_server::TaskStatus;
+use crate::tasks::{Task, TaskBody, TaskError};
+use svc_storage_client_grpc::prelude::Id as StorageId;
+use svc_storage_client_grpc::prelude::*;
+
+/// Cancels an itinerary
+pub async fn cancel_itinerary(task: &mut Task) -> Result<(), TaskError> {
+    let TaskBody::CancelItinerary(itinerary_id) = &task.body else {
+        tasks_error!("(cancel_itinerary) Invalid task details.");
+        return Err(TaskError::InvalidData);
+    };
+
+    tasks_info!("(cancel_itinerary) for id {}.", &itinerary_id);
+
+    let clients = get_clients().await;
+    let filter =
+        AdvancedSearchFilter::search_equals("itinerary_id".to_string(), itinerary_id.to_string());
+    let mut itinerary = match clients.storage.itinerary.search(filter).await {
+        Ok(i) => i.into_inner(),
+        Err(e) => {
+            tasks_warn!("(cancel_itinerary) Could not find itinerary with ID {itinerary_id}: {e}",);
+            return Err(TaskError::Internal);
+        }
+    };
+
+    let Some(itinerary) = itinerary.list.pop() else {
+        tasks_warn!(
+            "(cancel_itinerary) Could not find itinerary with ID: {}",
+            itinerary_id
+        );
+        return Err(TaskError::NotFound);
+    };
+
+    let Some(data) = itinerary.data else {
+        tasks_warn!(
+            "(cancel_itinerary) Itinerary has invalid data: {}",
+            itinerary_id
+        );
+        return Err(TaskError::Internal);
+    };
+
+    if data.status != itinerary::ItineraryStatus::Active as i32 {
+        tasks_warn!(
+            "(cancel_itinerary) Itinerary with ID: {} is not active.",
+            itinerary_id
+        );
+
+        return Err(TaskError::AlreadyProcessed);
+    }
+
+    //
+    // TODO(R4) Don't allow cancellations within X minutes of the first flight
+    //
+
+    //
+    // TODO(R4): Heal the gap created by the removed flight plans
+    //
+
+    //
+    // Remove itinerary
+    //
+    let update_object = itinerary::UpdateObject {
+        id: itinerary_id.to_string(),
+        data: Option::from(itinerary::Data {
+            user_id: "".to_string(), // will be masked
+            status: itinerary::ItineraryStatus::Cancelled as i32,
+        }),
+        mask: Some(FieldMask {
+            paths: vec!["status".to_string()],
+        }),
+    };
+
+    if let Err(e) = clients.storage.itinerary.update(update_object).await {
+        tasks_warn!("(cancel_itinerary) Could not cancel itinerary with ID {itinerary_id}: {e}",);
+
+        return Err(TaskError::Internal);
+    };
+
+    tasks_info!(
+        "(cancel_itinerary) cancel_itinerary with id {} cancelled in storage.",
+        &itinerary_id
+    );
+
+    let response = match clients
+        .storage
+        .itinerary_flight_plan_link
+        .get_linked_ids(StorageId {
+            id: itinerary_id.to_string(),
+        })
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tasks_warn!(
+                "(cancel_itinerary) Could not get flight plans for itinerary with ID {itinerary_id}: {e}",
+            );
+
+            return Err(TaskError::Internal);
+        }
+    };
+
+    //
+    // Cancel associated flight plans
+    //
+    // TODO(R4): svc-storage currently doesn't check the FieldMask, so we'll
+    // have to provide it with the right data object for now. Will now be handled
+    // with temp code in for loop, but should be:
+    // let mut flight_plan_data = flight_plan::Data::default();
+    // flight_plan_data.flight_status = flight_plan::FlightStatus::Cancelled as i32;
+    for id in response.into_inner().ids {
+        // begin temp code
+        let Ok(flight_plan) = clients
+            .storage
+            .flight_plan
+            .get_by_id(StorageId { id: id.clone() })
+            .await
+        else {
+            tasks_warn!(
+                "(cancel_itinerary) WARNING: Could not get flight plan with ID: {}",
+                id
+            );
+
+            continue;
+        };
+
+        let Some(mut flight_plan_data) = flight_plan.into_inner().data else {
+            tasks_warn!(
+                "(cancel_itinerary) WARNING: Could not cancel flight plan with ID: {}",
+                id
+            );
+            continue;
+        };
+
+        flight_plan_data.flight_status = flight_plan::FlightStatus::Cancelled as i32;
+        // end temp code
+
+        //
+        // TODO(R4): Don't cancel flight plan if it exists in another itinerary
+        //
+
+        let request = flight_plan::UpdateObject {
+            id: id.clone(),
+            data: Some(flight_plan_data.clone()),
+            mask: Some(FieldMask {
+                paths: vec!["flight_status".to_string()],
+            }),
+        };
+
+        match clients.storage.flight_plan.update(request).await {
+            Ok(_) => {
+                tasks_info!("(cancel_itinerary) Cancelled flight plan with ID: {id}");
+            }
+            Err(e) => {
+                tasks_error!(
+                    "(cancel_itinerary) WARNING: Could not cancel flight plan with ID: {id}; {e}"
+                );
+            }
+        }
+    }
+
+    task.metadata.status = TaskStatus::Complete.into();
+
+    // TODO(R4): Internal cancellations should change this to InternalCancelled
+    // task.body.status_rationale = TaskStatusRationale::ClientCancelled;
+
+    Ok(())
+}

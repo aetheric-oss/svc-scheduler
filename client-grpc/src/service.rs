@@ -47,14 +47,26 @@ where
     ) -> Result<tonic::Response<super::QueryFlightResponse>, tonic::Status>;
 
     /// wrapper
-    async fn confirm_itinerary(
+    async fn create_itinerary(
         &self,
-        request: super::ConfirmItineraryRequest,
-    ) -> Result<tonic::Response<super::ConfirmItineraryResponse>, tonic::Status>;
+        request: super::CreateItineraryRequest,
+    ) -> Result<tonic::Response<super::TaskResponse>, tonic::Status>;
 
     /// wrapper
     async fn cancel_itinerary(
         &self,
-        request: super::Id,
-    ) -> Result<tonic::Response<super::CancelItineraryResponse>, tonic::Status>;
+        request: super::CancelItineraryRequest,
+    ) -> Result<tonic::Response<super::TaskResponse>, tonic::Status>;
+
+    /// wrapper
+    async fn cancel_task(
+        &self,
+        request: super::TaskRequest,
+    ) -> Result<tonic::Response<super::TaskResponse>, tonic::Status>;
+
+    /// wrapper
+    async fn get_task_status(
+        &self,
+        request: super::TaskRequest,
+    ) -> Result<tonic::Response<super::TaskResponse>, tonic::Status>;
 }

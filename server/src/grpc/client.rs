@@ -1,8 +1,7 @@
 //! gRPC client helpers implementation
-use lib_common::grpc::Client;
-use svc_compliance_client_grpc::prelude::ComplianceClient;
+use svc_gis_client_grpc::prelude::Client;
 use svc_gis_client_grpc::prelude::GisClient;
-use svc_storage_client_grpc::prelude::{Client as StorageClient, Clients};
+use svc_storage_client_grpc::prelude::Clients;
 use tokio::sync::OnceCell;
 
 pub(crate) static CLIENTS: OnceCell<GrpcClients> = OnceCell::const_new();
@@ -25,8 +24,6 @@ pub async fn get_clients() -> &'static GrpcClients {
 pub struct GrpcClients {
     /// All clients enabled from the svc_storage_grpc_client module
     pub storage: Clients,
-    /// A GrpcClient provided by the svc_compliance_grpc_client module
-    pub compliance: ComplianceClient,
     /// A GrpcClient provided by the svc_gis_grpc_client module
     pub gis: GisClient,
 }
@@ -38,11 +35,6 @@ impl GrpcClients {
 
         GrpcClients {
             storage: storage_clients,
-            compliance: ComplianceClient::new_client(
-                &config.compliance_host_grpc,
-                config.compliance_port_grpc,
-                "compliance",
-            ),
             gis: GisClient::new_client(&config.gis_host_grpc, config.gis_port_grpc, "gis"),
         }
     }
@@ -51,6 +43,8 @@ impl GrpcClients {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lib_common::grpc::Client;
+    use svc_gis_client_grpc::prelude::Client as GisClient;
 
     #[tokio::test]
     async fn test_grpc_clients_default() {
@@ -88,10 +82,6 @@ mod tests {
         let flight_plan = &clients.storage.flight_plan;
         ut_debug!("(test_grpc_clients_default) flight_plan: {:?}", flight_plan);
         assert_eq!(flight_plan.get_name(), "flight_plan");
-
-        let compliance = &clients.compliance;
-        ut_debug!("(test_grpc_clients_default) compliance: {:?}", compliance);
-        assert_eq!(compliance.get_name(), "compliance");
 
         let gis = &clients.gis;
         ut_debug!("(test_grpc_clients_default) gis: {:?}", gis);

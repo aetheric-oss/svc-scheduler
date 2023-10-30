@@ -8,7 +8,7 @@ This document details the software implementation of `svc-scheduler` (scheduler 
 
 The scheduler module is responsible for calculating possible itineraries (including deadhead flights) for a journey between a departure and destination vertipad. It does so with the schedules of all resources (vertiports/pads, aircrafts, pilots) in mind to avoid double-booking.
 
-Draft itineraries are held in memory temporarily and discarded if not confirmed in time. Confirmed flights are saved to storage and can be cancelled. Flight queries, confirmations, and cancellation requests are made by other microservices in the Arrow network (such as `svc-cargo`).
+Created itineraries are saved to storage and can be cancelled. Flight queries, confirmations, and cancellation requests are made by other microservices in the Arrow network (such as `svc-cargo`).
 
 *Note: This module is intended to be used by other Arrow micro-services via gRPC.*
 
@@ -73,7 +73,6 @@ All tasks have the following common fields:
 | type | `CANCEL_ITINERARY`, `REROUTE`, `CREATE_ITINERARY` | Enum
 | status | `QUEUED`, `REJECTED`, `COMPLETE` | Enum |
 | status_rationale | `ID_NOT_FOUND`, `EXPIRED`, `SCHEDULE_CONFLICT`, `CLIENT_CANCELLED`, `PRIORITY_CHANGE` | Enum or nil
-| itinerary_id | If an itinerary is linked to this task (one is created, changed, or deleted), this field should indicate the itinerary UUID. | UUID or nil
 
 The CREATE_ITINERARY and REROUTE tasks will have additional fields containing the departure and arrival vertiports, time windows, and other information needed to plan a journey.
 
@@ -131,10 +130,12 @@ sequenceDiagram
     
     redis->>scheduler: (<set name>, <task_id>, <score/expiry>)
     break expiry < now()
+      scheduler->>redis: HSET scheduler:tasks:<task_id><br>status REJECTED status_rationale EXPIRED
+      scheduler->>redis: EXPIRE scheduler:tasks:<task_id> <timeout>
       Note over scheduler: Discard
     end
 
-    scheduler->>redis: HGETALL scheduler:tasks <task_id>
+    scheduler->>redis: HGETALL scheduler:tasks:<task_id>
     break Task doesn't exist or expired
       redis->>scheduler: []
     end
@@ -257,9 +258,11 @@ sequenceDiagram
 
 #### `reroute_impl`
 
-:warning: This is not yet implemented.
+:construction: This is not yet implemented.
 
 #### `alter_task_priority_impl`
+
+:construction: This is not yet implemented.
 
 The scheduler or an external client (such as svc-atc, or air traffic control) might need to escalate or de-escalate a task.
 
@@ -375,7 +378,7 @@ sequenceDiagram
 ```
 
 ### `cancel_itinerary`
-- Takes id of an itinerary (either draft or confirmed) and cancels all flights associated with that itinerary.
+- Takes id of an itinerary and cancels all flights associated with that itinerary.
 
 ```mermaid
 %%{

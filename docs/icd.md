@@ -46,6 +46,8 @@ See [High-Level Services ICD](https://github.com/Arrow-air/se-services/blob/deve
 | Service | Arguments | Description |
 | --- | --- | --- |
 | `is_ready` | (empty) | Returns `true` if server is up and running. |
-| `confirm_itinerary` | `string` id<br>`string` user_id | Takes `id` (UUID) of the draft itinerary and the user's UUID and confirms the flight. |
-| `cancel_itinerary`  | `string` id | Takes `id` (UUID) of the itinerary (either draft or confirmed) and cancels it. |
-| `query_flight` | `bool` isCargo<br/>`uint32` persons<br/>`uint32` weight_grams<br/>`Timestamp` earliest departure time<br/>`Timestamp` latest arrival time<br/>`string` vertiport_depart_id<br/>`string` vertiport_arrive_id<br/> | Takes requested departure and arrival vertiport UUIDs and a time window for the itinerary to occur and returns a number of draft itineraries. |
+| `create_itinerary` | TODO | Takes a proposal for an itinerary and creates it if possible. Returns a task ID immediately. |
+| `cancel_itinerary` | `string` id | Takes `id` (UUID) of an itinerary and cancels it. Returns a task ID immediately. |
+| `cancelTask` |  `uint32` task_id | Cancels a queued task before it can be acted on, if still queued. |
+| `getTaskStatus` | `uint32` task_id | Requests the current status of a scheduler task. |
+| `query_flight` | `bool` isCargo<br/>`uint32` persons<br/>`uint32` weight_grams<br/>`Timestamp` earliest departure time<br/>`Timestamp` latest arrival time<br/>`string` origin_vertiport_id<br/>`string` target_vertiport_id<br/> | Takes requested departure and arrival vertiport UUIDs and a time window for the itinerary to occur and returns a number of possible itineraries. |

@@ -11,9 +11,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ".grpc.FlightPlanObject",
             "::svc_storage_client_grpc::prelude::flight_plan::Object",
         )
+        .extern_path(
+            ".grpc.FlightPlanData",
+            "::svc_storage_client_grpc::prelude::flight_plan::Data",
+        )
+        .extern_path(
+            ".grpc.FlightPriority",
+            "::svc_storage_client_grpc::prelude::flight_plan::FlightPriority",
+        )
+        .type_attribute("TaskAction", "#[derive(num_derive::FromPrimitive)]")
+        .type_attribute(
+            "TaskMetadata",
+            "#[derive(serde::Serialize, serde::Deserialize, Eq, Copy)]",
+        )
         .type_attribute("ConfirmFlightResponse", "#[derive(Eq)]")
         .type_attribute("CancelFlightResponse", "#[derive(Eq)]")
-        .type_attribute("Id", "#[derive(Eq)]")
+        .type_attribute("TaskRequest", "#[derive(Eq, Copy)]")
+        .type_attribute("TaskResponse", "#[derive(Eq, Copy)]")
         .type_attribute("ReadyRequest", "#[derive(Eq, Copy)]")
         .type_attribute("ReadyResponse", "#[derive(Eq, Copy)]")
         .type_attribute("QueryFlightRequest", "#[derive(Eq)]");

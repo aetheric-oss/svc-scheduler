@@ -44,14 +44,14 @@ pub struct Aircraft {
     vehicle_uuid: String,
     vehicle_calendar: Calendar,
     hangar_id: String,
+    hangar_bay_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Availability {
     pub timeslot: Timeslot,
     pub vertiport_id: String,
-    // TODO(R4): Add vertipad occupied during this timeslot
-    // vertipad_id: String,
+    pub vertipad_id: String,
 }
 
 impl Availability {
@@ -71,15 +71,20 @@ impl Availability {
         );
         router_debug!("(Availability::subtract) result: {:?}", timeslots);
         for timeslot in timeslots {
-            let vertiport_id = if timeslot.time_start < flight_plan_timeslot.time_start {
-                self.vertiport_id.clone()
-            } else {
-                flight_plan.target_vertiport_id.clone()
-            };
+            let (vertiport_id, vertipad_id) =
+                if timeslot.time_start < flight_plan_timeslot.time_start {
+                    (self.vertiport_id.clone(), self.vertipad_id.clone())
+                } else {
+                    (
+                        flight_plan.target_vertiport_id.clone(),
+                        flight_plan.target_vertipad_id.clone(),
+                    )
+                };
 
             slots.push(Availability {
                 timeslot,
                 vertiport_id,
+                vertipad_id,
             });
         }
 
@@ -128,6 +133,28 @@ impl TryFrom<vehicle::Object> for Aircraft {
             }
         };
 
+        let Some(hangar_bay_id) = data.hangar_bay_id else {
+            router_error!(
+                "(try_from) Vehicle {} doesn't have hangar_bay_id.",
+                vehicle_uuid
+            );
+
+            return Err(VehicleError::InvalidData);
+        };
+
+        let hangar_bay_id = match Uuid::parse_str(&hangar_bay_id) {
+            Ok(uuid) => uuid.to_string(),
+            Err(e) => {
+                router_error!(
+                    "(try_from) Vehicle {} has invalid hangar_bay_id: {}",
+                    vehicle_uuid,
+                    e
+                );
+
+                return Err(VehicleError::InvalidData);
+            }
+        };
+
         let Some(calendar) = data.schedule else {
             // If vehicle doesn't have a schedule, it is not available
             //  MUST have a schedule to be a valid aircraft choice, even if the
@@ -149,12 +176,16 @@ impl TryFrom<vehicle::Object> for Aircraft {
             vehicle_uuid,
             vehicle_calendar,
             hangar_id,
+            hangar_bay_id,
         })
     }
 }
 
 /// Request a list of all aircraft from svc-storage
-pub async fn get_aircraft(clients: &GrpcClients) -> Result<Vec<Aircraft>, VehicleError> {
+pub async fn get_aircraft(
+    clients: &GrpcClients,
+    aircraft_id: Option<String>,
+) -> Result<Vec<Aircraft>, VehicleError> {
     // TODO(R4): Private aircraft, disabled aircraft, etc. should be filtered out here
     //  This is a lot of aircraft. Possible filters:
     //   geographical area within N kilometers of request origin vertiport
@@ -164,11 +195,15 @@ pub async fn get_aircraft(clients: &GrpcClients) -> Result<Vec<Aircraft>, Vehicl
     // TODO(R4): Ignore aircraft that haven't been updated recently
     // We should further limit this, but for now we'll just get all aircraft
     //  Need something to sort by, ascending distance from the
-    //  origin vertiport or charge level before cutting off the list
-    let filter = AdvancedSearchFilter {
+    //  departure vertiport or charge level before cutting off the list
+    let mut filter = AdvancedSearchFilter {
         results_per_page: 1000,
         ..Default::default()
     };
+
+    if let Some(id) = aircraft_id {
+        filter = filter.and_equals("vehicle_id".to_string(), id)
+    }
 
     let Ok(response) = clients.storage.vehicle.search(filter).await else {
         router_error!("(get_aircraft) request to svc-storage failed.");
@@ -209,17 +244,18 @@ pub fn estimate_flight_time_seconds(distance_meters: &f32) -> Duration {
 
 /// Build out a list of available aircraft (and their scheduled locations)
 ///  given a list of existing flight plans.
-pub fn get_aircraft_gaps(
+pub fn get_aircraft_availabilities(
     existing_flight_plans: &[FlightPlanSchedule],
     aircraft: &[Aircraft],
     timeslot: &Timeslot,
 ) -> HashMap<String, Vec<Availability>> {
-    router_debug!("(get_aircraft_gaps) aircraft: {:?}", aircraft);
+    router_debug!("(get_aircraft_availabilities) aircraft: {:?}", aircraft);
     let deadhead_padding: Duration = Duration::hours(2);
 
     let mut aircraft_availabilities: HashMap<String, Vec<Availability>> = HashMap::new();
     for a in aircraft.iter() {
-        let home_vertiport_id = a.hangar_id.clone(); // TODO(R4): home vertiport
+        let hangar_id = a.hangar_id.clone();
+        let hangar_bay_id = a.hangar_bay_id.clone();
 
         // Aircraft also needs time to deadhead before and after primary flight
         // Base availability from vehicle calendar
@@ -235,13 +271,14 @@ pub fn get_aircraft_gaps(
                     .or_default()
                     .push(Availability {
                         timeslot,
-                        vertiport_id: home_vertiport_id.clone(),
+                        vertiport_id: hangar_id.clone(),
+                        vertipad_id: hangar_bay_id.clone(),
                     });
             });
     }
 
     router_debug!(
-        "(get_aircraft_gaps) aircraft base availabilities: {:?}",
+        "(get_aircraft_availabilities) aircraft base availabilities: {:?}",
         aircraft_availabilities
     );
 
@@ -256,14 +293,14 @@ pub fn get_aircraft_gaps(
                 .collect::<Vec<Availability>>();
         } else {
             router_warn!(
-                "(get_aircraft_gaps) Flight plan for unknown aircraft: {}",
+                "(get_aircraft_availabilities) Flight plan for unknown aircraft: {}",
                 fp.vehicle_id
             );
         }
     });
 
     router_debug!(
-        "(get_aircraft_gaps) aircraft availabilities after flight plans: {:?}",
+        "(get_aircraft_availabilities) aircraft availabilities after flight plans: {:?}",
         aircraft_availabilities
     );
 
@@ -278,7 +315,9 @@ mod tests {
     #[test]
     fn test_subtract_flight_plan() {
         let vertiport_start_id = Uuid::new_v4().to_string();
+        let vertipad_start_id = Uuid::new_v4().to_string();
         let vertiport_middle_id = Uuid::new_v4().to_string();
+        let vertipad_middle_id = Uuid::new_v4().to_string();
         let aircraft_id = Uuid::new_v4().to_string();
 
         let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 20, 0, 0, 0)
@@ -292,32 +331,31 @@ mod tests {
                 time_end: dt_start + Duration::hours(2),
             },
             vertiport_id: vertiport_start_id.clone(),
+            vertipad_id: vertipad_start_id.clone(),
         };
 
         let flight_plans = vec![
             FlightPlanSchedule {
                 vehicle_id: aircraft_id.clone(),
                 origin_vertiport_id: vertiport_start_id.clone(),
+                origin_vertipad_id: vertipad_start_id.clone(),
                 target_vertiport_id: vertiport_middle_id.clone(),
+                target_vertipad_id: vertipad_middle_id.clone(),
                 origin_timeslot_start: dt_start + Duration::minutes(10),
                 origin_timeslot_end: dt_start + Duration::minutes(10),
                 target_timeslot_start: dt_start + Duration::minutes(20),
                 target_timeslot_end: dt_start + Duration::minutes(20),
-                target_vertipad_id: Uuid::new_v4().to_string(),
-                origin_vertipad_id: Uuid::new_v4().to_string(),
-                draft: false,
             },
             FlightPlanSchedule {
                 vehicle_id: aircraft_id.clone(),
                 origin_vertiport_id: vertiport_middle_id.clone(),
+                origin_vertipad_id: vertipad_middle_id.clone(),
                 target_vertiport_id: vertiport_start_id.clone(),
+                target_vertipad_id: vertipad_start_id.clone(),
                 origin_timeslot_start: dt_start + Duration::minutes(25),
                 origin_timeslot_end: dt_start + Duration::minutes(25),
                 target_timeslot_start: dt_start + Duration::minutes(35),
                 target_timeslot_end: dt_start + Duration::minutes(35),
-                target_vertipad_id: Uuid::new_v4().to_string(),
-                origin_vertipad_id: Uuid::new_v4().to_string(),
-                draft: false,
             },
         ];
 
@@ -331,6 +369,7 @@ mod tests {
                     time_end: flight_plans[0].origin_timeslot_start,
                 },
                 vertiport_id: vertiport_start_id.clone(),
+                vertipad_id: vertipad_start_id.clone()
             }
         );
         assert_eq!(
@@ -341,6 +380,7 @@ mod tests {
                     time_end: dt_start + Duration::hours(2),
                 },
                 vertiport_id: vertiport_middle_id.clone(),
+                vertipad_id: vertipad_middle_id.clone()
             }
         );
 
@@ -354,6 +394,7 @@ mod tests {
                     time_end: flight_plans[1].origin_timeslot_start,
                 },
                 vertiport_id: vertiport_start_id.clone(),
+                vertipad_id: vertipad_start_id.clone()
             }
         );
         assert_eq!(
@@ -364,6 +405,7 @@ mod tests {
                     time_end: dt_start + Duration::hours(2),
                 },
                 vertiport_id: vertiport_start_id.clone(),
+                vertipad_id: vertipad_start_id.clone()
             }
         );
 
@@ -387,6 +429,7 @@ mod tests {
                     time_end: flight_plans[0].origin_timeslot_start,
                 },
                 vertiport_id: vertiport_start_id.clone(),
+                vertipad_id: vertipad_start_id.clone()
             }
         );
         assert_eq!(
@@ -397,6 +440,7 @@ mod tests {
                     time_end: flight_plans[1].origin_timeslot_start,
                 },
                 vertiport_id: vertiport_middle_id.clone(),
+                vertipad_id: vertipad_middle_id.clone()
             }
         );
         assert_eq!(
@@ -407,12 +451,13 @@ mod tests {
                     time_end: dt_start + Duration::hours(2),
                 },
                 vertiport_id: vertiport_start_id.clone(),
+                vertipad_id: vertipad_start_id.clone()
             }
         );
     }
 
     #[test]
-    fn test_get_aircraft_gaps() {
+    fn test_get_aircraft_availabilities() {
         let vehicle_duration_hours = 3;
         let schedule = Calendar::from_str(&format!(
             "DTSTART:20230920T000000Z;DURATION:PT{vehicle_duration_hours}H\n\
@@ -438,13 +483,16 @@ mod tests {
         );
 
         let vertiport_start_id = Uuid::new_v4().to_string();
+        let vertipad_start_id = Uuid::new_v4().to_string();
         let vertiport_middle_id = Uuid::new_v4().to_string();
+        let vertipad_middle_id = Uuid::new_v4().to_string();
         let aircraft_id = Uuid::new_v4().to_string();
 
         let aircraft = vec![Aircraft {
             vehicle_uuid: aircraft_id.clone(),
             vehicle_calendar: schedule,
             hangar_id: vertiport_start_id.clone(),
+            hangar_bay_id: vertipad_start_id.clone(),
         }];
 
         let timeslot = Timeslot {
@@ -456,30 +504,28 @@ mod tests {
             FlightPlanSchedule {
                 vehicle_id: aircraft_id.clone(),
                 origin_vertiport_id: vertiport_start_id.clone(),
+                origin_vertipad_id: vertipad_start_id.clone(),
                 target_vertiport_id: vertiport_middle_id.clone(),
+                target_vertipad_id: vertipad_middle_id.clone(),
                 origin_timeslot_start: dt_start + Duration::minutes(10),
                 origin_timeslot_end: dt_start + Duration::minutes(10),
                 target_timeslot_start: dt_start + Duration::minutes(20),
                 target_timeslot_end: dt_start + Duration::minutes(20),
-                target_vertipad_id: Uuid::new_v4().to_string(),
-                origin_vertipad_id: Uuid::new_v4().to_string(),
-                draft: false,
             },
             FlightPlanSchedule {
                 vehicle_id: aircraft_id.clone(),
                 origin_vertiport_id: vertiport_middle_id.clone(),
+                origin_vertipad_id: vertipad_middle_id.clone(),
                 target_vertiport_id: vertiport_start_id.clone(),
+                target_vertipad_id: vertipad_start_id.clone(),
                 origin_timeslot_start: dt_start + Duration::minutes(25),
                 origin_timeslot_end: dt_start + Duration::minutes(25),
                 target_timeslot_start: dt_start + Duration::minutes(35),
                 target_timeslot_end: dt_start + Duration::minutes(35),
-                target_vertipad_id: Uuid::new_v4().to_string(),
-                origin_vertipad_id: Uuid::new_v4().to_string(),
-                draft: false,
             },
         ];
 
-        let mut gaps = get_aircraft_gaps(&flight_plans, &aircraft, &timeslot);
+        let mut gaps = get_aircraft_availabilities(&flight_plans, &aircraft, &timeslot);
 
         println!("gaps: {:?}", gaps);
 
@@ -498,6 +544,7 @@ mod tests {
                     time_end: flight_plans[0].origin_timeslot_start
                 },
                 vertiport_id: vertiport_start_id.clone(),
+                vertipad_id: vertipad_start_id.clone()
             }
         );
 
@@ -509,6 +556,7 @@ mod tests {
                     time_end: flight_plans[1].origin_timeslot_start
                 },
                 vertiport_id: vertiport_middle_id.clone(),
+                vertipad_id: vertipad_middle_id.clone()
             }
         );
 
@@ -523,6 +571,7 @@ mod tests {
                     time_end: dt_start + Duration::hours(vehicle_duration_hours), // the vehicle schedule is 3 hours long
                 },
                 vertiport_id: vertiport_start_id,
+                vertipad_id: vertipad_start_id
             }
         );
     }

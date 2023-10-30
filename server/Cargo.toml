@@ -22,7 +22,6 @@ mock = ["svc-storage-client-grpc/mock"]
 stub_backends = [
   "svc-storage-client-grpc/stub_client",
   "svc-storage-client-grpc/stub_backends",
-  "svc-compliance-client-grpc/stub_client",
   "svc-gis-client-grpc/stub_client",
 ]
 # Will implement stub functions for the server, only use for tests!
@@ -38,12 +37,15 @@ chrono           = { version = "0.4", features = ["serde"] }
 chrono-tz        = "0.8"
 clap             = { version = "4.4", features = ["derive"] }
 config           = "0.13"
+deadpool-redis   = { version = "0.13", features = ["serde"] }
 dotenv           = "0.15"
 futures          = "0.3"
 geo              = "0.26"
 iso8601-duration = { version = "0.2", features = ["chrono"] }
 lazy_static      = "1.4"
 log              = "0.4"
+num-derive       = "0.4"
+num-traits       = "0.2"
 openssl          = "0.10"
 ordered-float    = { version = "4.1", features = ["serde"] }
 petgraph         = "0.6"
@@ -54,25 +56,29 @@ quaternion       = "1.0"
 rand             = "0.8"
 rrule            = "0.11"
 serde            = { version = "1.0", features = ["derive"] }
+serde_json       = "1.0"
 tokio            = { version = "1.33", features = ["full"] }
 tokio-util       = "0.7"
 tonic            = "0.10"
 tonic-health     = "0.10"
-uuid             = "1.5"
+uuid             = { version = "1.5", features = ["serde", "v4"] }
 vecmath          = "1.0"
 
 [dependencies.lib-common]
 git = "https://github.com/Arrow-air/lib-common.git"
 tag = "latest-develop"
 
-[dependencies.svc-compliance-client-grpc]
-git = "https://github.com/Arrow-air/svc-compliance.git"
-tag = "latest-develop"
-
 [dependencies.svc-storage-client-grpc]
-features = ["flight_plan", "itinerary", "vehicle", "vertipad", "vertiport"]
-git      = "https://github.com/Arrow-air/svc-storage.git"
-tag      = "latest-develop"
+features = [
+  "flight_plan",
+  "itinerary",
+  "vehicle",
+  "vertipad",
+  "vertiport",
+  "group",
+]
+git = "https://github.com/Arrow-air/svc-storage.git"
+tag = "latest-develop"
 
 [dependencies.svc-gis-client-grpc]
 git = "https://github.com/Arrow-air/svc-gis.git"

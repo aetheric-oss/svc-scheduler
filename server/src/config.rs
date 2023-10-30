@@ -13,12 +13,6 @@ pub struct Config {
     /// port to be used for gRPC server
     pub docker_port_grpc: u16,
 
-    /// port to be used for connecting to the compliance service
-    pub compliance_port_grpc: u16,
-
-    /// host to be used for connecting to the compliance service
-    pub compliance_host_grpc: String,
-
     /// port to be used for connecting to the storage service
     pub storage_port_grpc: u16,
 
@@ -33,6 +27,9 @@ pub struct Config {
 
     /// path to log configuration YAML file
     pub log_config: String,
+
+    /// config to be used for the Redis server
+    pub redis: deadpool_redis::Config,
 }
 
 impl Default for Config {
@@ -47,13 +44,16 @@ impl Config {
     pub fn new() -> Self {
         Config {
             docker_port_grpc: 50051,
-            compliance_port_grpc: 50051,
-            compliance_host_grpc: String::from("svc-compliance"),
             storage_port_grpc: 50051,
             storage_host_grpc: String::from("svc-storage"),
             gis_host_grpc: String::from("svc-gis"),
             gis_port_grpc: 50051,
             log_config: String::from("log4rs.yaml"),
+            redis: deadpool_redis::Config {
+                url: None,
+                pool: None,
+                connection: None,
+            },
         }
     }
 
@@ -65,8 +65,6 @@ impl Config {
 
         config::Config::builder()
             .set_default("docker_port_grpc", default_config.docker_port_grpc)?
-            .set_default("compliance_port_grpc", default_config.compliance_port_grpc)?
-            .set_default("compliance_host_grpc", default_config.compliance_host_grpc)?
             .set_default("storage_port_grpc", default_config.storage_port_grpc)?
             .set_default("storage_host_grpc", default_config.storage_host_grpc)?
             .set_default("gis_port_grpc", default_config.gis_port_grpc)?
@@ -90,13 +88,14 @@ mod tests {
         let config = Config::default();
 
         assert_eq!(config.docker_port_grpc, 50051);
-        assert_eq!(config.compliance_port_grpc, 50051);
-        assert_eq!(config.compliance_host_grpc, String::from("svc-compliance"));
         assert_eq!(config.storage_port_grpc, 50051);
         assert_eq!(config.storage_host_grpc, String::from("svc-storage"));
         assert_eq!(config.gis_port_grpc, 50051);
         assert_eq!(config.gis_host_grpc, String::from("svc-gis"));
         assert_eq!(config.log_config, String::from("log4rs.yaml"));
+        assert!(config.redis.url.is_none());
+        assert!(config.redis.pool.is_none());
+        assert!(config.redis.connection.is_none());
 
         ut_info!("(test_config_from_default) Success.");
     }
@@ -108,24 +107,21 @@ mod tests {
 
         std::env::set_var("DOCKER_PORT_GRPC", "6789");
         std::env::set_var("DOCKER_PORT_REST", "9876");
-        std::env::set_var("COMPLIANCE_HOST_GRPC", "test_host_compliance_grpc");
-        std::env::set_var("COMPLIANCE_PORT_GRPC", "12354");
         std::env::set_var("STORAGE_HOST_GRPC", "test_host_storage_grpc");
         std::env::set_var("STORAGE_PORT_GRPC", "12345");
         std::env::set_var("GIS_HOST_GRPC", "test_host_gis_grpc");
         std::env::set_var("GIS_PORT_GRPC", "54321");
         std::env::set_var("LOG_CONFIG", "config_file.yaml");
+        std::env::set_var("REDIS__URL", "redis://test_redis:6379");
+        std::env::set_var("REDIS__POOL__MAX_SIZE", "16");
+        std::env::set_var("REDIS__POOL__TIMEOUTS__WAIT__SECS", "2");
+        std::env::set_var("REDIS__POOL__TIMEOUTS__WAIT__NANOS", "0");
 
         let config = Config::try_from_env();
         assert!(config.is_ok());
         let config = config.unwrap();
 
         assert_eq!(config.docker_port_grpc, 6789);
-        assert_eq!(
-            config.compliance_host_grpc,
-            String::from("test_host_compliance_grpc")
-        );
-        assert_eq!(config.compliance_port_grpc, 12354);
         assert_eq!(
             config.storage_host_grpc,
             String::from("test_host_storage_grpc")
@@ -135,6 +131,11 @@ mod tests {
 
         assert_eq!(config.gis_host_grpc, String::from("test_host_gis_grpc"));
         assert_eq!(config.gis_port_grpc, 54321);
+        assert_eq!(
+            config.redis.url,
+            Some(String::from("redis://test_redis:6379"))
+        );
+        assert!(config.redis.pool.is_some());
 
         ut_info!("(test_config_from_env) Success.");
     }

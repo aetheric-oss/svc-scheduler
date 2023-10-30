@@ -22,6 +22,9 @@ cfg_if::cfg_if! {
     }
 }
 
+#[cfg(feature = "stub_client")]
+use rand::Rng;
+
 #[cfg(not(feature = "stub_client"))]
 #[async_trait]
 impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
@@ -48,24 +51,44 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         client.query_flight(request).await
     }
 
-    async fn confirm_itinerary(
+    async fn create_itinerary(
         &self,
-        request: ConfirmItineraryRequest,
-    ) -> Result<tonic::Response<ConfirmItineraryResponse>, tonic::Status> {
-        grpc_info!("(confirm_itinerary) {} client.", self.get_name());
-        grpc_debug!("(confirm_itinerary) request: {:?}", request);
+        request: CreateItineraryRequest,
+    ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
+        grpc_info!("(create_itinerary) {} client.", self.get_name());
+        grpc_debug!("(create_itinerary) request: {:?}", request);
         let mut client = self.get_client().await?;
-        client.confirm_itinerary(request).await
+        client.create_itinerary(request).await
     }
 
     async fn cancel_itinerary(
         &self,
-        request: Id,
-    ) -> Result<tonic::Response<CancelItineraryResponse>, tonic::Status> {
+        request: CancelItineraryRequest,
+    ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
         grpc_info!("(cancel_itinerary) {} client.", self.get_name());
         grpc_debug!("(cancel_itinerary) request: {:?}", request);
         let mut client = self.get_client().await?;
         client.cancel_itinerary(request).await
+    }
+
+    async fn cancel_task(
+        &self,
+        request: TaskRequest,
+    ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
+        grpc_info!("(cancel_task) {} client.", self.get_name());
+        grpc_debug!("(cancel_task) request: {:?}", request);
+        let mut client = self.get_client().await?;
+        client.cancel_task(request).await
+    }
+
+    async fn get_task_status(
+        &self,
+        request: TaskRequest,
+    ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
+        grpc_info!("(get_task_status) {} client.", self.get_name());
+        grpc_debug!("(get_task_status) request: {:?}", request);
+        let mut client = self.get_client().await?;
+        client.get_task_status(request).await
     }
 }
 
@@ -91,43 +114,76 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         grpc_warn!("(query_flight MOCK) {} client.", self.get_name());
         grpc_debug!("(query_flight MOCK) request: {:?}", request);
         let flight_plan_data = prelude::scheduler_storage::flight_plan::mock::get_future_data_obj();
-        let flight_plan = prelude::scheduler_storage::flight_plan::Object {
-            id: uuid::Uuid::new_v4().to_string(),
-            data: Some(flight_plan_data),
-        };
-
         let itineraries = vec![Itinerary {
-            id: uuid::Uuid::new_v4().to_string(),
-            flight_plans: vec![flight_plan],
+            flight_plans: vec![flight_plan_data],
         }];
 
         Ok(tonic::Response::new(QueryFlightResponse { itineraries }))
     }
 
-    async fn confirm_itinerary(
+    async fn create_itinerary(
         &self,
-        request: ConfirmItineraryRequest,
-    ) -> Result<tonic::Response<ConfirmItineraryResponse>, tonic::Status> {
-        grpc_warn!("(confirm_itinerary MOCK) {} client.", self.get_name());
-        grpc_debug!("(confirm_itinerary MOCK) request: {:?}", request);
-        Ok(tonic::Response::new(ConfirmItineraryResponse {
-            id: uuid::Uuid::new_v4().to_string(),
-            confirmed: true,
-            confirmation_time: Some(chrono::Utc::now().into()),
+        request: CreateItineraryRequest,
+    ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
+        grpc_warn!("(create_itinerary MOCK) {} client.", self.get_name());
+        grpc_debug!("(create_itinerary MOCK) request: {:?}", request);
+        let mut rng = rand::thread_rng();
+        Ok(tonic::Response::new(TaskResponse {
+            task_id: rng.gen_range(0..1000000),
+            task_metadata: Some(TaskMetadata {
+                status: TaskStatus::Queued.into(),
+                status_rationale: None,
+                action: TaskAction::CreateItinerary.into(),
+            }),
         }))
     }
 
     async fn cancel_itinerary(
         &self,
-        request: Id,
-    ) -> Result<tonic::Response<CancelItineraryResponse>, tonic::Status> {
-        grpc_info!("(cancel_itinerary) {} client.", self.get_name());
-        grpc_debug!("(cancel_itinerary) request: {:?}", request);
-        Ok(tonic::Response::new(CancelItineraryResponse {
-            id: uuid::Uuid::new_v4().to_string(),
-            cancelled: true,
-            cancellation_time: Some(chrono::Utc::now().into()),
-            reason: String::from("Cancelled by user."),
+        request: CancelItineraryRequest,
+    ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
+        grpc_info!("(cancel_itinerary MOCK) {} client.", self.get_name());
+        grpc_debug!("(cancel_itinerary MOCK) request: {:?}", request);
+        let mut rng = rand::thread_rng();
+        Ok(tonic::Response::new(TaskResponse {
+            task_id: rng.gen_range(0..1000000),
+            task_metadata: Some(TaskMetadata {
+                status: TaskStatus::Queued.into(),
+                status_rationale: None,
+                action: TaskAction::CancelItinerary.into(),
+            }),
+        }))
+    }
+
+    async fn cancel_task(
+        &self,
+        request: TaskRequest,
+    ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
+        grpc_info!("(cancel_task MOCK) {} client.", self.get_name());
+        grpc_debug!("(cancel_task MOCK) request: {:?}", request);
+        Ok(tonic::Response::new(TaskResponse {
+            task_id: request.task_id,
+            task_metadata: Some(TaskMetadata {
+                status: TaskStatus::Rejected.into(),
+                status_rationale: Some(TaskStatusRationale::ClientCancelled.into()),
+                action: TaskAction::CancelItinerary.into(),
+            }),
+        }))
+    }
+
+    async fn get_task_status(
+        &self,
+        request: TaskRequest,
+    ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
+        grpc_info!("(get_task_status MOCK) {} client.", self.get_name());
+        grpc_debug!("(get_task_status MOCK) request: {:?}", request);
+        Ok(tonic::Response::new(TaskResponse {
+            task_id: request.task_id,
+            task_metadata: Some(TaskMetadata {
+                status: TaskStatus::Complete.into(),
+                status_rationale: None,
+                action: TaskAction::CreateItinerary.into(),
+            }),
         }))
     }
 }
