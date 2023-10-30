@@ -179,5 +179,12 @@ rust-ut-coverage: check-cargo-registry rust-docker-pull
 		--output-dir coverage/)
 	@sed -e "s/\/usr\/src\/app\///g" -i coverage/lcov.info
 
+release-checklist: docker-pull
+	@echo "$(CYAN)Running release checklist...$(SGR0)"
+	@$(call docker_run,python3 /usr/bin/release_checklist.py $(CHECKLIST_OPTS))
+
+release-checklist-full: docker-pull
+	$(MAKE) CHECKLIST_OPTS="-t -c" release-checklist
+
 rust-test-all: rust-build rust-check rust-test rust-clippy rust-fmt rust-doc
 rust-all: rust-clean rust-test-all rust-release
