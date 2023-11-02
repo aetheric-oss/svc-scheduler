@@ -5,28 +5,28 @@ use lib_common::log_macros;
 use svc_storage_client_grpc::prelude::*;
 use tokio::sync::OnceCell;
 
-log_macros!("unit_test", "test::unit");
+log_macros!("ut", "test");
 
 static INIT_MOCK_DATA: OnceCell<bool> = tokio::sync::OnceCell::const_new();
 async fn init_mock_data() -> bool {
     let clients = get_clients().await;
 
     let vertiports = generate_vertiports(&clients.storage.vertiport).await;
-    unit_test_debug!("Generated vertiports: {:#?}", vertiports);
+    ut_debug!("Generated vertiports: {:#?}", vertiports);
     let vertipads = generate_vertipads(&clients.storage.vertipad, &vertiports).await;
-    unit_test_debug!("Generated vertipads: {:#?}", vertipads);
+    ut_debug!("Generated vertipads: {:#?}", vertipads);
     let vehicles = generate_vehicles(&clients.storage.vehicle, &vertiports).await;
-    unit_test_debug!("Generated vehicles: {:#?}", vehicles);
+    ut_debug!("Generated vehicles: {:#?}", vehicles);
     let flight_plans =
         generate_flight_plans(&clients.storage.flight_plan, &vertipads, &vehicles).await;
-    unit_test_debug!("Generated flight_plans: {:#?}", flight_plans);
+    ut_debug!("Generated flight_plans: {:#?}", flight_plans);
     let itinerary = generate_itinerary(
         &clients.storage.itinerary,
         &clients.storage.itinerary_flight_plan_link,
         &flight_plans,
     )
     .await;
-    unit_test_debug!("Generated itinerary: {:#?}", itinerary);
+    ut_debug!("Generated itinerary: {:#?}", itinerary);
     true
 }
 
@@ -50,7 +50,7 @@ pub async fn get_vertiports_from_storage() -> Vec<vertiport::Object> {
     {
         Ok(vertiports) => vertiports.into_inner().list,
         Err(e) => {
-            unit_test_error!(
+            ut_error!(
                 "(get_vertiports_from_storage) Could not find vertiports in MOCK service: {}",
                 e
             );
@@ -75,7 +75,7 @@ pub async fn get_vehicles_from_storage() -> Vec<vehicle::Object> {
     {
         Ok(vehicles) => vehicles.into_inner().list,
         Err(e) => {
-            unit_test_error!(
+            ut_error!(
                 "(get_vehicles_from_storage) Could not find vehicles in MOCK service: {}",
                 e
             );
@@ -192,7 +192,7 @@ async fn generate_vertiports(client: &VertiportClient) -> Vec<vertiport::Object>
 }
 
 /// generate mock vehicles for each of the given vertiports
-/// vertiports will be used to determine vehicle's last_vertiport_id
+/// vertiports will be used to determine vehicle's hangar_id
 async fn generate_vehicles(
     client: &VehicleClient,
     vertiports: &Vec<vertiport::Object>,
@@ -204,7 +204,7 @@ async fn generate_vehicles(
     // Vehicle at vertiport 1
     let mut vehicle = vehicle::mock::get_data_obj();
     vehicle.description = Some(format!("Mock vehicle {}", vertiports[0].id));
-    vehicle.last_vertiport_id = Some(vertiports[0].id.clone());
+    vehicle.hangar_id = Some(vertiports[0].id.clone());
     vehicle.schedule = Some(String::from(sample_cal));
 
     let result: vehicle::Object = client
@@ -219,7 +219,7 @@ async fn generate_vehicles(
     // Vehicle at vertiport 2
     let mut vehicle = vehicle::mock::get_data_obj();
     vehicle.description = Some(format!("Mock vehicle {}", vertiports[1].id));
-    vehicle.last_vertiport_id = Some(vertiports[1].id.clone());
+    vehicle.hangar_id = Some(vertiports[1].id.clone());
     vehicle.schedule = Some(String::from(sample_cal));
 
     let result: vehicle::Object = client
@@ -234,7 +234,7 @@ async fn generate_vehicles(
     // Vehicle at vertiport 3
     let mut vehicle = vehicle::mock::get_data_obj();
     vehicle.description = Some(format!("Mock vehicle {}", vertiports[2].id));
-    vehicle.last_vertiport_id = Some(vertiports[2].id.clone());
+    vehicle.hangar_id = Some(vertiports[2].id.clone());
     vehicle.schedule = Some(String::from(sample_cal));
 
     let result: vehicle::Object = client
@@ -380,37 +380,55 @@ async fn generate_flight_plans(
 async fn create_flight_plan(
     client: &FlightPlanClient,
     vehicle_id: &str,
-    departure_vertipad: &vertipad::Object,
-    destination_vertipad: &vertipad::Object,
-    departure_time_str: &str,
-    arrival_time_str: &str,
+    origin_vertipad: &vertipad::Object,
+    target_vertipad: &vertipad::Object,
+    origin_time_str: &str,
+    target_time_str: &str,
 ) -> flight_plan::Object {
     let mut flight_plan = flight_plan::mock::get_data_obj();
     flight_plan.vehicle_id = String::from(vehicle_id);
-    flight_plan.departure_vertiport_id =
-        Some(departure_vertipad.data.clone().unwrap().vertiport_id);
-    flight_plan.destination_vertiport_id =
-        Some(destination_vertipad.data.clone().unwrap().vertiport_id);
-    flight_plan.departure_vertipad_id = departure_vertipad.id.clone();
-    flight_plan.destination_vertipad_id = destination_vertipad.id.clone();
-    flight_plan.scheduled_departure = Some(
+    flight_plan.origin_vertiport_id = Some(origin_vertipad.data.clone().unwrap().vertiport_id);
+    flight_plan.target_vertiport_id = Some(target_vertipad.data.clone().unwrap().vertiport_id);
+    flight_plan.origin_vertipad_id = origin_vertipad.id.clone();
+    flight_plan.target_vertipad_id = target_vertipad.id.clone();
+    flight_plan.origin_timeslot_start = Some(
         DateTime::parse_from_str(
-            &(departure_time_str.to_owned() + " +0000"),
+            &(origin_time_str.to_owned() + " +0000"),
             "%Y-%m-%d %H:%M:%S %z",
         )
         .unwrap()
         .with_timezone(&chrono::Utc)
         .into(),
     );
-    flight_plan.scheduled_arrival = Some(
+    flight_plan.origin_timeslot_end = Some(
         DateTime::parse_from_str(
-            &(arrival_time_str.to_owned() + " +0000"),
+            &(origin_time_str.to_owned() + " +0000"),
             "%Y-%m-%d %H:%M:%S %z",
         )
         .unwrap()
         .with_timezone(&chrono::Utc)
         .into(),
     );
+
+    flight_plan.target_timeslot_start = Some(
+        DateTime::parse_from_str(
+            &(target_time_str.to_owned() + " +0000"),
+            "%Y-%m-%d %H:%M:%S %z",
+        )
+        .unwrap()
+        .with_timezone(&chrono::Utc)
+        .into(),
+    );
+    flight_plan.target_timeslot_end = Some(
+        DateTime::parse_from_str(
+            &(target_time_str.to_owned() + " +0000"),
+            "%Y-%m-%d %H:%M:%S %z",
+        )
+        .unwrap()
+        .with_timezone(&chrono::Utc)
+        .into(),
+    );
+
     flight_plan.flight_status = flight_plan::FlightStatus::Ready as i32;
 
     client

@@ -34,7 +34,9 @@ pub fn unconfirmed_flight_plans() -> &'static Mutex<HashMap<String, flight_plan:
 /// Gets itinerary from hash map of unconfirmed itineraries
 pub fn get_draft_itinerary_by_id(id: &str) -> Option<Vec<String>> {
     let Ok(itineraries) = unconfirmed_itineraries().lock() else {
-        grpc_error!("(get_draft_itinerary_by_id) mutex Lock Error getting itinerary from temp storage.");
+        grpc_error!(
+            "(get_draft_itinerary_by_id) mutex Lock Error getting itinerary from temp storage."
+        );
         return None;
     };
 
@@ -63,7 +65,9 @@ fn cancel_itinerary_after_timeout(id: String) {
 /// Removes flight plan from hash map of unconfirmed flight plans
 fn remove_draft_fp_by_id(id: &str) -> bool {
     let Ok(mut flight_plans) = unconfirmed_flight_plans().lock() else {
-        grpc_error!("(remove_draft_fp_by_id) mutex Lock Error removing flight plan from temp storage.");
+        grpc_error!(
+            "(remove_draft_fp_by_id) mutex Lock Error removing flight plan from temp storage."
+        );
         return false;
     };
 
@@ -88,12 +92,17 @@ fn remove_draft_fp_by_id(id: &str) -> bool {
 /// Removes itinerary from hash map of unconfirmed flight plans
 fn remove_draft_itinerary_by_id(id: &str) -> bool {
     let Ok(mut itineraries) = unconfirmed_itineraries().lock() else {
-        grpc_error!("(remove_draft_itinerary_by_id) mutex Lock Error removing itinerary from temp storage.");
+        grpc_error!(
+            "(remove_draft_itinerary_by_id) mutex Lock Error removing itinerary from temp storage."
+        );
         return false;
     };
 
     let Some(itinerary) = itineraries.get(id) else {
-        grpc_debug!("(remove_draft_itinerary_by_id) no such itinerary with ID {} in cache.", &id);
+        grpc_debug!(
+            "(remove_draft_itinerary_by_id) no such itinerary with ID {} in cache.",
+            &id
+        );
         return false;
     };
 

@@ -13,18 +13,13 @@ repository.workspace   = true
 
 [features]
 dev       = ["mock", "tokio", "futures"]
-test_util = ["mock", "stub_backends"]
+test_util = ["mock", "stub_backends", "tokio"]
 # Will add a 'mock' module for the enabled resources, providing access to mock data generation functions
 mock = ["svc-storage-client-grpc/mock"]
 # Will use a stubbed server connection, only use for tests!
-stub_backends = [
-  "svc-scheduler/stub_server",
-  "lib-common/grpc_mock",
-  "tower",
-  "tokio",
-]
+stub_backends = ["svc-scheduler/stub_server", "lib-common/grpc_mock", "tower"]
 # Will implement stub functions for the client, only use for tests!
-stub_client = ["svc-scheduler", "svc-storage-client-grpc/mock"]
+stub_client = ["svc-scheduler", "mock"]
 
 [dependencies]
 cfg-if          = "1.0"
@@ -32,28 +27,28 @@ chrono          = "0.4"
 chrono-tz       = "0.8"
 futures         = { version = "0.3", optional = true }
 log             = { version = "0.4" }
-prost           = "0.11"
-prost-types     = "0.11"
-prost-wkt-types = "0.4"
+prost           = "0.12"
+prost-types     = "0.12"
+prost-wkt-types = "0.5"
 svc-scheduler   = { path = "../server", optional = true }
-tonic           = "0.8"
+tonic           = "0.10"
 tower           = { version = "0.4", optional = true }
-uuid            = "1.2"
+uuid            = "1.5"
 
 [dependencies.svc-storage-client-grpc]
 features = ["flight_plan", "itinerary"]
 git      = "https://github.com/Arrow-air/svc-storage.git"
-tag      = "v0.11.0"
+tag      = "latest-develop"
 
 [dependencies.lib-common]
 features = ["grpc"]
 git      = "https://github.com/Arrow-air/lib-common.git"
-tag      = "v0.2.0"
+tag      = "latest-develop"
 
 [dependencies.tokio]
 features = ["macros", "rt-multi-thread"]
 optional = true
-version  = "1.28"
+version  = "1.33"
 
 [dev-dependencies]
 logtest = "2.0"

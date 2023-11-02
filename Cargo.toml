@@ -1,5 +1,6 @@
 [workspace]
-members = ["server", "client-grpc"]
+members  = ["server", "client-grpc"]
+resolver = "2"
 
 [workspace.package]
 authors      = ["arrow-services <group-services@arrowair.com>"]

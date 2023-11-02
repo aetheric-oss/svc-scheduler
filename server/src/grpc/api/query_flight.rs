@@ -224,7 +224,9 @@ pub async fn query_flight(
         &timeslot,
         &existing_flight_plans,
         clients,
-    ).await else {
+    )
+    .await
+    else {
         let error_str = "Could not find a timeslot pairing.";
         grpc_error!("(query_flight) {}", error_str);
         return Err(Status::internal(error_str));
@@ -239,7 +241,7 @@ pub async fn query_flight(
     //
     // Get all aircraft availabilities
     //
-    let Ok(aircraft)= get_aircraft(clients).await else {
+    let Ok(aircraft) = get_aircraft(clients).await else {
         let error_str = "Could not get aircraft.";
         grpc_error!("(query_flight) {}", error_str);
         return Err(Status::internal(error_str));
@@ -257,8 +259,10 @@ pub async fn query_flight(
         &request.required_unloading_time,
         &timeslot_pairs,
         &aircraft_gaps,
-        clients
-    ).await else {
+        clients,
+    )
+    .await
+    else {
         let error_str = "Could not get itineraries.";
         grpc_error!("(query_flight) {}", error_str);
         return Err(Status::internal(error_str));
@@ -321,40 +325,42 @@ pub async fn query_flight(
 #[cfg(feature = "stub_backends")]
 mod tests {
     use crate::test_util::{ensure_storage_mock_data, get_vertiports_from_storage};
-    use crate::{init_logger, Config};
 
     use super::*;
     use chrono::{TimeZone, Utc};
 
     #[tokio::test]
     async fn test_get_sorted_flight_plans() {
-        init_logger(&Config::try_from_env().unwrap_or_default());
-        unit_test_info!("(test_get_sorted_flight_plans) start");
+        crate::get_log_handle().await;
+        ut_info!("(test_get_sorted_flight_plans) start");
+
         ensure_storage_mock_data().await;
         let clients = get_clients().await;
 
         // our mock setup inserts only 3 flight_plans with an arrival date before "2022-10-26 14:30:00"
         let expected_number_returned = 3;
 
-        let chrono::LocalResult::Single(date) = Utc.with_ymd_and_hms(2022, 10, 26, 14, 30, 0) else {
+        let chrono::LocalResult::Single(date) = Utc.with_ymd_and_hms(2022, 10, 26, 14, 30, 0)
+        else {
             panic!();
         };
 
         let res = get_sorted_flight_plans(&date, &clients).await;
-        unit_test_debug!(
+        ut_debug!(
             "(test_get_sorted_flight_plans) flight_plans returned: {:#?}",
             res
         );
 
         assert!(res.is_ok());
         assert_eq!(res.unwrap().len(), expected_number_returned);
-        unit_test_info!("(test_get_sorted_flight_plans) success");
+        ut_info!("(test_get_sorted_flight_plans) success");
     }
 
     #[tokio::test]
     #[cfg(feature = "stub_backends")]
     async fn test_query_invalid() {
-        init_logger(&Config::try_from_env().unwrap_or_default());
+        crate::get_log_handle().await;
+        ut_info!("(test_query_invalid) start");
 
         let vertiports = get_vertiports_from_storage().await;
         let mut query = QueryFlightRequest {
@@ -406,5 +412,7 @@ mod tests {
 
         query.vertiport_arrive_id = Uuid::new_v4().to_string();
         FlightQuery::try_from(query.clone()).unwrap();
+
+        ut_info!("(test_query_invalid) success");
     }
 }

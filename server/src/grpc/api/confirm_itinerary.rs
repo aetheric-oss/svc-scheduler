@@ -30,7 +30,9 @@ async fn create_itinerary(
         status: itinerary::ItineraryStatus::Active as i32,
     };
 
-    let Some(db_itinerary) = clients.storage.itinerary
+    let Some(db_itinerary) = clients
+        .storage
+        .itinerary
         .insert(data)
         .await?
         .into_inner()
@@ -71,13 +73,17 @@ async fn confirm_draft_flight_plan(flight_plan_id: String) -> Result<flight_plan
     //
     // Confirm a flight plan with the database
     //
-    let Some(fp) = clients.storage.flight_plan
+    let Some(fp) = clients
+        .storage
+        .flight_plan
         .insert(flight_plan)
         .await?
         .into_inner()
         .object
     else {
-        return Err(Status::internal("Failed to add a flight plan to the database."));
+        return Err(Status::internal(
+            "Failed to add a flight plan to the database.",
+        ));
     };
 
     grpc_info!(
@@ -122,7 +128,8 @@ pub async fn confirm_itinerary(
     let draft_itinerary_id = request.id;
     grpc_info!("(confirm_itinerary) with id {}", &draft_itinerary_id);
 
-    let Some(draft_itinerary_flights) = super::get_draft_itinerary_by_id(&draft_itinerary_id) else {
+    let Some(draft_itinerary_flights) = super::get_draft_itinerary_by_id(&draft_itinerary_id)
+    else {
         return Err(Status::not_found("Itinerary ID not found or timed out."));
     };
 
@@ -176,19 +183,18 @@ pub async fn confirm_itinerary(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Config;
     use crate::grpc::api::cancel_itinerary::cancel_itinerary;
     use crate::grpc::api::query_flight::query_flight;
     use crate::grpc::server::grpc_server::QueryFlightRequest;
-    use crate::init_logger;
     use crate::test_util::{ensure_storage_mock_data, get_vertiports_from_storage};
     use chrono::{Duration, Utc};
 
     #[cfg(feature = "stub_backends")]
     #[tokio::test]
     async fn test_confirm_and_cancel_itinerary() {
-        init_logger(&Config::try_from_env().unwrap_or_default());
-        unit_test_info!("(test_confirm_and_cancel_itinerary) start");
+        crate::get_log_handle().await;
+        ut_info!("(test_confirm_and_cancel_itinerary) start");
+
         ensure_storage_mock_data().await;
         let res = confirm_itinerary(Request::new(ConfirmItineraryRequest {
             id: "itinerary1".to_string(),
@@ -213,7 +219,7 @@ mod tests {
             vertiport_arrive_id: vertiports[1].id.clone(),
         }))
         .await;
-        unit_test_debug!(
+        ut_debug!(
             "(test_confirm_and_cancel_itinerary) query_flight result: {:#?}",
             res
         );
@@ -234,6 +240,6 @@ mod tests {
         assert!(res.is_ok());
         assert_eq!(res.unwrap().into_inner().cancelled, true);
 
-        unit_test_info!("(test_confirm_and_cancel_itinerary) success");
+        ut_info!("(test_confirm_and_cancel_itinerary) success");
     }
 }

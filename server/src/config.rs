@@ -80,10 +80,13 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use crate::{init_logger, Config};
+    use crate::Config;
 
-    #[test]
-    fn test_config_from_default() {
+    #[tokio::test]
+    async fn test_config_from_default() {
+        crate::get_log_handle().await;
+        ut_info!("(test_config_from_default) Start.");
+
         let config = Config::default();
 
         assert_eq!(config.docker_port_grpc, 50051);
@@ -94,12 +97,14 @@ mod tests {
         assert_eq!(config.gis_port_grpc, 50051);
         assert_eq!(config.gis_host_grpc, String::from("svc-gis"));
         assert_eq!(config.log_config, String::from("log4rs.yaml"));
+
+        ut_info!("(test_config_from_default) Success.");
     }
 
     #[tokio::test]
     async fn test_config_from_env() {
-        // Make sure logger is initialized for tests before we mess with our env vars
-        init_logger(&Config::try_from_env().unwrap_or_default());
+        crate::get_log_handle().await;
+        ut_info!("(test_config_from_env) Start.");
 
         std::env::set_var("DOCKER_PORT_GRPC", "6789");
         std::env::set_var("DOCKER_PORT_REST", "9876");
@@ -130,5 +135,7 @@ mod tests {
 
         assert_eq!(config.gis_host_grpc, String::from("test_host_gis_grpc"));
         assert_eq!(config.gis_port_grpc, 54321);
+
+        ut_info!("(test_config_from_env) Success.");
     }
 }
