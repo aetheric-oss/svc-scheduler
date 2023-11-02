@@ -96,7 +96,10 @@ pub async fn cancel_itinerary(
             .await?;
 
         let Some(mut flight_plan_data) = flight_plan.into_inner().data else {
-            grpc_warn!("(cancel_itinerary) WARNING: Could not cancel flight plan with ID: {}", id);
+            grpc_warn!(
+                "(cancel_itinerary) WARNING: Could not cancel flight plan with ID: {}",
+                id
+            );
             continue;
         };
 

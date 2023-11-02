@@ -1,10 +1,9 @@
 //! gRPC client helpers implementation
-use lib_common::grpc::{Client, GrpcClient};
-use svc_compliance_client_grpc::client::rpc_service_client::RpcServiceClient as ComplianceClient;
-use svc_gis_client_grpc::client::rpc_service_client::RpcServiceClient as GisClient;
-use svc_storage_client_grpc::Clients;
+use lib_common::grpc::Client;
+use svc_compliance_client_grpc::prelude::ComplianceClient;
+use svc_gis_client_grpc::prelude::GisClient;
+use svc_storage_client_grpc::prelude::{Client as StorageClient, Clients};
 use tokio::sync::OnceCell;
-use tonic::transport::Channel;
 
 pub(crate) static CLIENTS: OnceCell<GrpcClients> = OnceCell::const_new();
 
@@ -27,9 +26,9 @@ pub struct GrpcClients {
     /// All clients enabled from the svc_storage_grpc_client module
     pub storage: Clients,
     /// A GrpcClient provided by the svc_compliance_grpc_client module
-    pub compliance: GrpcClient<ComplianceClient<Channel>>,
+    pub compliance: ComplianceClient,
     /// A GrpcClient provided by the svc_gis_grpc_client module
-    pub gis: GrpcClient<GisClient<Channel>>,
+    pub gis: GisClient,
 }
 
 impl GrpcClients {
@@ -39,16 +38,12 @@ impl GrpcClients {
 
         GrpcClients {
             storage: storage_clients,
-            compliance: GrpcClient::<ComplianceClient<Channel>>::new_client(
+            compliance: ComplianceClient::new_client(
                 &config.compliance_host_grpc,
                 config.compliance_port_grpc,
                 "compliance",
             ),
-            gis: GrpcClient::<GisClient<Channel>>::new_client(
-                &config.gis_host_grpc,
-                config.gis_port_grpc,
-                "gis",
-            ),
+            gis: GisClient::new_client(&config.gis_host_grpc, config.gis_port_grpc, "gis"),
         }
     }
 }
@@ -59,41 +54,49 @@ mod tests {
 
     #[tokio::test]
     async fn test_grpc_clients_default() {
+        crate::get_log_handle().await;
+        ut_info!("(test_grpc_clients_default) Start.");
+
         let clients = get_clients().await;
 
         let vehicle = &clients.storage.vehicle;
-        println!("{:?}", vehicle);
+        ut_debug!("(test_grpc_clients_default) vehicle: {:?}", vehicle);
         assert_eq!(vehicle.get_name(), "vehicle");
 
         let vertipad = &clients.storage.vertipad;
-        println!("{:?}", vertipad);
+        ut_debug!("(test_grpc_clients_default) vertipad: {:?}", vertipad);
         assert_eq!(vertipad.get_name(), "vertipad");
 
         let vertiport = &clients.storage.vertiport;
-        println!("{:?}", vertiport);
+        ut_debug!("(test_grpc_clients_default) vertiport: {:?}", vertiport);
         assert_eq!(vertiport.get_name(), "vertiport");
 
         let itinerary = &clients.storage.itinerary;
-        println!("{:?}", itinerary);
+        ut_debug!("(test_grpc_clients_default) itinerary: {:?}", itinerary);
         assert_eq!(itinerary.get_name(), "itinerary");
 
         let itinerary_flight_plan = &clients.storage.itinerary_flight_plan_link;
-        println!("{:?}", itinerary_flight_plan);
+        ut_debug!(
+            "(test_grpc_clients_default) itinerary_flight_plan: {:?}",
+            itinerary_flight_plan
+        );
         assert_eq!(
             itinerary_flight_plan.get_name(),
             "itinerary_flight_plan_link"
         );
 
         let flight_plan = &clients.storage.flight_plan;
-        println!("{:?}", flight_plan);
+        ut_debug!("(test_grpc_clients_default) flight_plan: {:?}", flight_plan);
         assert_eq!(flight_plan.get_name(), "flight_plan");
 
         let compliance = &clients.compliance;
-        println!("{:?}", compliance);
+        ut_debug!("(test_grpc_clients_default) compliance: {:?}", compliance);
         assert_eq!(compliance.get_name(), "compliance");
 
         let gis = &clients.gis;
-        println!("{:?}", gis);
+        ut_debug!("(test_grpc_clients_default) gis: {:?}", gis);
         assert_eq!(gis.get_name(), "gis");
+
+        ut_info!("(test_grpc_clients_default) Success.");
     }
 }

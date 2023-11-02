@@ -49,18 +49,10 @@ pub async fn get_vertipads(
     router_info!("(get_vertipads) proposed filter: {:?}", filter.clone());
 
     let filter = AdvancedSearchFilter::default();
-    let Ok(response) = clients
-        .storage
-        .vertipad
-        .search(filter)
-        .await
-    else {
-            let error_str = format!(
-                "Failed to get vertipads for vertiport {}.",
-                vertiport_id
-            );
-            router_error!("(get_vertipads) {}", error_str);
-            return Err(VertiportError::NoVertipads);
+    let Ok(response) = clients.storage.vertipad.search(filter).await else {
+        let error_str = format!("Failed to get vertipads for vertiport {}.", vertiport_id);
+        router_error!("(get_vertipads) {}", error_str);
+        return Err(VertiportError::NoVertipads);
     };
 
     router_info!("(get_vertipads) vertiport: {:?}", vertiport_id);
@@ -89,40 +81,40 @@ pub async fn get_vertipads(
         .collect::<Vec<String>>())
 }
 
-/// Get pairs of timeslots where a flight can leave within the departure timeslot
-///  and land within the arrival timeslot
+/// Get pairs of timeslots where a flight can leave within the origin timeslot
+///  and land within the target timeslot
 pub async fn get_timeslot_pairs(
-    departure_vertiport_id: &String,
-    arrival_vertiport_id: &String,
-    departure_time_block: &Duration,
-    arrival_time_block: &Duration,
+    origin_vertiport_id: &String,
+    target_vertiport_id: &String,
+    origin_time_block: &Duration,
+    target_time_block: &Duration,
     timeslot: &Timeslot,
     existing_flight_plans: &[FlightPlanSchedule],
     clients: &GrpcClients,
 ) -> Result<Vec<TimeslotPair>, VertiportError> {
-    let departure_timeslots = get_available_timeslots(
-        departure_vertiport_id,
+    let origin_timeslots = get_available_timeslots(
+        origin_vertiport_id,
         existing_flight_plans,
         timeslot,
-        departure_time_block,
+        origin_time_block,
         clients,
     )
     .await?;
 
-    let arrival_timeslots = get_available_timeslots(
-        arrival_vertiport_id,
+    let target_timeslots = get_available_timeslots(
+        target_vertiport_id,
         existing_flight_plans,
         timeslot,
-        arrival_time_block,
+        target_time_block,
         clients,
     )
     .await?;
 
     get_vertipad_timeslot_pairs(
-        departure_vertiport_id,
-        arrival_vertiport_id,
-        departure_timeslots,
-        arrival_timeslots,
+        origin_vertiport_id,
+        target_vertiport_id,
+        origin_timeslots,
+        target_timeslots,
         clients,
     )
     .await
@@ -231,10 +223,7 @@ async fn get_vertiport_calendar(
     };
 
     let Some(vertiport_schedule) = vertiport_data.schedule else {
-        let error_str = format!(
-            "No schedule for vertiport {}.",
-            vertiport_id
-        );
+        let error_str = format!("No schedule for vertiport {}.", vertiport_id);
         router_error!("(get_vertiport_calendar) {}", error_str);
         return Err(VertiportError::NoSchedule);
     };
@@ -268,24 +257,24 @@ fn build_timeslots_from_flight_plans(
     flight_plans
         .iter()
         .filter_map(|fp| {
-            if *vertiport_id == fp.departure_vertiport_id {
+            if *vertiport_id == fp.origin_vertiport_id {
                 let timeslot = Timeslot {
-                    time_start: fp.departure_time,
+                    time_start: fp.origin_timeslot_start,
                     // TODO(R4): duration should be retrieved from flight plan object
                     //  instead of being hardcoded
-                    time_end: fp.departure_time + required_loading_time,
+                    time_end: fp.origin_timeslot_start + required_loading_time,
                 };
 
-                Some((fp.departure_vertipad_id.clone(), timeslot))
-            } else if *vertiport_id == fp.arrival_vertiport_id {
+                Some((fp.origin_vertipad_id.clone(), timeslot))
+            } else if *vertiport_id == fp.target_vertiport_id {
                 let timeslot = Timeslot {
-                    time_start: fp.arrival_time,
+                    time_start: fp.target_timeslot_start,
                     // TODO(R4): duration should be retrieved from flight plan object
                     //  instead of being hardcoded
-                    time_end: fp.arrival_time + required_unloading_time,
+                    time_end: fp.target_timeslot_start + required_unloading_time,
                 };
 
-                Some((fp.arrival_vertipad_id.clone(), timeslot))
+                Some((fp.target_vertipad_id.clone(), timeslot))
             } else {
                 None
             }
@@ -296,52 +285,52 @@ fn build_timeslots_from_flight_plans(
 /// Gets all available timeslot pairs and a path for each pair
 #[derive(Debug, Clone)]
 pub struct TimeslotPair {
-    pub depart_port_id: String,
-    pub depart_pad_id: String,
-    pub depart_timeslot: Timeslot,
-    pub arrival_port_id: String,
-    pub arrival_pad_id: String,
-    pub arrival_timeslot: Timeslot,
+    pub origin_port_id: String,
+    pub origin_pad_id: String,
+    pub origin_timeslot: Timeslot,
+    pub target_port_id: String,
+    pub target_pad_id: String,
+    pub target_timeslot: Timeslot,
     pub path: GeoLineString,
     pub distance_meters: f32,
 }
 
-/// Attempts to find a pairing of departure and arrival pad
+/// Attempts to find a pairing of origin and target pad
 ///  timeslots wherein a flight could occur.
 pub async fn get_vertipad_timeslot_pairs(
-    depart_vertiport_id: &String,
-    arrival_vertiport_id: &String,
-    mut depart_vertipads: HashMap<String, Vec<Timeslot>>,
-    mut arrive_vertipads: HashMap<String, Vec<Timeslot>>,
+    origin_vertiport_id: &String,
+    target_vertiport_id: &String,
+    mut origin_vertipads: HashMap<String, Vec<Timeslot>>,
+    mut target_vertipads: HashMap<String, Vec<Timeslot>>,
     clients: &GrpcClients,
 ) -> Result<Vec<TimeslotPair>, VertiportError> {
     let mut pairs = vec![];
 
     let mut best_path_request = BestPathRequest {
-        node_start_id: depart_vertiport_id.clone(),
-        node_uuid_end: arrival_vertiport_id.clone(),
+        node_start_id: origin_vertiport_id.clone(),
+        node_uuid_end: target_vertiport_id.clone(),
         start_type: NodeType::Vertiport as i32,
         time_start: None,
         time_end: None,
     };
 
-    // Iterate through departure pads and their schedules
-    for (depart_pad_id, depart_schedule) in depart_vertipads.iter_mut() {
-        depart_schedule.sort_by(|a, b| a.time_end.cmp(&b.time_end));
+    // Iterate through origin pads and their schedules
+    for (origin_pad_id, origin_schedule) in origin_vertipads.iter_mut() {
+        origin_schedule.sort_by(|a, b| a.time_end.cmp(&b.time_end));
 
         // Iterate through the available timeslots for this pad
-        'depart_timeslots: for dts in depart_schedule.iter() {
-            // Iterate through arrival pads and their schedules
-            for (arrival_pad_id, arrival_schedule) in arrive_vertipads.iter_mut() {
-                arrival_schedule.sort_by(|a, b| a.time_start.cmp(&b.time_start));
+        'origin_timeslots: for dts in origin_schedule.iter() {
+            // Iterate through target pads and their schedules
+            for (target_pad_id, target_schedule) in target_vertipads.iter_mut() {
+                target_schedule.sort_by(|a, b| a.time_start.cmp(&b.time_start));
 
                 // Iterate through available timeslots for this pad
                 // There will be several opportunities to break out without
                 //  excess work
-                for ats in arrival_schedule.iter() {
+                for ats in target_schedule.iter() {
                     // no timeslot overlap possible
-                    //                    | departure timeslot |
-                    // | arrival timeslot |
+                    //                    | origin timeslot |
+                    // | target timeslot |
                     if dts.time_start >= ats.time_end {
                         continue;
                     }
@@ -361,13 +350,13 @@ pub async fn get_vertipad_timeslot_pairs(
                             router_debug!(
                                 "(get_vertipad_timeslot_pairs) No path found from vertiport {}
                                 to vertiport {} (from {} to {}).",
-                                depart_vertiport_id,
-                                arrival_vertiport_id,
+                                origin_vertiport_id,
+                                target_vertiport_id,
                                 dts.time_start,
                                 ats.time_end
                             );
 
-                            break 'depart_timeslots;
+                            break 'origin_timeslots;
                         }
                         Err(BestPathError::ClientError) => {
                             // exit immediately if svc-gis is down, don't allow new flights
@@ -381,12 +370,12 @@ pub async fn get_vertipad_timeslot_pairs(
                     let estimated_duration_s = estimate_flight_time_seconds(&distance_meters);
 
                     // Since both schedules are sorted, we can break early once
-                    //  departure end time + flight time is less than the arrival timeslot's start time
+                    //  origin end time + flight time is less than the target timeslot's start time
                     //  and not look at the other timeslots for that pad
-                    // | departure timeslot |
+                    // | origin timeslot |
                     //                      ---->x
-                    //                                | arrival timeslot 1 | arrival timeslot 2 |
-                    // (the next arrival timeslot start to be checked would be even further away)
+                    //                                | target timeslot 1 | target timeslot 2 |
+                    // (the next target timeslot start to be checked would be even further away)
                     if dts.time_end + estimated_duration_s < ats.time_start {
                         break;
                     }
@@ -394,12 +383,12 @@ pub async fn get_vertipad_timeslot_pairs(
                     //
                     // |     dts              |          (depart timeslot)
                     //       ----->        ----->        (flight time)
-                    //            |      ats     |       (arrival timeslot)
+                    //            |      ats     |       (target timeslot)
                     //       | actual dts  |             (actual depart timeslot)
                     //
-                    // The actual depart_timeslot is the timeslot within which departure
-                    //  will result in landing in the arrival timeslot.
-                    let depart_timeslot = Timeslot {
+                    // The actual origin_timeslot is the timeslot within which origin
+                    //  will result in landing in the target timeslot.
+                    let origin_timeslot = Timeslot {
                         time_start: max(dts.time_start, ats.time_start - estimated_duration_s),
                         time_end: min(dts.time_end, ats.time_end - estimated_duration_s),
                     };
@@ -407,28 +396,28 @@ pub async fn get_vertipad_timeslot_pairs(
                     //
                     //  |     dts     |             (depart timeslot)
                     //   ----->       ----->        (flight time)
-                    //      |    ats            |   (arrival timeslot)
+                    //      |    ats            |   (target timeslot)
                     //         | actual ats |
-                    // The actual arrival_timeslot is the timeslot within which arrival is possible
-                    //  given a departure from the actual depart timeslot.
-                    let arrival_timeslot = Timeslot {
+                    // The actual target_timeslot is the timeslot within which target is possible
+                    //  given a origin from the actual depart timeslot.
+                    let target_timeslot = Timeslot {
                         time_start: max(
                             ats.time_start,
-                            depart_timeslot.time_start + estimated_duration_s,
+                            origin_timeslot.time_start + estimated_duration_s,
                         ),
                         time_end: min(
                             ats.time_end,
-                            depart_timeslot.time_end + estimated_duration_s,
+                            origin_timeslot.time_end + estimated_duration_s,
                         ),
                     };
 
                     pairs.push(TimeslotPair {
-                        depart_port_id: depart_vertiport_id.clone(),
-                        depart_pad_id: depart_pad_id.clone(),
-                        depart_timeslot,
-                        arrival_port_id: arrival_vertiport_id.clone(),
-                        arrival_pad_id: arrival_pad_id.clone(),
-                        arrival_timeslot,
+                        origin_port_id: origin_vertiport_id.clone(),
+                        origin_pad_id: origin_pad_id.clone(),
+                        origin_timeslot,
+                        target_port_id: target_vertiport_id.clone(),
+                        target_pad_id: target_pad_id.clone(),
+                        target_timeslot,
                         path,
                         distance_meters,
                     });
@@ -466,32 +455,32 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "stub_backends")]
     async fn ut_get_vertipad_pairs_no_overlap() {
-        let depart_vertiport_id: String = Uuid::new_v4().to_string();
-        let arrive_vertiport_id: String = Uuid::new_v4().to_string();
-        let depart_vertipad_id: String = Uuid::new_v4().to_string();
-        let arrive_vertipad_id: String = Uuid::new_v4().to_string();
+        let origin_vertiport_id: String = Uuid::new_v4().to_string();
+        let target_vertiport_id: String = Uuid::new_v4().to_string();
+        let origin_vertipad_id: String = Uuid::new_v4().to_string();
+        let target_vertipad_id: String = Uuid::new_v4().to_string();
         let clients = get_clients().await;
 
         //
-        // CASE 1: No overlap, even leaving at the last minute of the departure window
+        // CASE 1: No overlap, even leaving at the last minute of the origin window
         //                          |-----v2----|
         //             >>>>>>>>>>x
         // |-----v1----|
         // |           |            |           |
         // 3           6            10          13
 
-        let depart_start = DateTime::from_str("2021-01-01T03:00:00Z").unwrap();
-        let depart_end = DateTime::from_str("2021-01-01T06:00:00Z").unwrap();
-        let depart_vertipads = HashMap::from([(
-            depart_vertipad_id.clone(),
+        let origin_start = DateTime::from_str("2021-01-01T03:00:00Z").unwrap();
+        let origin_end = DateTime::from_str("2021-01-01T06:00:00Z").unwrap();
+        let origin_vertipads = HashMap::from([(
+            origin_vertipad_id.clone(),
             vec![Timeslot {
-                time_start: depart_start,
-                time_end: depart_end,
+                time_start: origin_start,
+                time_end: origin_end,
             }],
         )]);
 
-        let arrival_vertipads = HashMap::from([(
-            arrive_vertipad_id.clone(),
+        let target_vertipads = HashMap::from([(
+            target_vertipad_id.clone(),
             vec![Timeslot {
                 time_start: DateTime::from_str("2021-01-01T10:00:00Z").unwrap(),
                 time_end: DateTime::from_str("2021-01-01T13:00:00Z").unwrap(),
@@ -499,10 +488,10 @@ mod tests {
         )]);
 
         let pairs = get_vertipad_timeslot_pairs(
-            &depart_vertiport_id,
-            &arrive_vertiport_id,
-            depart_vertipads,
-            arrival_vertipads,
+            &origin_vertiport_id,
+            &target_vertiport_id,
+            origin_vertipads,
+            target_vertipads,
             &clients,
         )
         .await
@@ -513,33 +502,33 @@ mod tests {
 
     #[tokio::test]
     #[cfg(feature = "stub_backends")]
-    async fn ut_get_vertipad_pairs_no_overlap_arrival_lead() {
-        let depart_vertiport_id: String = Uuid::new_v4().to_string();
-        let arrive_vertiport_id: String = Uuid::new_v4().to_string();
-        let depart_vertipad_id: String = Uuid::new_v4().to_string();
-        let arrive_vertipad_id: String = Uuid::new_v4().to_string();
+    async fn ut_get_vertipad_pairs_no_overlap_target_lead() {
+        let origin_vertiport_id: String = Uuid::new_v4().to_string();
+        let target_vertiport_id: String = Uuid::new_v4().to_string();
+        let origin_vertipad_id: String = Uuid::new_v4().to_string();
+        let target_vertipad_id: String = Uuid::new_v4().to_string();
         let clients = get_clients().await;
 
         //
-        // No overlap, arrival window is earlier
+        // No overlap, target window is earlier
         //             |-----v1----|
         //
         // |-----v2----|
         // |           |           |           |
         // 3           6           10          13
 
-        let depart_start = DateTime::from_str("2021-01-01T06:00:00Z").unwrap();
-        let depart_end = DateTime::from_str("2021-01-01T10:00:00Z").unwrap();
-        let depart_vertipads = HashMap::from([(
-            depart_vertipad_id.clone(),
+        let origin_start = DateTime::from_str("2021-01-01T06:00:00Z").unwrap();
+        let origin_end = DateTime::from_str("2021-01-01T10:00:00Z").unwrap();
+        let origin_vertipads = HashMap::from([(
+            origin_vertipad_id.clone(),
             vec![Timeslot {
-                time_start: depart_start,
-                time_end: depart_end,
+                time_start: origin_start,
+                time_end: origin_end,
             }],
         )]);
 
-        let arrival_vertipads = HashMap::from([(
-            arrive_vertipad_id.clone(),
+        let target_vertipads = HashMap::from([(
+            target_vertipad_id.clone(),
             vec![Timeslot {
                 time_start: DateTime::from_str("2021-01-01T03:00:00Z").unwrap(),
                 time_end: DateTime::from_str("2021-01-01T06:00:00Z").unwrap(),
@@ -547,10 +536,10 @@ mod tests {
         )]);
 
         let pairs = get_vertipad_timeslot_pairs(
-            &depart_vertiport_id,
-            &arrive_vertiport_id,
-            depart_vertipads,
-            arrival_vertipads,
+            &origin_vertiport_id,
+            &target_vertiport_id,
+            origin_vertipads,
+            target_vertipads,
             &clients,
         )
         .await
@@ -563,10 +552,10 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "stub_backends")]
     async fn ut_get_vertipad_pairs_some_overlap() {
-        let depart_vertiport_id: String = Uuid::new_v4().to_string();
-        let arrive_vertiport_id: String = Uuid::new_v4().to_string();
-        let depart_vertipad_id: String = Uuid::new_v4().to_string();
-        let arrive_vertipad_id: String = Uuid::new_v4().to_string();
+        let origin_vertiport_id: String = Uuid::new_v4().to_string();
+        let target_vertiport_id: String = Uuid::new_v4().to_string();
+        let origin_vertipad_id: String = Uuid::new_v4().to_string();
+        let target_vertipad_id: String = Uuid::new_v4().to_string();
         let clients = get_clients().await;
 
         //
@@ -574,36 +563,36 @@ mod tests {
         //             |-----v2----|
         //             >>>>> Leave at end of depart window
         //           >>>>> Middle case
-        //         >>>>> Arrive at start of arrival window
+        //         >>>>> Arrive at start of target window
         // |-----v1----|
         // |           |           |
         // 3           6           9
 
-        let depart_start = DateTime::from_str("2021-01-01T03:00:00Z").unwrap();
-        let depart_end = DateTime::from_str("2021-01-01T06:00:00Z").unwrap();
-        let depart_vertipads = HashMap::from([(
-            depart_vertipad_id.clone(),
+        let origin_start = DateTime::from_str("2021-01-01T03:00:00Z").unwrap();
+        let origin_end = DateTime::from_str("2021-01-01T06:00:00Z").unwrap();
+        let origin_vertipads = HashMap::from([(
+            origin_vertipad_id.clone(),
             vec![Timeslot {
-                time_start: depart_start,
-                time_end: depart_end,
+                time_start: origin_start,
+                time_end: origin_end,
             }],
         )]);
 
-        let arrival_start = DateTime::from_str("2021-01-01T06:00:00Z").unwrap();
-        let arrival_end = DateTime::from_str("2021-01-01T09:00:00Z").unwrap();
-        let arrival_vertipads = HashMap::from([(
-            arrive_vertipad_id.clone(),
+        let target_start = DateTime::from_str("2021-01-01T06:00:00Z").unwrap();
+        let target_end = DateTime::from_str("2021-01-01T09:00:00Z").unwrap();
+        let target_vertipads = HashMap::from([(
+            target_vertipad_id.clone(),
             vec![Timeslot {
-                time_start: arrival_start,
-                time_end: arrival_end,
+                time_start: target_start,
+                time_end: target_end,
             }],
         )]);
 
         let pairs = get_vertipad_timeslot_pairs(
-            &depart_vertiport_id,
-            &arrive_vertiport_id,
-            depart_vertipads,
-            arrival_vertipads,
+            &origin_vertiport_id,
+            &target_vertiport_id,
+            origin_vertipads,
+            target_vertipads,
             &clients,
         )
         .await
@@ -613,61 +602,61 @@ mod tests {
         let pair = pairs.last().unwrap();
         let flight_duration = estimate_flight_time_seconds(&pair.distance_meters);
 
-        assert_eq!(pair.depart_pad_id, depart_vertipad_id);
-        assert_eq!(pair.arrival_pad_id, arrive_vertipad_id);
+        assert_eq!(pair.origin_pad_id, origin_vertipad_id);
+        assert_eq!(pair.target_pad_id, target_vertipad_id);
         assert_eq!(
-            pair.depart_timeslot.time_start,
-            arrival_start - flight_duration
+            pair.origin_timeslot.time_start,
+            target_start - flight_duration
         );
 
-        assert_eq!(pair.depart_timeslot.time_end, depart_end);
-        assert_eq!(pair.arrival_timeslot.time_start, arrival_start);
-        assert_eq!(pair.arrival_timeslot.time_end, depart_end + flight_duration);
+        assert_eq!(pair.origin_timeslot.time_end, origin_end);
+        assert_eq!(pair.target_timeslot.time_start, target_start);
+        assert_eq!(pair.target_timeslot.time_end, origin_end + flight_duration);
     }
 
     #[tokio::test]
     #[cfg(feature = "stub_backends")]
     async fn ut_get_vertipad_pairs_overlap_nested() {
-        let depart_vertiport_id: String = Uuid::new_v4().to_string();
-        let arrive_vertiport_id: String = Uuid::new_v4().to_string();
-        let depart_vertipad_id: String = Uuid::new_v4().to_string();
-        let arrive_vertipad_id: String = Uuid::new_v4().to_string();
+        let origin_vertiport_id: String = Uuid::new_v4().to_string();
+        let target_vertiport_id: String = Uuid::new_v4().to_string();
+        let origin_vertipad_id: String = Uuid::new_v4().to_string();
+        let target_vertipad_id: String = Uuid::new_v4().to_string();
         let clients = get_clients().await;
         //
         // Some overlap
         //       |-----v2---|
-        //                >>> Arrive at end of arrival window
+        //                >>> Arrive at end of target window
         //         >>> Middle case
-        //     >>> Arrive at start of arrival window
+        //     >>> Arrive at start of target window
         // |-----v1----------------|
         // |           |           |
         // 3           6           9
 
-        let depart_start = DateTime::from_str("2021-01-01T03:00:00Z").unwrap();
-        let depart_end = DateTime::from_str("2021-01-01T09:00:00Z").unwrap();
-        let depart_vertipads = HashMap::from([(
-            depart_vertipad_id.clone(),
+        let origin_start = DateTime::from_str("2021-01-01T03:00:00Z").unwrap();
+        let origin_end = DateTime::from_str("2021-01-01T09:00:00Z").unwrap();
+        let origin_vertipads = HashMap::from([(
+            origin_vertipad_id.clone(),
             vec![Timeslot {
-                time_start: depart_start,
-                time_end: depart_end,
+                time_start: origin_start,
+                time_end: origin_end,
             }],
         )]);
 
-        let arrival_start = DateTime::from_str("2021-01-01T05:00:00Z").unwrap();
-        let arrival_end = DateTime::from_str("2021-01-01T07:00:00Z").unwrap();
-        let arrival_vertipads = HashMap::from([(
-            arrive_vertipad_id.clone(),
+        let target_start = DateTime::from_str("2021-01-01T05:00:00Z").unwrap();
+        let target_end = DateTime::from_str("2021-01-01T07:00:00Z").unwrap();
+        let target_vertipads = HashMap::from([(
+            target_vertipad_id.clone(),
             vec![Timeslot {
-                time_start: arrival_start,
-                time_end: arrival_end,
+                time_start: target_start,
+                time_end: target_end,
             }],
         )]);
 
         let pairs = get_vertipad_timeslot_pairs(
-            &depart_vertiport_id,
-            &arrive_vertiport_id,
-            depart_vertipads,
-            arrival_vertipads,
+            &origin_vertiport_id,
+            &target_vertiport_id,
+            origin_vertipads,
+            target_vertipads,
             &clients,
         )
         .await
@@ -677,59 +666,59 @@ mod tests {
         let pair = pairs.last().unwrap();
         let flight_duration = estimate_flight_time_seconds(&pair.distance_meters);
 
-        assert_eq!(pair.depart_pad_id, depart_vertipad_id);
-        assert_eq!(pair.arrival_pad_id, arrive_vertipad_id);
+        assert_eq!(pair.origin_pad_id, origin_vertipad_id);
+        assert_eq!(pair.target_pad_id, target_vertipad_id);
         assert_eq!(
-            pair.depart_timeslot.time_start,
-            arrival_start - flight_duration
+            pair.origin_timeslot.time_start,
+            target_start - flight_duration
         );
-        assert_eq!(pair.depart_timeslot.time_end, arrival_end - flight_duration);
-        assert_eq!(pair.arrival_timeslot.time_start, arrival_start);
-        assert_eq!(pair.arrival_timeslot.time_end, arrival_end);
+        assert_eq!(pair.origin_timeslot.time_end, target_end - flight_duration);
+        assert_eq!(pair.target_timeslot.time_start, target_start);
+        assert_eq!(pair.target_timeslot.time_end, target_end);
     }
 
     #[tokio::test]
     #[cfg(feature = "stub_backends")]
-    async fn ut_get_vertipad_pairs_overlap_arrival_window_lead() {
-        let depart_vertiport_id: String = Uuid::new_v4().to_string();
-        let arrive_vertiport_id: String = Uuid::new_v4().to_string();
-        let depart_vertipad_id: String = Uuid::new_v4().to_string();
-        let arrive_vertipad_id: String = Uuid::new_v4().to_string();
+    async fn ut_get_vertipad_pairs_overlap_target_window_lead() {
+        let origin_vertiport_id: String = Uuid::new_v4().to_string();
+        let target_vertiport_id: String = Uuid::new_v4().to_string();
+        let origin_vertipad_id: String = Uuid::new_v4().to_string();
+        let target_vertipad_id: String = Uuid::new_v4().to_string();
         let clients = get_clients().await;
 
         //
-        // Some overlap, arrival window leads
+        // Some overlap, target window leads
         // |-------v2-----|
         //             >>>
         //             |-----------|
         // |           |           |
         // 3           6           9
 
-        let depart_start = DateTime::from_str("2021-01-01T06:00:00Z").unwrap();
-        let depart_end = DateTime::from_str("2021-01-01T09:00:00Z").unwrap();
-        let depart_vertipads = HashMap::from([(
-            depart_vertipad_id.clone(),
+        let origin_start = DateTime::from_str("2021-01-01T06:00:00Z").unwrap();
+        let origin_end = DateTime::from_str("2021-01-01T09:00:00Z").unwrap();
+        let origin_vertipads = HashMap::from([(
+            origin_vertipad_id.clone(),
             vec![Timeslot {
-                time_start: depart_start,
-                time_end: depart_end,
+                time_start: origin_start,
+                time_end: origin_end,
             }],
         )]);
 
-        let arrival_start = DateTime::from_str("2021-01-01T03:00:00Z").unwrap();
-        let arrival_end = DateTime::from_str("2021-01-01T07:00:00Z").unwrap();
-        let arrival_vertipads = HashMap::from([(
-            arrive_vertipad_id.clone(),
+        let target_start = DateTime::from_str("2021-01-01T03:00:00Z").unwrap();
+        let target_end = DateTime::from_str("2021-01-01T07:00:00Z").unwrap();
+        let target_vertipads = HashMap::from([(
+            target_vertipad_id.clone(),
             vec![Timeslot {
-                time_start: arrival_start,
-                time_end: arrival_end,
+                time_start: target_start,
+                time_end: target_end,
             }],
         )]);
 
         let pairs = get_vertipad_timeslot_pairs(
-            &depart_vertiport_id,
-            &arrive_vertiport_id,
-            depart_vertipads,
-            arrival_vertipads,
+            &origin_vertiport_id,
+            &target_vertiport_id,
+            origin_vertipads,
+            target_vertipads,
             &clients,
         )
         .await
@@ -739,24 +728,24 @@ mod tests {
         let pair = pairs.last().unwrap();
         let flight_duration = estimate_flight_time_seconds(&pair.distance_meters);
 
-        assert_eq!(pair.depart_pad_id, depart_vertipad_id);
-        assert_eq!(pair.arrival_pad_id, arrive_vertipad_id);
-        assert_eq!(pair.depart_timeslot.time_start, depart_start);
-        assert_eq!(pair.depart_timeslot.time_end, arrival_end - flight_duration);
+        assert_eq!(pair.origin_pad_id, origin_vertipad_id);
+        assert_eq!(pair.target_pad_id, target_vertipad_id);
+        assert_eq!(pair.origin_timeslot.time_start, origin_start);
+        assert_eq!(pair.origin_timeslot.time_end, target_end - flight_duration);
         assert_eq!(
-            pair.arrival_timeslot.time_start,
-            depart_start + flight_duration
+            pair.target_timeslot.time_start,
+            origin_start + flight_duration
         );
-        assert_eq!(pair.arrival_timeslot.time_end, arrival_end);
+        assert_eq!(pair.target_timeslot.time_end, target_end);
     }
 
     #[tokio::test]
     #[cfg(feature = "stub_backends")]
     async fn ut_get_vertipad_pairs_overlap_multiple() {
-        let depart_vertiport_id: String = Uuid::new_v4().to_string();
-        let arrive_vertiport_id: String = Uuid::new_v4().to_string();
-        let depart_vertipad_id: String = Uuid::new_v4().to_string();
-        let arrive_vertipad_id: String = Uuid::new_v4().to_string();
+        let origin_vertiport_id: String = Uuid::new_v4().to_string();
+        let target_vertiport_id: String = Uuid::new_v4().to_string();
+        let origin_vertipad_id: String = Uuid::new_v4().to_string();
+        let target_vertipad_id: String = Uuid::new_v4().to_string();
         let clients = get_clients().await;
 
         //
@@ -767,36 +756,36 @@ mod tests {
         // |           |           |
         // 3           6           9
 
-        let depart_start = DateTime::from_str("2021-01-01T03:00:00Z").unwrap();
-        let depart_end = DateTime::from_str("2021-01-01T09:00:00Z").unwrap();
-        let depart_vertipads = HashMap::from([(
-            depart_vertipad_id.clone(),
+        let origin_start = DateTime::from_str("2021-01-01T03:00:00Z").unwrap();
+        let origin_end = DateTime::from_str("2021-01-01T09:00:00Z").unwrap();
+        let origin_vertipads = HashMap::from([(
+            origin_vertipad_id.clone(),
             vec![Timeslot {
-                time_start: depart_start,
-                time_end: depart_end,
+                time_start: origin_start,
+                time_end: origin_end,
             }],
         )]);
 
-        let arrival_timeslot_1 = Timeslot {
+        let target_timeslot_1 = Timeslot {
             time_start: DateTime::from_str("2021-01-01T05:00:00Z").unwrap(),
             time_end: DateTime::from_str("2021-01-01T07:00:00Z").unwrap(),
         };
 
-        let arrival_timeslot_2 = Timeslot {
+        let target_timeslot_2 = Timeslot {
             time_start: DateTime::from_str("2021-01-01T09:00:00Z").unwrap(),
             time_end: DateTime::from_str("2021-01-01T10:00:00Z").unwrap(),
         };
 
-        let arrival_vertipads = HashMap::from([(
-            arrive_vertipad_id.clone(),
-            vec![arrival_timeslot_1, arrival_timeslot_2],
+        let target_vertipads = HashMap::from([(
+            target_vertipad_id.clone(),
+            vec![target_timeslot_1, target_timeslot_2],
         )]);
 
         let pairs = get_vertipad_timeslot_pairs(
-            &depart_vertiport_id,
-            &arrive_vertiport_id,
-            depart_vertipads,
-            arrival_vertipads,
+            &origin_vertiport_id,
+            &target_vertiport_id,
+            origin_vertipads,
+            target_vertipads,
             &clients,
         )
         .await
@@ -806,47 +795,41 @@ mod tests {
 
         {
             let pair = pairs[0].clone();
-            let arrival_timeslot = arrival_timeslot_1;
-            assert_eq!(pair.depart_pad_id, depart_vertipad_id);
-            assert_eq!(pair.arrival_pad_id, arrive_vertipad_id);
+            let target_timeslot = target_timeslot_1;
+            assert_eq!(pair.origin_pad_id, origin_vertipad_id);
+            assert_eq!(pair.target_pad_id, target_vertipad_id);
 
             let flight_duration = estimate_flight_time_seconds(&pair.distance_meters);
             assert_eq!(
-                pair.depart_timeslot.time_start,
-                arrival_timeslot.time_start - flight_duration
+                pair.origin_timeslot.time_start,
+                target_timeslot.time_start - flight_duration
             );
 
             assert_eq!(
-                pair.depart_timeslot.time_end,
-                arrival_timeslot.time_end - flight_duration
+                pair.origin_timeslot.time_end,
+                target_timeslot.time_end - flight_duration
             );
 
-            assert_eq!(
-                pair.arrival_timeslot.time_start,
-                arrival_timeslot.time_start
-            );
-            assert_eq!(pair.arrival_timeslot.time_end, arrival_timeslot.time_end);
+            assert_eq!(pair.target_timeslot.time_start, target_timeslot.time_start);
+            assert_eq!(pair.target_timeslot.time_end, target_timeslot.time_end);
         }
 
         {
             let pair = pairs[1].clone();
-            let arrival_timeslot = arrival_timeslot_2;
-            assert_eq!(pair.depart_pad_id, depart_vertipad_id);
-            assert_eq!(pair.arrival_pad_id, arrive_vertipad_id);
+            let target_timeslot = target_timeslot_2;
+            assert_eq!(pair.origin_pad_id, origin_vertipad_id);
+            assert_eq!(pair.target_pad_id, target_vertipad_id);
 
             let flight_duration = estimate_flight_time_seconds(&pair.distance_meters);
             assert_eq!(
-                pair.depart_timeslot.time_start,
-                arrival_timeslot.time_start - flight_duration
+                pair.origin_timeslot.time_start,
+                target_timeslot.time_start - flight_duration
             );
 
-            assert_eq!(pair.depart_timeslot.time_end, depart_end);
+            assert_eq!(pair.origin_timeslot.time_end, origin_end);
 
-            assert_eq!(
-                pair.arrival_timeslot.time_start,
-                arrival_timeslot.time_start
-            );
-            assert_eq!(pair.arrival_timeslot.time_end, depart_end + flight_duration);
+            assert_eq!(pair.target_timeslot.time_start, target_timeslot.time_start);
+            assert_eq!(pair.target_timeslot.time_end, origin_end + flight_duration);
         }
     }
 }
