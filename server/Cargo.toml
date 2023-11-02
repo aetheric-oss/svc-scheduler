@@ -12,21 +12,16 @@ license-file.workspace = true
 repository.workspace   = true
 
 [features]
-default = []
-dev = ["mock"]
-test_util = [
-  "mock",
-  "stub_backends",
-  "svc-storage-client-grpc/mock",
-  "svc-compliance-client-grpc/mock",
-]
-
+default          = []
+dev              = ["mock"]
+test_util        = ["mock", "stub_backends"]
 vendored-openssl = ["openssl/vendored"]
 # Will add a 'mock' module for the enabled resources, providing access to mock data generation functions
 mock = ["svc-storage-client-grpc/mock"]
 # Will use a stubbed backend connection, only use for tests!
 stub_backends = [
   "svc-storage-client-grpc/stub_client",
+  "svc-storage-client-grpc/stub_backends",
   "svc-compliance-client-grpc/stub_client",
   "svc-gis-client-grpc/stub_client",
 ]
@@ -36,20 +31,12 @@ stub_server = ["test_util"]
 stub_client = ["stub_backends"]
 
 [dependencies]
-# pin anstyle and anstyle-parse until R4 when rust version is bumped
-anstyle       = "=1.0.2"
-anstyle-parse = "=0.2.1"
-anyhow        = "1.0"
-cargo-husky   = "1"
-cfg-if        = "1.0"
-chrono        = { version = "0.4", features = ["serde"] }
-chrono-tz     = "0.8"
-# pin clap to 4.3 for now, since 4.4 requires rustc 1.70.0 or newer. Only needed
-# for svc-compliance, can be removed once resolved
-clap = { version = "=4.3.24", features = ["derive"] }
-# pin clap_lex to 0.5.0 for now, since 0.5.1 requires rustc 1.70.0 or newer.
-# Only needed for svc-compliance, can be removed once resolved
-clap_lex         = "=0.5.0"
+anyhow           = "1.0"
+cargo-husky      = "1"
+cfg-if           = "1.0"
+chrono           = { version = "0.4", features = ["serde"] }
+chrono-tz        = "0.8"
+clap             = { version = "4.4", features = ["derive"] }
 config           = "0.13"
 dotenv           = "0.15"
 futures          = "0.3"
@@ -58,38 +45,38 @@ iso8601-duration = { version = "0.2", features = ["chrono"] }
 lazy_static      = "1.4"
 log              = "0.4"
 openssl          = "0.10"
-ordered-float    = { version = "3.2", features = ["serde"] }
+ordered-float    = { version = "4.1", features = ["serde"] }
 petgraph         = "0.6"
-prost            = "0.11"
-prost-types      = "0.11"
-prost-wkt-types  = "0.4"
+prost            = "0.12"
+prost-types      = "0.12"
+prost-wkt-types  = "0.5"
 quaternion       = "1.0"
 rand             = "0.8"
 rrule            = "0.11"
 serde            = { version = "1.0", features = ["derive"] }
-tokio            = { version = "1.28", features = ["full"] }
+tokio            = { version = "1.33", features = ["full"] }
 tokio-util       = "0.7"
-tonic            = "0.8"
-tonic-health     = "0.8"
-uuid             = "1.2"
+tonic            = "0.10"
+tonic-health     = "0.10"
+uuid             = "1.5"
 vecmath          = "1.0"
 
 [dependencies.lib-common]
 git = "https://github.com/Arrow-air/lib-common.git"
-tag = "v0.2.0"
+tag = "latest-develop"
 
 [dependencies.svc-compliance-client-grpc]
 git = "https://github.com/Arrow-air/svc-compliance.git"
-tag = "v0.2.0"
+tag = "latest-develop"
 
 [dependencies.svc-storage-client-grpc]
 features = ["flight_plan", "itinerary", "vehicle", "vertipad", "vertiport"]
 git      = "https://github.com/Arrow-air/svc-storage.git"
-tag      = "v0.11.0"
+tag      = "latest-develop"
 
 [dependencies.svc-gis-client-grpc]
 git = "https://github.com/Arrow-air/svc-gis.git"
-tag = "v0.1.0"
+tag = "latest-develop"
 
 [dependencies.log4rs]
 features = [
@@ -103,6 +90,7 @@ version = "1.2"
 [dev-dependencies]
 logtest     = "2.0"
 serial_test = "2.0"
+tonic-build = "0.10"
 
 [dev-dependencies.cargo-husky]
 default-features = false          # Disable features which are enabled by default
@@ -115,4 +103,4 @@ features = ["dev"]
 path     = "."
 
 [build-dependencies]
-tonic-build = "0.8"
+tonic-build = "0.10"

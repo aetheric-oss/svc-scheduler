@@ -249,7 +249,10 @@ impl FromStr for Calendar {
             };
 
             let Some(duration) = duration.to_chrono() else {
-                router_error!("(from_str) Could not convert duration to chrono::DateTime: {:?}", duration);
+                router_error!(
+                    "(from_str) Could not convert duration to chrono::DateTime: {:?}",
+                    duration
+                );
                 return Err(CalendarError::Duration);
             };
 
@@ -534,7 +537,8 @@ mod tests {
     /// |    |         |    |
     #[test]
     fn test_timeslot_sub_cleave() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
+        else {
             panic!();
         };
 
@@ -572,7 +576,8 @@ mod tests {
     /// |              |
     #[test]
     fn test_timeslot_sub_crop_end() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
+        else {
             panic!();
         };
 
@@ -604,7 +609,8 @@ mod tests {
     ///           |               |
     #[test]
     fn test_timeslot_sub_crop_start() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
+        else {
             panic!();
         };
 
@@ -631,7 +637,8 @@ mod tests {
 
     #[test]
     fn test_timeslot_sub_no_overlap() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
+        else {
             panic!();
         };
 

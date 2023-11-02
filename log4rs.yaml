@@ -80,7 +80,11 @@ loggers:
     level: info
     appenders:
       - router
-  test::unit:
+  test::ut:
+    level: info
+    appenders:
+      - tests
+  test::it:
     level: info
     appenders:
       - tests
