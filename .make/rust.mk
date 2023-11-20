@@ -4,6 +4,7 @@
 
 RUST_IMAGE_NAME     ?= ghcr.io/arrow-air/tools/arrow-rust
 RUST_IMAGE_TAG      ?= 1.2
+DOCKER_IMAGE_NAME   ?= $(PACKAGE_NAME)
 CARGO_MANIFEST_PATH ?= Cargo.toml
 CARGO_INCREMENTAL   ?= 1
 RUSTC_BOOTSTRAP     ?= 0
@@ -12,12 +13,16 @@ PUBLISH_DRY_RUN     ?= 1
 OUTPUTS_PATH        ?= $(SOURCE_PATH)/out
 ADDITIONAL_OPT      ?=
 
-PACKAGE_TEST_FEATURES    ?= ""
 PACKAGE_BUILD_FEATURES   ?= ""
 PACKAGE_RELEASE_FEATURES ?= ""
+# Keep backwards compatible for now (keeping PACKAGE_TEST_FEATURES in addition to PACKAGE_UT_FEATURES), can be removed once all repo's have their .env.repo file updated
+PACKAGE_TEST_FEATURES    ?= ""
+PACKAGE_UT_FEATURES      ?= $(PACKAGE_TEST_FEATURES)
+PACKAGE_IT_FEATURES      ?= ""
 
 # Can contain quotes, but we don't want quotes
 EXCLUSIVE_FEATURES_TEST  := $(shell echo ${EXCLUSIVE_FEATURES_TEST})
+COMMA := ,
 
 # function with a generic template to run docker with the required values
 # Accepts $1 = command to run, $2 = additional command flags (optional)
@@ -25,7 +30,7 @@ ifeq ("$(CARGO_MANIFEST_PATH)", "")
 cargo_run = echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo check...$(SGR0)"
 else
 cargo_run = docker run \
-	--name=$(DOCKER_NAME)-$@ \
+	--name=$(DOCKER_NAME)-$(subst $(COMMA),_,$@) \
 	--rm \
 	--user `id -u`:`id -g` \
 	--workdir=/usr/src/app \
@@ -39,7 +44,9 @@ cargo_run = docker run \
 endif
 
 rust-docker-pull:
-	@echo docker pull -q $(RUST_IMAGE_NAME):$(RUST_IMAGE_TAG)
+	@docker pull -q $(RUST_IMAGE_NAME):$(RUST_IMAGE_TAG)
+latest-docker-pull:
+	@docker pull -q $(DOCKER_IMAGE_NAME):latest || true
 
 .help-rust:
 	@echo ""
@@ -72,7 +79,7 @@ check-cargo-registry:
 check-logs-dir:
 	if [ ! -d "$(SOURCE_PATH)/logs" ]; then mkdir -p "$(SOURCE_PATH)/logs" ; fi
 
-.SILENT: check-cargo-registry check-logs-dir rust-docker-pull
+.SILENT: check-cargo-registry check-logs-dir rust-docker-pull latest-docker-pull
 
 rust-build: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo build with features [$(PACKAGE_BUILD_FEATURES)]...$(SGR0)"
@@ -103,11 +110,13 @@ $(EXCLUSIVE_FEATURES_TEST):
 	@echo "$(CYAN)Running cargo test for feature $@...$(SGR0)"
 	@$(call cargo_run,test,--features $@ --workspace)
 rust-test: check-cargo-registry rust-docker-pull rust-test-features
-	@echo "$(CYAN)Running cargo test with features [$(PACKAGE_TEST_FEATURES)]...$(SGR0)"
-	@$(call cargo_run,test,--features $(PACKAGE_TEST_FEATURES) --workspace)
+	@echo "$(CYAN)Running cargo test with features [$(PACKAGE_UT_FEATURES)]...$(SGR0)"
+	@$(call cargo_run,test,--features $(PACKAGE_UT_FEATURES) --workspace)
 
 rust-example-%: EXAMPLE_TARGET=$*
-rust-example-%: check-cargo-registry check-logs-dir rust-docker-pull
+rust-example-%: DOCKER_IMAGE_TAG=dev
+rust-example-%: check-cargo-registry check-logs-dir rust-docker-pull docker-build-dev
+	@echo "$(YELLOW) Make sure the $(DOCKER_IMAGE_NAME):dev image is available by runnning 'make docker-build-dev' first.$(SGR0)"
 	@docker compose run \
 		--user `id -u`:`id -g` \
 		--rm \
@@ -117,7 +126,6 @@ rust-example-%: check-cargo-registry check-logs-dir rust-docker-pull
 		-e SERVER_PORT_GRPC=$(DOCKER_PORT_GRPC) \
 		-e SERVER_PORT_REST=$(DOCKER_PORT_REST) \
 		-e SERVER_HOSTNAME=$(DOCKER_NAME)-web-server \
-		-e DOCKER_IMAGE_TAG=dev \
 		example ; docker compose down
 
 rust-clippy: check-cargo-registry rust-docker-pull
@@ -159,24 +167,26 @@ rust-grpc-api:
 		pseudomuto/protoc-gen-doc \
 		--doc_opt=json,$(PACKAGE_NAME)-grpc-api.json
 
-rust-it-coverage: check-cargo-registry check-logs-dir rust-docker-pull
+rust-it-coverage: DOCKER_IMAGE_TAG=latest
+rust-it-coverage: check-cargo-registry check-logs-dir rust-docker-pull latest-docker-pull
 	@docker compose run \
 		--rm \
 		--user `id -u`:`id -g` \
 		-e SERVER_PORT_GRPC=$(DOCKER_PORT_GRPC) \
 		-e SERVER_PORT_REST=$(DOCKER_PORT_REST) \
 		-e SERVER_HOSTNAME=$(DOCKER_NAME)-web-server \
-		-e DOCKER_IMAGE_TAG=latest \
 		it-coverage ; docker compose down
+	@sed -e "s/\/usr\/src\/app\///g" -i coverage/lcov.info
 
-rust-ut-coverage: ADDITIONAL_OPT = --security-opt seccomp='unconfined'
+rust-ut-coverage: DOCKER_IMAGE_TAG=latest
 rust-ut-coverage: check-cargo-registry rust-docker-pull
-	@echo "$(CYAN)Rebuilding and testing with profiling enabled...$(SGR0)"
-	@mkdir -p coverage/
-	@$(call cargo_run,tarpaulin,\
-		--workspace -l --include-tests --tests --no-fail-fast \
-		--features $(PACKAGE_TEST_FEATURES) --skip-clean -t 600 --out Lcov \
-		--output-dir coverage/)
+	@docker compose run \
+		--rm \
+		--user `id -u`:`id -g` \
+		-e SERVER_PORT_GRPC=$(DOCKER_PORT_GRPC) \
+		-e SERVER_PORT_REST=$(DOCKER_PORT_REST) \
+		-e SERVER_HOSTNAME=$(DOCKER_NAME)-web-server \
+		ut-coverage ; docker compose down
 	@sed -e "s/\/usr\/src\/app\///g" -i coverage/lcov.info
 
 release-checklist: docker-pull
