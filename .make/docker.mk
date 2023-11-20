@@ -20,8 +20,7 @@ docker-build-dev:
 
 docker-run: docker-stop
 	# Run docker container as a daemon and map a port
-	@docker run --rm -d --env-file .env -p $(HOST_PORT_GRPC):$(DOCKER_PORT_GRPC) -p $(HOST_PORT_REST):$(DOCKER_PORT_REST) --name=$(DOCKER_NAME)-run $(PACKAGE_NAME):latest
-	@echo "$(YELLOW)Docker running and listening to http://localhost:$(HOST_PORT_GRPC) and http://localhost:$(HOST_PORT_REST) $(SGR0)"
+	@docker compose up web-server -d
 
 docker-stop:
-	@docker kill ${DOCKER_NAME}-run || true
+	@docker compose down || true
