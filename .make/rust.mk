@@ -167,7 +167,7 @@ rust-grpc-api:
 		pseudomuto/protoc-gen-doc \
 		--doc_opt=json,$(PACKAGE_NAME)-grpc-api.json
 
-rust-it-coverage: DOCKER_IMAGE_TAG=latest
+rust-it-coverage: DOCKER_IMAGE_TAG=dev
 rust-it-coverage: check-cargo-registry check-logs-dir rust-docker-pull latest-docker-pull
 	@docker compose run \
 		--rm \
