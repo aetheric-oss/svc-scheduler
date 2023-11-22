@@ -48,6 +48,6 @@ See [High-Level Services ICD](https://github.com/Arrow-air/se-services/blob/deve
 | `is_ready` | (empty) | Returns `true` if server is up and running. |
 | `create_itinerary` | TODO | Takes a proposal for an itinerary and creates it if possible. Returns a task ID immediately. |
 | `cancel_itinerary` | `string` id | Takes `id` (UUID) of an itinerary and cancels it. Returns a task ID immediately. |
-| `cancelTask` |  `uint32` task_id | Cancels a queued task before it can be acted on, if still queued. |
-| `getTaskStatus` | `uint32` task_id | Requests the current status of a scheduler task. |
+| `cancel_task` |  `uint32` task_id | Cancels a queued task before it can be acted on, if still queued. |
+| `get_task_status` | `uint32` task_id | Requests the current status of a scheduler task. |
 | `query_flight` | `bool` isCargo<br/>`uint32` persons<br/>`uint32` weight_grams<br/>`Timestamp` earliest departure time<br/>`Timestamp` latest arrival time<br/>`string` origin_vertiport_id<br/>`string` target_vertiport_id<br/> | Takes requested departure and arrival vertiport UUIDs and a time window for the itinerary to occur and returns a number of possible itineraries. |

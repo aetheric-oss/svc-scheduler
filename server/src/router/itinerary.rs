@@ -1080,4 +1080,173 @@ mod tests {
 
         assert_eq!(itineraries.len(), 2);
     }
+
+    #[test]
+    fn test_validate_itinerary_empty_flight_plans() {
+        let mut vertipad_ids = HashSet::<String>::new();
+        let mut aircraft_id = String::new();
+        let e = validate_itinerary(&vec![], &mut vertipad_ids, &mut aircraft_id).unwrap_err();
+        assert_eq!(e, ItineraryError::InvalidData);
+    }
+
+    #[test]
+    fn test_validate_itinerary_inconsistent_aircraft() -> Result<(), ItineraryError> {
+        let mut vertipad_ids = HashSet::<String>::new();
+        let mut aircraft_id = String::new();
+
+        let vehicle_id = uuid::Uuid::new_v4();
+        let vertipad_1 = Uuid::new_v4().to_string();
+        let vertipad_2 = Uuid::new_v4().to_string();
+
+        let flight_plans = vec![
+            FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: vertipad_1.clone(),
+                origin_timeslot_start: Utc::now() + Duration::minutes(10),
+                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: vertipad_2.clone(),
+                target_timeslot_start: Utc::now() + Duration::minutes(30),
+                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                vehicle_id: vehicle_id.clone().to_string(),
+            },
+            FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: vertipad_2.clone(),
+                origin_timeslot_start: Utc::now() + Duration::minutes(10),
+                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: Uuid::new_v4().to_string(),
+                target_timeslot_start: Utc::now() + Duration::minutes(30),
+                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                vehicle_id: uuid::Uuid::new_v4().to_string(),
+            },
+        ];
+
+        let e = validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id).unwrap_err();
+        assert_eq!(e, ItineraryError::InvalidData);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_itinerary_inconsistent_vertipads() -> Result<(), ItineraryError> {
+        let mut vertipad_ids = HashSet::<String>::new();
+        let mut aircraft_id = String::new();
+
+        let vehicle_id = uuid::Uuid::new_v4();
+        let flight_plans = vec![
+            FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: Uuid::new_v4().to_string(),
+                origin_timeslot_start: Utc::now() + Duration::minutes(10),
+                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: Uuid::new_v4().to_string(),
+                target_timeslot_start: Utc::now() + Duration::minutes(30),
+                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                vehicle_id: vehicle_id.clone().to_string(),
+            },
+            FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: Uuid::new_v4().to_string(),
+                origin_timeslot_start: Utc::now() + Duration::minutes(10),
+                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: Uuid::new_v4().to_string(),
+                target_timeslot_start: Utc::now() + Duration::minutes(30),
+                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                vehicle_id: vehicle_id.clone().to_string(),
+            },
+        ];
+
+        let e = validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id).unwrap_err();
+        assert_eq!(e, ItineraryError::InvalidData);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_itinerary_invalid_times() -> Result<(), ItineraryError> {
+        let mut vertipad_ids = HashSet::<String>::new();
+        let mut aircraft_id = String::new();
+
+        let vehicle_id = uuid::Uuid::new_v4();
+        let vertipad_1 = Uuid::new_v4().to_string();
+        let vertipad_2 = Uuid::new_v4().to_string();
+
+        let flight_plans = vec![
+            FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: vertipad_1.clone(),
+                origin_timeslot_start: Utc::now() + Duration::minutes(10),
+                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: vertipad_2.clone(),
+                target_timeslot_start: Utc::now() + Duration::minutes(30),
+                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                vehicle_id: vehicle_id.clone().to_string(),
+            },
+            FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: vertipad_2.clone(),
+                origin_timeslot_start: Utc::now() + Duration::minutes(10),
+                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: Uuid::new_v4().to_string(),
+                target_timeslot_start: Utc::now() + Duration::minutes(40),
+                target_timeslot_end: Utc::now() + Duration::minutes(41),
+                vehicle_id: vehicle_id.clone().to_string(),
+            },
+        ];
+
+        let e = validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id).unwrap_err();
+        assert_eq!(e, ItineraryError::InvalidData);
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_itinerary_updated_aircraft_and_vertipads() -> Result<(), ItineraryError> {
+        let mut vertipad_ids = HashSet::<String>::new();
+        let mut aircraft_id = String::new();
+
+        let vehicle_id = uuid::Uuid::new_v4();
+        let vertipad_1 = Uuid::new_v4().to_string();
+        let vertipad_2 = Uuid::new_v4().to_string();
+
+        let flight_plans = vec![
+            FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: vertipad_1.clone(),
+                origin_timeslot_start: Utc::now() + Duration::minutes(10),
+                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: vertipad_2.clone(),
+                target_timeslot_start: Utc::now() + Duration::minutes(30),
+                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                vehicle_id: vehicle_id.clone().to_string(),
+            },
+            FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: vertipad_2.clone(),
+                origin_timeslot_start: Utc::now() + Duration::minutes(31),
+                origin_timeslot_end: Utc::now() + Duration::minutes(32),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: Uuid::new_v4().to_string(),
+                target_timeslot_start: Utc::now() + Duration::minutes(40),
+                target_timeslot_end: Utc::now() + Duration::minutes(41),
+                vehicle_id: vehicle_id.clone().to_string(),
+            },
+        ];
+
+        validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id)?;
+        assert_eq!(vehicle_id.to_string(), aircraft_id);
+
+        assert!(vertipad_ids.contains(&flight_plans[0].origin_vertipad_id));
+        assert!(vertipad_ids.contains(&flight_plans[0].target_vertipad_id));
+        assert!(vertipad_ids.contains(&flight_plans[1].origin_vertipad_id));
+        assert!(vertipad_ids.contains(&flight_plans[1].target_vertipad_id));
+
+        Ok(())
+    }
 }

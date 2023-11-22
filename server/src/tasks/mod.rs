@@ -80,7 +80,7 @@ impl ToRedisArgs for Task {
 }
 
 /// Errors that can occur when processing a task
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum TaskError {
     /// Task id was not found
     NotFound,
@@ -90,6 +90,9 @@ pub enum TaskError {
 
     /// Task was already processed
     AlreadyProcessed,
+
+    /// Invalid metadata provided,
+    InvalidMetadata,
 
     /// Invalid data provided
     InvalidData,
@@ -104,6 +107,7 @@ impl Display for TaskError {
             TaskError::NotFound => write!(f, "Task not found."),
             TaskError::Internal => write!(f, "Internal error."),
             TaskError::AlreadyProcessed => write!(f, "Task already processed."),
+            TaskError::InvalidMetadata => write!(f, "Invalid metadata."),
             TaskError::InvalidData => write!(f, "Invalid data."),
             TaskError::ScheduleConflict => write!(f, "Schedule conflict."),
         }

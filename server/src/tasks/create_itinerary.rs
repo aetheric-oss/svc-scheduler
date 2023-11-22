@@ -3,7 +3,8 @@ use crate::router::flight_plan::{get_sorted_flight_plans, FlightPlanSchedule};
 use crate::router::schedule::Timeslot;
 use crate::router::vehicle::{get_aircraft, get_aircraft_availabilities};
 use crate::router::vertiport::get_timeslot_pairs;
-use crate::tasks::{Task, TaskBody, TaskError};
+use crate::tasks::{Task, TaskAction, TaskBody, TaskError};
+use num_traits::FromPrimitive;
 use std::collections::HashSet;
 use svc_storage_client_grpc::link_service::Client as LinkClient;
 use svc_storage_client_grpc::prelude::{itinerary, IdList};
@@ -89,8 +90,16 @@ async fn register_flight_plans(
 
 /// Creates an itinerary given a list of flight plans, if valid
 pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
+    let Some(TaskAction::CreateItinerary) = FromPrimitive::from_i32(task.metadata.action) else {
+        tasks_error!(
+            "(create_itinerary) Invalid task action: {}",
+            task.metadata.action
+        );
+        return Err(TaskError::InvalidMetadata);
+    };
+
     let TaskBody::CreateItinerary(ref proposed_flight_plans) = task.body else {
-        tasks_error!("(create_itinerary) Invalid task details.");
+        tasks_error!("(create_itinerary) Invalid task body: {:?}", task.body);
         return Err(TaskError::InvalidData);
     };
 
@@ -229,4 +238,81 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     // If we've reached this point, the itinerary is valid
     // Register it with svc-storage
     register_flight_plans(proposed_flight_plans, clients).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cfg_if::cfg_if;
+
+    cfg_if! {
+        if #[cfg(feature = "stub_client")] {
+            use crate::router::flight_plan::FlightPlanSchedule;
+            use chrono::{Duration, Utc};
+        }
+    }
+
+    use crate::tasks::{TaskAction, TaskBody, TaskMetadata};
+    use uuid::Uuid;
+
+    type TaskResult = Result<(), TaskError>;
+
+    #[tokio::test]
+    async fn ut_create_itinerary_invalid_task_body() -> TaskResult {
+        let mut task = Task {
+            metadata: TaskMetadata {
+                action: TaskAction::CreateItinerary as i32,
+                ..Default::default()
+            },
+            body: TaskBody::CancelItinerary(Uuid::new_v4()),
+        };
+
+        let e = create_itinerary(&mut task).await.unwrap_err();
+        assert_eq!(e, TaskError::InvalidData);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn ut_create_itinerary_invalid_metadata() -> TaskResult {
+        let mut task = Task {
+            metadata: TaskMetadata {
+                action: TaskAction::CancelItinerary as i32,
+                ..Default::default()
+            },
+            body: TaskBody::CreateItinerary(vec![]),
+        };
+
+        let e = create_itinerary(&mut task).await.unwrap_err();
+        assert_eq!(e, TaskError::InvalidMetadata);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "stub_client")]
+    async fn ut_create_itinerary_schedule_conflict() -> TaskResult {
+        let mut task = Task {
+            metadata: TaskMetadata {
+                action: TaskAction::CreateItinerary as i32,
+                ..Default::default()
+            },
+            body: TaskBody::CreateItinerary(vec![FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: Uuid::new_v4().to_string(),
+                origin_timeslot_start: Utc::now() + Duration::minutes(10),
+                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: Uuid::new_v4().to_string(),
+                target_timeslot_start: Utc::now() + Duration::minutes(30),
+                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                vehicle_id: Uuid::new_v4().to_string(),
+            }]),
+        };
+
+        let e = create_itinerary(&mut task).await.unwrap_err();
+        assert_eq!(e, TaskError::ScheduleConflict);
+
+        Ok(())
+    }
 }

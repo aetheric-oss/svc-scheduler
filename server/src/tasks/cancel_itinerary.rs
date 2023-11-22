@@ -2,36 +2,42 @@
 
 use crate::grpc::client::get_clients;
 use crate::grpc::server::grpc_server::TaskStatus;
-use crate::tasks::{Task, TaskBody, TaskError};
+use crate::tasks::{Task, TaskAction, TaskBody, TaskError};
+use num_traits::FromPrimitive;
 use svc_storage_client_grpc::prelude::Id as StorageId;
 use svc_storage_client_grpc::prelude::*;
 
 /// Cancels an itinerary
 pub async fn cancel_itinerary(task: &mut Task) -> Result<(), TaskError> {
+    let Some(TaskAction::CancelItinerary) = FromPrimitive::from_i32(task.metadata.action) else {
+        tasks_error!(
+            "(cancel_itinerary) Invalid task action: {}",
+            task.metadata.action
+        );
+        return Err(TaskError::InvalidMetadata);
+    };
+
     let TaskBody::CancelItinerary(itinerary_id) = &task.body else {
-        tasks_error!("(cancel_itinerary) Invalid task details.");
+        tasks_error!("(cancel_itinerary) Invalid task body: {:?}", task.body);
         return Err(TaskError::InvalidData);
     };
 
     tasks_info!("(cancel_itinerary) for id {}.", &itinerary_id);
 
     let clients = get_clients().await;
-    let filter =
-        AdvancedSearchFilter::search_equals("itinerary_id".to_string(), itinerary_id.to_string());
-    let mut itinerary = match clients.storage.itinerary.search(filter).await {
+    let itinerary = match clients
+        .storage
+        .itinerary
+        .get_by_id(Id {
+            id: itinerary_id.to_string(),
+        })
+        .await
+    {
         Ok(i) => i.into_inner(),
         Err(e) => {
             tasks_warn!("(cancel_itinerary) Could not find itinerary with ID {itinerary_id}: {e}",);
-            return Err(TaskError::Internal);
+            return Err(TaskError::InvalidData);
         }
-    };
-
-    let Some(itinerary) = itinerary.list.pop() else {
-        tasks_warn!(
-            "(cancel_itinerary) Could not find itinerary with ID: {}",
-            itinerary_id
-        );
-        return Err(TaskError::NotFound);
     };
 
     let Some(data) = itinerary.data else {
@@ -64,9 +70,9 @@ pub async fn cancel_itinerary(task: &mut Task) -> Result<(), TaskError> {
     //
     let update_object = itinerary::UpdateObject {
         id: itinerary_id.to_string(),
-        data: Option::from(itinerary::Data {
-            user_id: "".to_string(), // will be masked
+        data: Some(itinerary::Data {
             status: itinerary::ItineraryStatus::Cancelled as i32,
+            ..data.clone()
         }),
         mask: Some(FieldMask {
             paths: vec!["status".to_string()],
@@ -167,4 +173,62 @@ pub async fn cancel_itinerary(task: &mut Task) -> Result<(), TaskError> {
     // task.body.status_rationale = TaskStatusRationale::ClientCancelled;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tasks::{TaskAction, TaskBody, TaskMetadata};
+    use uuid::Uuid;
+
+    type TaskResult = Result<(), TaskError>;
+
+    #[tokio::test]
+    async fn ut_cancel_itinerary_invalid_task_body() -> TaskResult {
+        let mut task = Task {
+            metadata: TaskMetadata {
+                action: TaskAction::CancelItinerary as i32,
+                ..Default::default()
+            },
+            body: TaskBody::CreateItinerary(vec![]),
+        };
+
+        let e = cancel_itinerary(&mut task).await.unwrap_err();
+        assert_eq!(e, TaskError::InvalidData);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn ut_cancel_itinerary_invalid_metadata() -> TaskResult {
+        let mut task = Task {
+            metadata: TaskMetadata {
+                action: TaskAction::CreateItinerary as i32,
+                ..Default::default()
+            },
+            body: TaskBody::CancelItinerary(Uuid::new_v4()),
+        };
+
+        let e = cancel_itinerary(&mut task).await.unwrap_err();
+        assert_eq!(e, TaskError::InvalidMetadata);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "stub_client")]
+    async fn ut_cancel_itinerary_invalid_itinerary_id() -> TaskResult {
+        let mut task = Task {
+            metadata: TaskMetadata {
+                action: TaskAction::CancelItinerary as i32,
+                ..Default::default()
+            },
+            body: TaskBody::CancelItinerary(uuid::Uuid::new_v4()),
+        };
+
+        let e = cancel_itinerary(&mut task).await.unwrap_err();
+        assert_eq!(e, TaskError::InvalidData);
+
+        Ok(())
+    }
 }

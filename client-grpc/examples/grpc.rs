@@ -148,9 +148,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // query_itinerary endpoint
     //
-    // let Some(mut itineraries) = query_itinerary_example(&client).await else {
-    //     panic!("(main) Example failed; query itinerary failed.");
-    // };
+    let Some(_) = query_itinerary_example(&client).await else {
+        panic!("(main) Example failed; query itinerary failed.");
+    };
 
     //
     // create_itinerary endpoint
@@ -190,12 +190,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         panic!("(main) Example failed; cancel itinerary failed.");
     };
 
-    // //
-    // // Cancel Task Endpoint
-    // //
-    // let Some(_) = cancel_task_example(&client, task_id).await else {
-    //     panic!("(main) Example failed; cancel task failed.");
-    // };
+    //
+    // Cancel Task Endpoint
+    //
+    let Some(_) = cancel_task_example(&client, task_id).await else {
+        panic!("(main) Example failed; cancel task failed.");
+    };
 
     Ok(())
 }
