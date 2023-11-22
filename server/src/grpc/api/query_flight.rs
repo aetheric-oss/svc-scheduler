@@ -1,20 +1,18 @@
 //! This module contains the gRPC query_flight endpoint implementation.
 
 use chrono::{DateTime, Duration, Utc};
-use std::collections::BinaryHeap;
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use tonic::{Request, Response, Status};
+use tonic::{Response, Status};
 use uuid::Uuid;
 
 use crate::grpc::client::get_clients;
 use crate::grpc::server::grpc_server::{Itinerary, QueryFlightRequest, QueryFlightResponse};
 
 use crate::router::flight_plan::*;
-use crate::router::itinerary::get_itineraries;
+use crate::router::itinerary::calculate_itineraries;
 use crate::router::schedule::*;
 use crate::router::vehicle::*;
 use crate::router::vertiport::*;
-use svc_storage_client_grpc::prelude::flight_plan::Object as FlightPlanObject;
 
 /// Time to block vertiport for cargo loading and takeoff
 pub const LOADING_AND_TAKEOFF_TIME_SECONDS: i64 = 600;
@@ -26,7 +24,7 @@ pub const MAX_FLIGHT_QUERY_WINDOW_MINUTES: i64 = 360; // +/- 3 hours (6 total)
 /// Sanitized version of the gRPC query
 #[derive(Debug)]
 struct FlightQuery {
-    departure_vertiport_id: String,
+    origin_vertiport_id: String,
     arrival_vertiport_id: String,
     earliest_departure_time: DateTime<Utc>,
     latest_arrival_time: DateTime<Utc>,
@@ -58,25 +56,25 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
     fn try_from(request: QueryFlightRequest) -> Result<Self, Self::Error> {
         const ERROR_PREFIX: &str = "(try_from)";
 
-        let departure_vertiport_id = match Uuid::parse_str(&request.vertiport_depart_id) {
+        let origin_vertiport_id = match Uuid::parse_str(&request.origin_vertiport_id) {
             Ok(id) => id.to_string(),
             _ => {
                 grpc_error!(
                     "{} Invalid departure vertiport ID: {}",
                     ERROR_PREFIX,
-                    request.vertiport_depart_id
+                    request.origin_vertiport_id
                 );
                 return Err(FlightQueryError::InvalidVertiportId);
             }
         };
 
-        let arrival_vertiport_id = match Uuid::parse_str(&request.vertiport_arrive_id) {
+        let arrival_vertiport_id = match Uuid::parse_str(&request.target_vertiport_id) {
             Ok(id) => id.to_string(),
             _ => {
                 grpc_error!(
                     "{} Invalid departure vertiport ID: {}",
                     ERROR_PREFIX,
-                    request.vertiport_arrive_id
+                    request.target_vertiport_id
                 );
                 return Err(FlightQueryError::InvalidVertiportId);
             }
@@ -118,7 +116,7 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
         }
 
         Ok(FlightQuery {
-            departure_vertiport_id,
+            origin_vertiport_id,
             arrival_vertiport_id,
             latest_arrival_time,
             earliest_departure_time,
@@ -132,9 +130,8 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
 /// Finds the first possible flight for customer location, flight type and requested time.
 /// TODO(R5): Return a stream of messages for live updates on query progress
 pub async fn query_flight(
-    request: Request<QueryFlightRequest>,
+    request: QueryFlightRequest,
 ) -> Result<Response<QueryFlightResponse>, Status> {
-    let request = request.into_inner();
     let request = match FlightQuery::try_from(request) {
         Ok(request) => request,
         Err(e) => {
@@ -144,14 +141,17 @@ pub async fn query_flight(
         }
     };
 
+    let timeslot = Timeslot {
+        time_start: request.earliest_departure_time,
+        time_end: request.latest_arrival_time,
+    };
+
     let clients = get_clients().await;
 
-    // TODO(R4): Don't get flight plans until we have a vertipad timeslot match - may not need to
-    //   get existing flight plans with the vertipad_timeslot call planned for R4
     // Get all flight plans from this time to latest departure time (including partially fitting flight plans)
     // - this assumes that all landed flights have updated vehicle.last_vertiport_id (otherwise we would need to look in to the past)
-    let mut existing_flight_plans: BinaryHeap<FlightPlanSchedule> =
-        match get_sorted_flight_plans(&request.latest_arrival_time, clients).await {
+    let existing_flight_plans: Vec<FlightPlanSchedule> =
+        match get_sorted_flight_plans(clients, &request.latest_arrival_time).await {
             Ok(plans) => plans,
             Err(e) => {
                 let error_str = "Could not get existing flight plans.";
@@ -160,65 +160,24 @@ pub async fn query_flight(
             }
         };
 
-    // Add draft flight plans to the "existing" flight plans
-    {
-        let Ok(draft_flight_plans) = super::unconfirmed_flight_plans().lock() else {
-            let error_str = "Could not get draft flight plans.";
-            grpc_error!("(query_flight) {}", error_str);
-            return Err(Status::internal(error_str));
-        };
-
-        draft_flight_plans
-            .iter()
-            .filter_map(|(id, fp)| {
-                let object = FlightPlanObject {
-                    id: id.clone(),
-                    data: Some(fp.clone()),
-                };
-
-                match FlightPlanSchedule::try_from(object) {
-                    Ok(mut schedule) => {
-                        schedule.draft = true;
-                        Some(schedule)
-                    }
-                    Err(e) => {
-                        grpc_error!(
-                            "(query_flight) Could not parse draft flight plan with id {}: {}",
-                            &id,
-                            e
-                        );
-                        None
-                    }
-                }
-            })
-            .collect::<Vec<FlightPlanSchedule>>()
-            .into_iter()
-            .for_each(|fp| existing_flight_plans.push(fp));
-    }
-
-    let existing_flight_plans = existing_flight_plans.into_sorted_vec();
-
-    //
-    // TODO(R4): Determine if there's an open space for cargo on an existing flight plan
-    //
-
     grpc_debug!(
         "(query_flight) found existing flight plans: {:?}",
         existing_flight_plans
     );
 
-    let timeslot = Timeslot {
-        time_start: request.earliest_departure_time,
-        time_end: request.latest_arrival_time,
-    };
+    //
+    // TODO(R4): Determine if there's an open space for cargo on an existing flight plan
+    //
 
     //
     // Get available timeslots for departure vertiport that are large enough to
     //  fit the required loading and takeoff time.
     //
     let Ok(timeslot_pairs) = get_timeslot_pairs(
-        &request.departure_vertiport_id,
+        &request.origin_vertiport_id,
+        None,
         &request.arrival_vertiport_id,
+        None,
         &request.required_loading_time,
         &request.required_unloading_time,
         &timeslot,
@@ -241,20 +200,20 @@ pub async fn query_flight(
     //
     // Get all aircraft availabilities
     //
-    let Ok(aircraft) = get_aircraft(clients).await else {
+    let Ok(aircraft) = get_aircraft(clients, None).await else {
         let error_str = "Could not get aircraft.";
         grpc_error!("(query_flight) {}", error_str);
         return Err(Status::internal(error_str));
     };
 
-    let aircraft_gaps = get_aircraft_gaps(&existing_flight_plans, &aircraft, &timeslot);
+    let aircraft_gaps = get_aircraft_availabilities(&existing_flight_plans, &aircraft, &timeslot);
 
     //
     // See which aircraft are available to fly the route,
     //  including deadhead flights
     //
     grpc_debug!("(query_flight) timeslot pairs count {:?}", timeslot_pairs);
-    let Ok(itineraries) = get_itineraries(
+    let Ok(itineraries) = calculate_itineraries(
         &request.required_loading_time,
         &request.required_unloading_time,
         &timeslot_pairs,
@@ -269,50 +228,12 @@ pub async fn query_flight(
     };
     grpc_debug!("(query_flight) itineraries count {:?}", itineraries);
 
-    //
-    // Create draft itinerary and flight plans (in memory)
-    //
-    let mut response = QueryFlightResponse {
-        itineraries: vec![],
-    };
+    let itineraries = itineraries
+        .into_iter()
+        .map(|flight_plans| Itinerary { flight_plans })
+        .collect::<Vec<Itinerary>>();
 
-    let Ok(mut unconfirmed_flight_plans) = super::unconfirmed_flight_plans().lock() else {
-        let error_str = "Could not get draft flight plans.";
-        grpc_error!("(query_flight) {}", error_str);
-        return Err(Status::internal(error_str));
-    };
-
-    let Ok(mut unconfirmed_itineraries) = super::unconfirmed_itineraries().lock() else {
-        let error_str = "Could not get draft itineraries.";
-        grpc_error!("(query_flight) {}", error_str);
-        return Err(Status::internal(error_str));
-    };
-
-    for itinerary in itineraries.into_iter() {
-        let mut flight_plans = vec![];
-        for fp in itinerary {
-            let flight_plan_id = Uuid::new_v4().to_string();
-            flight_plans.push(FlightPlanObject {
-                id: flight_plan_id.clone(),
-                data: Some(fp.clone()),
-            });
-
-            unconfirmed_flight_plans.insert(flight_plan_id.clone(), fp.clone());
-        }
-
-        let itinerary_id = Uuid::new_v4().to_string();
-        unconfirmed_itineraries.insert(
-            itinerary_id.clone(),
-            flight_plans.iter().map(|fp| fp.id.clone()).collect(),
-        );
-
-        super::cancel_itinerary_after_timeout(itinerary_id.clone());
-        response.itineraries.push(Itinerary {
-            id: itinerary_id,
-            flight_plans,
-        });
-    }
-
+    let response = QueryFlightResponse { itineraries };
     grpc_info!(
         "(query_flight) query_flight returning: {} flight plans.",
         &response.itineraries.len()
@@ -324,10 +245,10 @@ pub async fn query_flight(
 #[cfg(test)]
 #[cfg(feature = "stub_backends")]
 mod tests {
-    use crate::test_util::{ensure_storage_mock_data, get_vertiports_from_storage};
-
     use super::*;
+    use crate::test_util::{ensure_storage_mock_data, get_vertiports_from_storage};
     use chrono::{TimeZone, Utc};
+    use svc_storage_client_grpc::prelude::flight_plan::FlightPriority;
 
     #[tokio::test]
     async fn test_get_sorted_flight_plans() {
@@ -345,7 +266,7 @@ mod tests {
             panic!();
         };
 
-        let res = get_sorted_flight_plans(&date, &clients).await;
+        let res = get_sorted_flight_plans(&clients, &date).await;
         ut_debug!(
             "(test_get_sorted_flight_plans) flight_plans returned: {:#?}",
             res
@@ -367,10 +288,11 @@ mod tests {
             is_cargo: true,
             persons: None,
             weight_grams: Some(10),
+            priority: FlightPriority::Low as i32,
             earliest_departure_time: None,
             latest_arrival_time: None,
-            vertiport_depart_id: vertiports[0].id.clone(),
-            vertiport_arrive_id: vertiports[1].id.clone(),
+            origin_vertiport_id: vertiports[0].id.clone(),
+            target_vertiport_id: vertiports[1].id.clone(),
         };
 
         let e = FlightQuery::try_from(query.clone()).unwrap_err();
@@ -401,16 +323,16 @@ mod tests {
         FlightQuery::try_from(query.clone()).unwrap();
 
         // Invalid vertiport IDs
-        query.vertiport_depart_id = "invalid".to_string();
+        query.origin_vertiport_id = "invalid".to_string();
         let e = FlightQuery::try_from(query.clone()).unwrap_err();
         assert_eq!(e, FlightQueryError::InvalidVertiportId);
 
-        query.vertiport_depart_id = Uuid::new_v4().to_string();
-        query.vertiport_arrive_id = "invalid".to_string();
+        query.origin_vertiport_id = Uuid::new_v4().to_string();
+        query.target_vertiport_id = "invalid".to_string();
         let e = FlightQuery::try_from(query.clone()).unwrap_err();
         assert_eq!(e, FlightQueryError::InvalidVertiportId);
 
-        query.vertiport_arrive_id = Uuid::new_v4().to_string();
+        query.target_vertiport_id = Uuid::new_v4().to_string();
         FlightQuery::try_from(query.clone()).unwrap();
 
         ut_info!("(test_query_invalid) success");

@@ -37,25 +37,36 @@ impl std::fmt::Display for VertiportError {
     }
 }
 
+pub enum GetVertipadsArg {
+    VertiportId(String),
+    VertipadIds(Vec<String>),
+}
+
 /// Gets all vertipads for a vertiport
 pub async fn get_vertipads(
-    vertiport_id: &String,
     clients: &GrpcClients,
+    arg: GetVertipadsArg,
 ) -> Result<Vec<String>, VertiportError> {
-    let filter =
-        AdvancedSearchFilter::search_equals("vertiport_id".to_string(), vertiport_id.to_string())
-            .and_is_null("deleted_at".to_owned())
-            .and_equals("enabled".to_string(), "1".to_string());
+    let mut filter = AdvancedSearchFilter::search_is_null("deleted_at".to_owned())
+        .and_equals("enabled".to_string(), "1".to_string());
+
+    match arg {
+        GetVertipadsArg::VertiportId(vertiport_id) => {
+            filter = filter.and_equals("vertiport_id".to_string(), vertiport_id);
+        }
+        GetVertipadsArg::VertipadIds(ids) => {
+            filter = filter.and_in("vertipad_id".to_string(), ids);
+        }
+    }
+
     router_info!("(get_vertipads) proposed filter: {:?}", filter.clone());
 
     let filter = AdvancedSearchFilter::default();
     let Ok(response) = clients.storage.vertipad.search(filter).await else {
-        let error_str = format!("Failed to get vertipads for vertiport {}.", vertiport_id);
-        router_error!("(get_vertipads) {}", error_str);
+        router_error!("(get_vertipads) Failed to get vertipads.");
         return Err(VertiportError::NoVertipads);
     };
 
-    router_info!("(get_vertipads) vertiport: {:?}", vertiport_id);
     router_info!("(get_vertipads) response: {:?}", response);
 
     Ok(response
@@ -68,10 +79,6 @@ pub async fn get_vertipads(
                 return None;
             };
 
-            if data.vertiport_id != *vertiport_id {
-                return None;
-            }
-
             if !data.enabled {
                 return None;
             }
@@ -83,9 +90,12 @@ pub async fn get_vertipads(
 
 /// Get pairs of timeslots where a flight can leave within the origin timeslot
 ///  and land within the target timeslot
+#[allow(clippy::too_many_arguments)]
 pub async fn get_timeslot_pairs(
-    origin_vertiport_id: &String,
-    target_vertiport_id: &String,
+    origin_vertiport_id: &str,
+    origin_vertipad_id: Option<&str>,
+    target_vertiport_id: &str,
+    target_vertipad_id: Option<&str>,
     origin_time_block: &Duration,
     target_time_block: &Duration,
     timeslot: &Timeslot,
@@ -94,6 +104,7 @@ pub async fn get_timeslot_pairs(
 ) -> Result<Vec<TimeslotPair>, VertiportError> {
     let origin_timeslots = get_available_timeslots(
         origin_vertiport_id,
+        origin_vertipad_id,
         existing_flight_plans,
         timeslot,
         origin_time_block,
@@ -103,6 +114,7 @@ pub async fn get_timeslot_pairs(
 
     let target_timeslots = get_available_timeslots(
         target_vertiport_id,
+        target_vertipad_id,
         existing_flight_plans,
         timeslot,
         target_time_block,
@@ -126,7 +138,8 @@ pub async fn get_timeslot_pairs(
 ///  return a list of available timeslots for each vertipad, so we don't
 ///  need to rebuild each pad's schedule from flight plans each time
 async fn get_available_timeslots(
-    vertiport_id: &String,
+    vertiport_id: &str,
+    vertipad_id: Option<&str>,
     existing_flight_plans: &[FlightPlanSchedule],
     timeslot: &Timeslot,
     minimum_duration: &Duration,
@@ -145,10 +158,14 @@ async fn get_available_timeslots(
     // TODO(R4): This is currently hardcoded, get the duration of the timeslot
     // try min and max both the necessary landing time
     let max_duration = Duration::minutes(MAX_DURATION_TIMESLOT_MINUTES);
+    let filter = match vertipad_id {
+        Some(id) => GetVertipadsArg::VertipadIds(vec![id.to_string()]),
+        None => GetVertipadsArg::VertiportId(vertiport_id.to_string()),
+    };
 
     // Prepare a list of slots for each vertipad
     // For now, each vertipad shares the same schedule as the vertiport itself
-    let mut timeslots = get_vertipads(vertiport_id, clients)
+    let mut timeslots = get_vertipads(clients, filter)
         .await?
         .into_iter()
         .map(|id| (id, base_timeslots.clone()))
@@ -193,14 +210,14 @@ async fn get_available_timeslots(
 
 /// Gets vertiport schedule from storage and converts it to a Calendar object.
 async fn get_vertiport_calendar(
-    vertiport_id: &String,
+    vertiport_id: &str,
     clients: &GrpcClients,
 ) -> Result<Calendar, VertiportError> {
     let vertiport_object = match clients
         .storage
         .vertiport
         .get_by_id(Id {
-            id: vertiport_id.clone(),
+            id: vertiport_id.to_string(),
         })
         .await
     {
@@ -244,7 +261,7 @@ async fn get_vertiport_calendar(
 /// TODO(R4): Remove in favor of read from storage vertipad_timeslot table
 ///  where the duration of the timeslot is stored
 fn build_timeslots_from_flight_plans(
-    vertiport_id: &String,
+    vertiport_id: &str,
     flight_plans: &[FlightPlanSchedule],
 ) -> Vec<(String, Timeslot)> {
     // TODO(R4): This is currently hardcoded, get the duration of the timeslot
@@ -298,8 +315,8 @@ pub struct TimeslotPair {
 /// Attempts to find a pairing of origin and target pad
 ///  timeslots wherein a flight could occur.
 pub async fn get_vertipad_timeslot_pairs(
-    origin_vertiport_id: &String,
-    target_vertiport_id: &String,
+    origin_vertiport_id: &str,
+    target_vertiport_id: &str,
     mut origin_vertipads: HashMap<String, Vec<Timeslot>>,
     mut target_vertipads: HashMap<String, Vec<Timeslot>>,
     clients: &GrpcClients,
@@ -307,8 +324,8 @@ pub async fn get_vertipad_timeslot_pairs(
     let mut pairs = vec![];
 
     let mut best_path_request = BestPathRequest {
-        node_start_id: origin_vertiport_id.clone(),
-        node_uuid_end: target_vertiport_id.clone(),
+        node_start_id: origin_vertiport_id.to_string(),
+        node_uuid_end: target_vertiport_id.to_string(),
         start_type: NodeType::Vertiport as i32,
         time_start: None,
         time_end: None,
@@ -412,10 +429,10 @@ pub async fn get_vertipad_timeslot_pairs(
                     };
 
                     pairs.push(TimeslotPair {
-                        origin_port_id: origin_vertiport_id.clone(),
+                        origin_port_id: origin_vertiport_id.to_string(),
                         origin_pad_id: origin_pad_id.clone(),
                         origin_timeslot,
-                        target_port_id: target_vertiport_id.clone(),
+                        target_port_id: target_vertiport_id.to_string(),
                         target_pad_id: target_pad_id.clone(),
                         target_timeslot,
                         path,

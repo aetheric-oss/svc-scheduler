@@ -9,9 +9,8 @@ pub mod test_util;
 pub mod config;
 pub mod grpc;
 mod router;
-
+pub mod tasks;
 pub use crate::config::Config;
-
 /// Initialized log4rs handle
 pub static LOG_HANDLE: OnceCell<Option<log4rs::Handle>> = OnceCell::const_new();
 pub(crate) async fn get_log_handle() -> Option<log4rs::Handle> {

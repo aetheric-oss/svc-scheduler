@@ -5,8 +5,10 @@ import "google/protobuf/timestamp.proto";
 //Scheduler service
 service RpcService {
     rpc queryFlight (QueryFlightRequest) returns (QueryFlightResponse);
-    rpc confirmItinerary (ConfirmItineraryRequest) returns (ConfirmItineraryResponse);
-    rpc cancelItinerary (Id) returns (CancelItineraryResponse);
+    rpc createItinerary (CreateItineraryRequest) returns (TaskResponse);
+    rpc cancelItinerary (CancelItineraryRequest) returns (TaskResponse);
+    rpc cancelTask(TaskRequest) returns (TaskResponse);
+    rpc getTaskStatus(TaskRequest) returns (TaskResponse);
     rpc isReady (ReadyRequest) returns (ReadyResponse);
 }
 
@@ -22,65 +24,141 @@ message QueryFlightRequest {
     google.protobuf.Timestamp earliestDepartureTime = 4;
     //requested preferred time of arrival - end of the time window in which we search for a flight
     google.protobuf.Timestamp latestArrivalTime = 5;
-    //vertiport_depart_id
-    string vertiport_depart_id = 6;
-    //vertiport_depart_id
-    string vertiport_arrive_id = 7;
+    // departure vertiport ID
+    string origin_vertiport_id = 6;
+    // arrival vertiport ID
+    string target_vertiport_id = 7;
+    // Flight priority (from svc-storage)
+    FlightPriority priority = 8;
 }
 
-// Confirms an itinerary by ID
-message ConfirmItineraryRequest {
-    // The ID of the itinerary being confirmed
-    string id = 1;
-    // The ID of the user confirming the itinerary
-    string user_id = 2;
-}
-
-// This is replaced by the FlightPlanObject from svc_storage
+// This is replaced by the FlightPlanObject from svc-storage
 //  during the build process. See build.rs
 message FlightPlanObject {
+    // This will be replaced automatically during build
     bool arbitrary = 1;
+}
+
+// This is replaced by the FlightPlanData from svc-storage
+//  during the build process. See build.rs
+message FlightPlanData {
+    // This will be replaced automatically during build
+    bool arb = 1;
+}
+
+// This is replaced by FlightPriority from svc-storage
+//  during the build process. See build.rs
+enum FlightPriority {
+    // This will be replaced automatically during build
+    ARBITRARY = 0;
+}
+
+// Create an itinerary by providing possible flight plan data
+message CreateItineraryRequest {
+    // Flight priority (from svc-storage)
+    FlightPriority priority = 1;
+
+    // Flight plans to be considered
+    repeated FlightPlanData flight_plans = 2;
+}
+
+// Cancel an itinerary by ID
+message CancelItineraryRequest {
+    // Priority of the cancellation task
+    FlightPriority priority = 1;
+
+    // Itinerary UUID
+    string itinerary_id = 2;
 }
 
 // Itinerary includes id, flight plan and potential deadhead flights
 message Itinerary {
-    // itinerary id
-    string id = 1;
-    //flight_plan
-    repeated FlightPlanObject flight_plans = 2;
+    // flight_plan
+    repeated FlightPlanData flight_plans = 1;
 }
 
-//QueryFlightResponse
+// QueryFlightResponse
 message QueryFlightResponse {
     //array/vector of itineraries items
     repeated Itinerary itineraries = 1;
 }
 
-//ConfirmItineraryResponse
-message ConfirmItineraryResponse{
-    //id of the itinerary
-    string id = 1;
-    //indicates if confirmation was successful
-    bool confirmed = 2;
-    //time when the flight was confirmed
-    google.protobuf.Timestamp confirmationTime = 3;
-}
-//CancelItineraryResponse
-message CancelItineraryResponse{
-    //id of the itinerary
-    string id = 1;
-    //indicates if cancellation was successful
-    bool cancelled = 2;
-    //time when the flight was cancelled
-    google.protobuf.Timestamp cancellationTime = 3;
-    //reason of cancellation
-    string reason = 4;
+// Task-Related Messages
+message TaskRequest {
+    // Task ID
+    int64 task_id = 1;
 }
 
-// Identification (typically UUID)
-message Id {
-    // The ID of the itinerary or flight plan
-    string id = 1;
+// Response to Task-Related Requests
+message TaskResponse {
+    // Task ID
+    int64 task_id = 1;
+
+    // Task Details
+    TaskMetadata task_metadata = 2;
+}
+
+// Metadata for a Scheduler Task
+message TaskMetadata {
+    // Task status
+    TaskStatus status = 1;
+
+    // Task status rationale
+    optional TaskStatusRationale status_rationale = 2;
+
+    // Task action
+    TaskAction action = 3;
+}
+
+// The status of a scheduler task
+enum TaskStatus {
+    // Queued
+    QUEUED = 0;
+
+    // Complete
+    COMPLETE = 1;
+
+    // Rejected
+    REJECTED = 2;
+
+    // Not Found
+    NOT_FOUND = 3;
+}
+
+// Explanation for a task status
+enum TaskStatusRationale {
+    // Client cancelled
+    CLIENT_CANCELLED = 0;
+
+    // Expired
+    EXPIRED = 1;
+
+    // Schedule conflict
+    SCHEDULE_CONFLICT = 2;
+
+    // Itinerary ID not found
+    ITINERARY_ID_NOT_FOUND = 3;
+
+    // Priority change
+    PRIORITY_CHANGE = 4;
+
+    // Internal Failure
+    INTERNAL = 5;
+
+    // Invalid Action
+    INVALID_ACTION = 6;
+}
+
+// Types of scheduler tasks
+enum TaskAction {
+    // Confirm itinerary
+    CREATE_ITINERARY = 0;
+
+    // Cancel itinerary
+    CANCEL_ITINERARY = 1;
+
+    // Reroute
+    // REROUTE = 2;
 }
 
 // Ready Request

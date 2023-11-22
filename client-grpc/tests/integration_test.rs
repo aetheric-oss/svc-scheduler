@@ -1,23 +1,24 @@
 //! Example for writing an integration test.
 //! More information: https://doc.rust-lang.org/book/testing-rust.html#integration-tests
 
+use chrono::Utc;
 use lib_common::grpc::get_endpoint_from_env;
-use std::time::SystemTime;
 use svc_scheduler_client_grpc::prelude::{scheduler::*, *};
 
 #[tokio::test]
 async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
     let (server_host, server_port) = get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
     let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
-    let sys_time = SystemTime::now();
+    let seconds = Utc::now().timestamp();
     let request = QueryFlightRequest {
         is_cargo: true,
         persons: Some(0),
         weight_grams: Some(5000),
-        earliest_departure_time: Some(sys_time.into()),
+        earliest_departure_time: Some(Timestamp { seconds, nanos: 0 }),
         latest_arrival_time: None,
-        vertiport_depart_id: "123".to_string(),
-        vertiport_arrive_id: "456".to_string(),
+        origin_vertiport_id: uuid::Uuid::new_v4().to_string(),
+        target_vertiport_id: uuid::Uuid::new_v4().to_string(),
+        priority: FlightPriority::Low.into(),
     };
 
     let response = client.query_flight(request).await?;
@@ -30,28 +31,35 @@ async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
 async fn test_cancel_itinerary() -> Result<(), Box<dyn std::error::Error>> {
     let (server_host, server_port) = get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
     let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
-    let request = Id {
-        id: "1234".to_string(),
+    let request = CancelItineraryRequest {
+        priority: FlightPriority::Low.into(),
+        itinerary_id: uuid::Uuid::new_v4().to_string(),
     };
 
-    let response = client.cancel_itinerary(request).await?;
-    //println!("RESPONSE={:?}", response.into_inner());
-    assert_eq!(response.into_inner().cancelled, true);
+    let response = client.cancel_itinerary(request).await?.into_inner();
+    println!("RESPONSE={:?}", response);
+    assert_eq!(
+        response.task_metadata.unwrap().action,
+        TaskAction::CancelItinerary as i32
+    );
     Ok(())
 }
 
 #[tokio::test]
-async fn test_confirm_itinerary() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_create_itinerary() -> Result<(), Box<dyn std::error::Error>> {
     let (server_host, server_port) = get_endpoint_from_env("GRPC_HOST", "GRPC_PORT");
     let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
-    let request = ConfirmItineraryRequest {
-        id: "1234".to_string(),
-        user_id: "".to_string(),
+    let request = CreateItineraryRequest {
+        priority: FlightPriority::Low.into(),
+        flight_plans: vec![],
     };
 
-    let response = client.confirm_itinerary(request).await?;
-    //println!("RESPONSE={:?}", response.into_inner());
-    assert_eq!(response.into_inner().confirmed, true);
+    let response = client.create_itinerary(request).await?.into_inner();
+    println!("RESPONSE={:?}", response);
+    assert_eq!(
+        response.task_metadata.unwrap().action,
+        TaskAction::CreateItinerary as i32
+    );
     Ok(())
 }
 
