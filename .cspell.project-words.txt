@@ -86,3 +86,5 @@ deadpool
 FLUSHALL
 FLUSHDB
 loglevel
+seccomp
+Lcov
