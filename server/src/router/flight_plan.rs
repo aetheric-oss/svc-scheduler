@@ -3,11 +3,11 @@
 use crate::grpc::client::GrpcClients;
 use chrono::{DateTime, Utc};
 use prost_wkt_types::Timestamp;
-use std::collections::BinaryHeap;
+use serde::{Deserialize, Serialize};
 use svc_storage_client_grpc::prelude::*;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Eq)]
+#[derive(Debug, Clone, Eq, Serialize, Deserialize)]
 pub struct FlightPlanSchedule {
     pub origin_vertiport_id: String,
     pub origin_vertipad_id: String,
@@ -18,7 +18,6 @@ pub struct FlightPlanSchedule {
     pub target_timeslot_start: DateTime<Utc>,
     pub target_timeslot_end: DateTime<Utc>,
     pub vehicle_id: String,
-    pub draft: bool,
 }
 
 impl PartialEq for FlightPlanSchedule {
@@ -54,97 +53,96 @@ impl std::fmt::Display for FlightPlanError {
     }
 }
 
-impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
+impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
     type Error = FlightPlanError;
 
-    fn try_from(flight_plan: flight_plan::Object) -> Result<Self, Self::Error> {
-        let Some(data) = flight_plan.data else {
-            router_error!("(try_from) Flight plan [{}] has no data.", flight_plan.id);
-            return Err(FlightPlanError::InvalidData);
-        };
-
+    fn try_from(data: flight_plan::Data) -> Result<Self, Self::Error> {
         //
         // Must have valid origin and target times
         //
         let origin_timeslot_start = match data.origin_timeslot_start {
-            Some(origin_timeslot_start) => origin_timeslot_start.into(),
+            Some(ref origin_timeslot_start) => origin_timeslot_start.clone().into(),
             None => {
                 router_error!(
-                    "(try_from) Flight plan [{}] has no scheduled origin.",
-                    flight_plan.id
+                    "(try_from) Flight plan has no scheduled origin start: {:?}",
+                    data
                 );
                 return Err(FlightPlanError::InvalidData);
             }
         };
         let origin_timeslot_end = match data.origin_timeslot_end {
-            Some(origin_timeslot_end) => origin_timeslot_end.into(),
+            Some(ref origin_timeslot_end) => origin_timeslot_end.clone().into(),
             None => {
                 router_error!(
-                    "(try_from) Flight plan [{}] has no scheduled origin.",
-                    flight_plan.id
+                    "(try_from) Flight plan has no scheduled origin end: {:?}",
+                    data
                 );
                 return Err(FlightPlanError::InvalidData);
             }
         };
 
         let target_timeslot_start = match data.target_timeslot_start {
-            Some(target_timeslot_start) => target_timeslot_start.into(),
+            Some(ref target_timeslot_start) => target_timeslot_start.clone().into(),
             None => {
-                router_error!(
-                    "(try_from) Flight plan [{}] has no scheduled target.",
-                    flight_plan.id
-                );
+                router_error!("(try_from) Flight plan has no scheduled target: {:?}", data);
                 return Err(FlightPlanError::InvalidData);
             }
         };
         let target_timeslot_end = match data.target_timeslot_end {
-            Some(target_timeslot_end) => target_timeslot_end.into(),
+            Some(ref target_timeslot_end) => target_timeslot_end.clone().into(),
             None => {
-                router_error!(
-                    "(try_from) Flight plan [{}] has no scheduled target.",
-                    flight_plan.id
-                );
+                router_error!("(try_from) Flight plan has no scheduled target: {:?}", data);
                 return Err(FlightPlanError::InvalidData);
             }
         };
 
+        if origin_timeslot_start >= target_timeslot_end {
+            router_error!(
+                "(try_from) Flight plan has invalid departure and arrival times: {:?}",
+                data
+            );
+            return Err(FlightPlanError::InvalidData);
+        }
+
         //
         // Must have valid origin and target vertiports in UUID format
         //
-        let Some(origin_vertiport_id) = data.origin_vertiport_id else {
+        let Some(ref origin_vertiport_id) = data.origin_vertiport_id else {
             router_error!(
-                "(try_from) Flight plan [{}] has no origin vertiport.",
-                flight_plan.id
+                "(try_from) Flight plan has no origin vertiport: [{:?}]",
+                data
             );
+
             return Err(FlightPlanError::InvalidData);
         };
 
-        let origin_vertiport_id = match Uuid::parse_str(&origin_vertiport_id) {
+        let origin_vertiport_id = match Uuid::parse_str(origin_vertiport_id) {
             Ok(id) => id.to_string(),
             Err(e) => {
                 router_error!(
-                    "(try_from) Flight plan [{}] has invalid origin vertiport id: {}",
-                    flight_plan.id,
+                    "(try_from) Flight plan has invalid origin vertiport ({}): [{:?}]; {}",
+                    origin_vertiport_id,
+                    data,
                     e
                 );
                 return Err(FlightPlanError::InvalidData);
             }
         };
 
-        let Some(target_vertiport_id) = data.target_vertiport_id else {
+        let Some(ref target_vertiport_id) = data.target_vertiport_id else {
             router_error!(
-                "(try_from) Flight plan [{}] has no target vertiport.",
-                flight_plan.id
+                "(try_from) Flight plan has no target vertiport: [{:?}]",
+                data
             );
             return Err(FlightPlanError::InvalidData);
         };
 
-        let target_vertiport_id = match Uuid::parse_str(&target_vertiport_id) {
+        let target_vertiport_id = match Uuid::parse_str(target_vertiport_id) {
             Ok(id) => id.to_string(),
             Err(e) => {
                 router_error!(
-                    "(try_from) Flight plan [{}] has invalid target vertiport id: {}",
-                    flight_plan.id,
+                    "(try_from) Flight plan has invalid target vertiport id: {}; {:?}",
+                    target_vertiport_id,
                     e
                 );
                 return Err(FlightPlanError::InvalidData);
@@ -156,8 +154,8 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
         //
         let Ok(vehicle_id) = Uuid::parse_str(&data.vehicle_id) else {
             router_error!(
-                "(try_from) Flight plan [{}] has no vehicle.",
-                flight_plan.id
+                "(try_from) Flight plan has invalid vehicle id ({})",
+                data.vehicle_id
             );
             return Err(FlightPlanError::InvalidData);
         };
@@ -172,17 +170,47 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
             target_timeslot_start,
             target_timeslot_end,
             vehicle_id: vehicle_id.to_string(),
-            draft: false,
         })
     }
 }
 
-/// Gets all flight plans from storage in sorted order from
-///  earliest to latest target time
+impl From<FlightPlanSchedule> for flight_plan::Data {
+    fn from(val: FlightPlanSchedule) -> Self {
+        flight_plan::Data {
+            origin_vertiport_id: Some(val.origin_vertiport_id),
+            origin_vertipad_id: val.origin_vertipad_id,
+            origin_timeslot_start: Some(val.origin_timeslot_start.into()),
+            origin_timeslot_end: Some(val.origin_timeslot_end.into()),
+            target_vertiport_id: Some(val.target_vertiport_id),
+            target_vertipad_id: val.target_vertipad_id,
+            target_timeslot_start: Some(val.target_timeslot_start.into()),
+            target_timeslot_end: Some(val.target_timeslot_end.into()),
+            vehicle_id: val.vehicle_id,
+            ..Default::default()
+        }
+    }
+}
+
+impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
+    type Error = FlightPlanError;
+
+    fn try_from(flight_plan: flight_plan::Object) -> Result<Self, Self::Error> {
+        let Some(data) = flight_plan.data else {
+            router_error!("(try_from) Flight plan [{}] has no data.", flight_plan.id);
+            return Err(FlightPlanError::InvalidData);
+        };
+
+        Self::try_from(data)
+    }
+}
+
+/// Gets flight plans from storage in sorted order from
+///  earliest to latest arrival time, for the provided aircraft ids
+///  or for all aircraft if none are specified.
 pub async fn get_sorted_flight_plans(
-    target_timeslot_end: &DateTime<Utc>,
     clients: &GrpcClients,
-) -> Result<BinaryHeap<FlightPlanSchedule>, FlightPlanError> {
+    target_timeslot_end: &DateTime<Utc>,
+) -> Result<Vec<FlightPlanSchedule>, FlightPlanError> {
     let target_timeslot_end: Timestamp = (*target_timeslot_end).into();
 
     // TODO(R4): Further filter by vehicle type, etc.
@@ -223,11 +251,14 @@ pub async fn get_sorted_flight_plans(
         }
     };
 
-    Ok(response
+    let mut flight_plans = response
         .list
         .into_iter()
         .filter_map(|fp| FlightPlanSchedule::try_from(fp).ok())
-        .collect::<BinaryHeap<FlightPlanSchedule>>())
+        .collect::<Vec<FlightPlanSchedule>>();
+
+    flight_plans.sort();
+    Ok(flight_plans)
 }
 
 #[cfg(test)]
@@ -254,15 +285,15 @@ mod tests {
                     nanos: 0,
                 }),
                 origin_timeslot_end: Some(Timestamp {
-                    seconds: 0,
+                    seconds: 1,
                     nanos: 0,
                 }),
                 target_timeslot_start: Some(Timestamp {
-                    seconds: 0,
+                    seconds: 2,
                     nanos: 0,
                 }),
                 target_timeslot_end: Some(Timestamp {
-                    seconds: 0,
+                    seconds: 3,
                     nanos: 0,
                 }),
                 vehicle_id: expected_vehicle_id.clone(),

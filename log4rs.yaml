@@ -19,6 +19,20 @@ appenders:
         base: 1
     encoder:
       kind: json
+  tasks:
+    kind: rolling_file
+    path: "logs/tasks.log"
+    policy:
+      trigger:
+        kind: size
+        limit: 20mb
+      roller:
+        kind: fixed_window
+        pattern: logs/tasks_{}.gz
+        count: 5
+        base: 1
+    encoder:
+      kind: json
   grpc_clients:
     kind: rolling_file
     path: "logs/grpc_clients.log"
@@ -63,7 +77,7 @@ appenders:
       kind: json
 
 root:
-  level: warn
+  level: info
   appenders:
     - stdout
 
@@ -72,6 +86,10 @@ loggers:
     level: info
     appenders:
       - grpc_requests
+  app::tasks:
+    level: info
+    appenders:
+      - tasks
   app::client::storage::grpc:
     level: info
     appenders:
@@ -79,12 +97,12 @@ loggers:
   app::router:
     level: info
     appenders:
-      - router
+      - stdout
   test::ut:
     level: info
     appenders:
       - tests
   test::it:
-    level: info
+    level: debug
     appenders:
-      - tests
+      - stdout

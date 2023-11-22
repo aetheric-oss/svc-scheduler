@@ -68,14 +68,12 @@ flowchart LR
         api <--> logic
       end
       storage[svc-storage]
-      compliance[svc-compliance]
     end
     end
   end
 
   gate <-- Create<br>Modify<br>Cancel<br>Confirm --> api
   logic <-- Aircraft<br>Vertiports --> storage
-  logic <-- Flight Plan Submission<br>Dispatch Approval--> compliance
 
 classDef subgraph_padding fill:none,stroke:none
 class p subgraph_padding
@@ -86,7 +84,6 @@ Explanation:
 1) `svc-scheduler` obtains current aircraft and vertiport information from `svc-storage`.
 2) Services make requests to `svc-scheduler`'s gRPC interface.
 3) Aircraft selection and vertipad scheduling are performed by `svc-scheduler`.
-4) `svc-scheduler` submits and obtains approval for flight plans from `svc-compliance`.
 
 A full description of interfaces can be found in the [ICD](./icd.md).
 
@@ -206,8 +203,6 @@ In the case of easily exchangeable power cells, the scheduler will determine the
 Regulations from civil aviation authorities will impact aircraft scheduling.
 
 Government regulations may restrict VTOL aircraft to settled air “corridors”, each with multiple "lanes" at a strict altitude. Each lane may be limited in capacity.
-
-Many countries require flight plans filed with the nearest flight authority prior to takeoff. In the case of airport operations, permission from airport dispatch may also be required prior to takeoff. `svc-scheduler` will communicate with `svc-compliance` to obtain these approvals.
 
 Due to the low-flying nature of VTOL aircraft, government regulations may restrict aircraft to specific flight "corridors" between each pad. In this case, changing destination mid-flight (due to a medical emergency, for instance) may require a sequence of transfers between corridors, as opposed to simply changing direction. These regulations are still being developed.
 

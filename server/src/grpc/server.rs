@@ -6,8 +6,9 @@ pub mod grpc_server {
 }
 pub use grpc_server::rpc_service_server::{RpcService, RpcServiceServer};
 pub use grpc_server::{
-    CancelItineraryResponse, ConfirmItineraryRequest, ConfirmItineraryResponse, Id, Itinerary,
-    QueryFlightRequest, QueryFlightResponse, ReadyRequest, ReadyResponse,
+    CancelItineraryRequest, CreateItineraryRequest, Itinerary, QueryFlightRequest,
+    QueryFlightResponse, ReadyRequest, ReadyResponse, TaskAction, TaskMetadata, TaskRequest,
+    TaskResponse, TaskStatus,
 };
 
 use crate::shutdown_signal;
@@ -18,21 +19,26 @@ use std::net::SocketAddr;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
 
+#[cfg(feature = "stub_server")]
+use rand::Rng;
+
 /// struct to implement the gRPC server functions
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct ServerImpl {}
 
 #[cfg(not(feature = "stub_server"))]
 #[tonic::async_trait]
 impl RpcService for ServerImpl {
     ///finds the first possible flight for customer location, flight type and requested time.
-    /// Returns draft QueryFlightPlan which can be confirmed or cancelled.
+    /// Returns possible itineraries which can be used to create an itinerary.
     async fn query_flight(
         &self,
         request: Request<QueryFlightRequest>,
     ) -> Result<Response<QueryFlightResponse>, Status> {
         grpc_info!("(query_flight) scheduler server.");
         grpc_debug!("(query_flight) request: {:?}", request);
+
+        let request = request.into_inner();
         let res = super::api::query_flight::query_flight(request).await;
         if let Err(e) = res {
             grpc_error!("(query_flight) error: {}", e);
@@ -42,36 +48,104 @@ impl RpcService for ServerImpl {
         res
     }
 
-    ///Confirms the draft itinerary by id.
-    async fn confirm_itinerary(
+    /// Creates an itinerary given a list of flight plans, if possible.
+    async fn create_itinerary(
         &self,
-        request: Request<ConfirmItineraryRequest>,
-    ) -> Result<Response<ConfirmItineraryResponse>, Status> {
-        grpc_info!("(confirm_itinerary) scheduler server.");
-        grpc_debug!("(confirm_itinerary) request: {:?}", request);
-        let res = super::api::confirm_itinerary::confirm_itinerary(request).await;
-        if let Err(e) = res {
-            grpc_error!("(confirm_itinerary) error: {}", e);
-            return Err(e);
-        }
+        request: Request<CreateItineraryRequest>,
+    ) -> Result<Response<TaskResponse>, Status>
+    where
+        Self: Send,
+    {
+        grpc_info!("(create_itinerary) scheduler server.");
+        grpc_debug!("(create_itinerary) request: {:?}", request);
 
-        res
+        let request = request.into_inner();
+        let response = super::api::create::create_itinerary(request).await;
+        match response {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => {
+                grpc_error!("(create_itinerary) error: {}", e);
+                Err(Status::internal("Could not create itinerary."))
+            }
+        }
     }
 
     /// Cancels the itinerary by id.
     async fn cancel_itinerary(
         &self,
-        request: Request<Id>,
-    ) -> Result<Response<CancelItineraryResponse>, Status> {
+        request: Request<CancelItineraryRequest>,
+    ) -> Result<Response<TaskResponse>, Status>
+    where
+        Self: Send,
+    {
         grpc_info!("(cancel_itinerary) scheduler server.");
         grpc_debug!("(cancel_itinerary) request: {:?}", request);
-        let res = super::api::cancel_itinerary::cancel_itinerary(request).await;
-        if let Err(e) = res {
-            grpc_error!("(cancel_itinerary) error: {}", e);
-            return Err(e);
-        }
 
-        res
+        let request = request.into_inner();
+        let response = super::api::cancel::cancel_itinerary(request).await;
+
+        match response {
+            Ok(response) => Ok(Response::new(response)),
+            Err(e) => {
+                grpc_error!("(cancel_itinerary) error: {}", e);
+                Err(Status::internal("Could not cancel itinerary."))
+            }
+        }
+    }
+
+    /// Cancels a scheduler task before it can be processed
+    async fn cancel_task(
+        &self,
+        request: Request<TaskRequest>,
+    ) -> Result<Response<TaskResponse>, Status>
+    where
+        Self: Send,
+    {
+        grpc_info!("(cancel_task) scheduler server.");
+        grpc_debug!("(cancel_task) request: {:?}", request);
+        let request = request.into_inner();
+
+        match crate::tasks::cancel_task(request.task_id).await {
+            Ok(()) => {
+                let response = TaskResponse {
+                    task_id: request.task_id,
+                    task_metadata: None,
+                };
+
+                Ok(Response::new(response))
+            }
+            Err(e) => {
+                grpc_error!("(cancel_task) error: {}", e);
+                Err(Status::internal("Could not cancel task."))
+            }
+        }
+    }
+
+    /// Returns the status of a scheduler task
+    async fn get_task_status(
+        &self,
+        request: Request<TaskRequest>,
+    ) -> Result<Response<TaskResponse>, Status>
+    where
+        Self: Send,
+    {
+        grpc_info!("(get_task_status) scheduler server.");
+        grpc_debug!("(get_task_status) request: {:?}", request);
+        let request = request.into_inner();
+        match crate::tasks::get_task_status(request.task_id).await {
+            Ok(task_metadata) => {
+                let response = TaskResponse {
+                    task_id: request.task_id,
+                    task_metadata: Some(task_metadata),
+                };
+
+                Ok(Response::new(response))
+            }
+            Err(e) => {
+                grpc_error!("(get_task_status) error: {}", e);
+                Err(Status::internal("Could not get task status."))
+            }
+        }
     }
 
     /// Returns ready:true when service is available
@@ -111,7 +185,8 @@ pub async fn grpc_server(config: Config, shutdown_rx: Option<tokio::sync::onesho
         }
     };
 
-    let imp = ServerImpl::default();
+    let imp = ServerImpl {};
+
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
         .set_serving::<RpcServiceServer<ServerImpl>>()
@@ -138,8 +213,7 @@ pub async fn grpc_server(config: Config, shutdown_rx: Option<tokio::sync::onesho
 #[cfg(feature = "stub_server")]
 #[tonic::async_trait]
 impl RpcService for ServerImpl {
-    ///finds the first possible flight for customer location, flight type and requested time.
-    /// Returns draft QueryFlightPlan which can be confirmed or cancelled.
+    /// Calculates possible itineraries given dates, times, locations, and other constraints.
     async fn query_flight(
         &self,
         request: Request<QueryFlightRequest>,
@@ -148,46 +222,81 @@ impl RpcService for ServerImpl {
         grpc_debug!("(query_flight MOCK) request: {:?}", request);
         let flight_plan_data =
             svc_storage_client_grpc::prelude::flight_plan::mock::get_future_data_obj();
-        let flight_plan = svc_storage_client_grpc::prelude::flight_plan::Object {
-            id: uuid::Uuid::new_v4().to_string(),
-            data: Some(flight_plan_data),
-        };
 
         let itineraries = vec![Itinerary {
-            id: uuid::Uuid::new_v4().to_string(),
-            flight_plans: vec![flight_plan],
+            flight_plans: vec![flight_plan_data],
         }];
 
         Ok(tonic::Response::new(QueryFlightResponse { itineraries }))
     }
 
-    ///Confirms the draft itinerary by id.
-    async fn confirm_itinerary(
+    /// Creates an itinerary given a list of proposed flight plans, if possible.
+    async fn create_itinerary(
         &self,
-        request: Request<ConfirmItineraryRequest>,
-    ) -> Result<Response<ConfirmItineraryResponse>, Status> {
-        grpc_warn!("(confirm_itinerary MOCK) scheduler server.");
-        grpc_debug!("(confirm_itinerary MOCK) request: {:?}", request);
-        Ok(tonic::Response::new(ConfirmItineraryResponse {
-            id: uuid::Uuid::new_v4().to_string(),
-            confirmed: true,
-            confirmation_time: Some(chrono::Utc::now().into()),
+        request: Request<CreateItineraryRequest>,
+    ) -> Result<Response<TaskResponse>, Status> {
+        grpc_warn!("(create_itinerary MOCK) scheduler server.");
+        grpc_debug!("(create_itinerary MOCK) request: {:?}", request);
+        let mut rng = rand::thread_rng();
+        Ok(tonic::Response::new(TaskResponse {
+            task_id: rng.gen_range(0..1000),
+            task_metadata: Some(TaskMetadata {
+                status: TaskStatus::Queued as i32,
+                action: TaskAction::CreateItinerary as i32,
+                ..Default::default()
+            }),
         }))
     }
 
     /// Cancels the itinerary by id.
     async fn cancel_itinerary(
         &self,
-        request: Request<Id>,
-    ) -> Result<Response<CancelItineraryResponse>, Status> {
+        request: Request<CancelItineraryRequest>,
+    ) -> Result<Response<TaskResponse>, Status> {
         grpc_warn!("(cancel_itinerary MOCK) scheduler server.");
         grpc_debug!("(cancel_itinerary MOCK) request: {:?}", request);
-        Ok(tonic::Response::new(CancelItineraryResponse {
-            id: uuid::Uuid::new_v4().to_string(),
-            cancelled: true,
-            cancellation_time: Some(chrono::Utc::now().into()),
-            reason: String::from("Cancelled by user."),
+        let mut rng = rand::thread_rng();
+        Ok(tonic::Response::new(TaskResponse {
+            task_id: rng.gen_range(0..1000),
+            task_metadata: Some(TaskMetadata {
+                status: TaskStatus::Queued as i32,
+                action: TaskAction::CancelItinerary as i32,
+                ..Default::default()
+            }),
         }))
+    }
+
+    /// Cancels a scheduler task
+    async fn cancel_task(
+        &self,
+        request: Request<TaskRequest>,
+    ) -> Result<Response<TaskResponse>, Status> {
+        grpc_warn!("(cancel_task MOCK) scheduler server.");
+        grpc_debug!("(cancel_task MOCK) request: {:?}", request);
+        let response = TaskResponse {
+            task_id: request.into_inner().task_id,
+            task_metadata: None,
+        };
+        Ok(Response::new(response))
+    }
+
+    /// Returns the status of a scheduler task
+    async fn get_task_status(
+        &self,
+        request: Request<TaskRequest>,
+    ) -> Result<Response<TaskResponse>, Status> {
+        grpc_warn!("(get_task_status MOCK) scheduler server.");
+        grpc_debug!("(get_task_status MOCK) request: {:?}", request);
+
+        let response = TaskResponse {
+            task_id: request.into_inner().task_id,
+            task_metadata: Some(TaskMetadata {
+                status: TaskStatus::Queued as i32,
+                ..Default::default()
+            }),
+        };
+
+        Ok(Response::new(response))
     }
 
     /// Returns ready:true when service is available
