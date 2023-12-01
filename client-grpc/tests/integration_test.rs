@@ -1,7 +1,7 @@
 //! Example for writing an integration test.
 //! More information: https://doc.rust-lang.org/book/testing-rust.html#integration-tests
 
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use lib_common::grpc::get_endpoint_from_env;
 use svc_scheduler_client_grpc::prelude::{scheduler::*, *};
 
@@ -52,6 +52,10 @@ async fn test_create_itinerary() -> Result<(), Box<dyn std::error::Error>> {
     let request = CreateItineraryRequest {
         priority: FlightPriority::Low.into(),
         flight_plans: vec![],
+        expiry: Some(Timestamp {
+            seconds: (Utc::now() + Duration::hours(1)).timestamp(),
+            nanos: 0,
+        }),
     };
 
     let response = client.create_itinerary(request).await?.into_inner();

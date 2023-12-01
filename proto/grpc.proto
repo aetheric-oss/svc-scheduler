@@ -60,6 +60,9 @@ message CreateItineraryRequest {
 
     // Flight plans to be considered
     repeated FlightPlanData flight_plans = 2;
+
+    // Expiry time for this task
+    google.protobuf.Timestamp expiry = 3;
 }
 
 // Cancel an itinerary by ID

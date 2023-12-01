@@ -46,6 +46,9 @@ pub struct CreateItineraryRequest {
     pub flight_plans: ::prost::alloc::vec::Vec<
         ::svc_storage_client_grpc::prelude::flight_plan::Data,
     >,
+    /// Expiry time for this task
+    #[prost(message, optional, tag = "3")]
+    pub expiry: ::core::option::Option<::prost_wkt_types::Timestamp>,
 }
 /// Cancel an itinerary by ID
 #[allow(clippy::derive_partial_eq_without_eq)]

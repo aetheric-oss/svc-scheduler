@@ -50,6 +50,7 @@ async fn create_itinerary_example(
     let request = CreateItineraryRequest {
         priority: FlightPriority::Low.into(),
         flight_plans: itinerary.flight_plans.clone(),
+        expiry: None,
     };
 
     match client.create_itinerary(request).await {
