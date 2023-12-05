@@ -135,6 +135,7 @@ pub struct ReadyResponse {
     pub ready: bool,
 }
 /// The status of a scheduler task
+#[derive(num_derive::FromPrimitive)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum TaskStatus {
@@ -189,6 +190,8 @@ pub enum TaskStatusRationale {
     Internal = 5,
     /// Invalid Action
     InvalidAction = 6,
+    /// Unknown
+    Unknown = 7,
 }
 impl TaskStatusRationale {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -204,6 +207,7 @@ impl TaskStatusRationale {
             TaskStatusRationale::PriorityChange => "PRIORITY_CHANGE",
             TaskStatusRationale::Internal => "INTERNAL",
             TaskStatusRationale::InvalidAction => "INVALID_ACTION",
+            TaskStatusRationale::Unknown => "UNKNOWN",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -216,6 +220,7 @@ impl TaskStatusRationale {
             "PRIORITY_CHANGE" => Some(Self::PriorityChange),
             "INTERNAL" => Some(Self::Internal),
             "INVALID_ACTION" => Some(Self::InvalidAction),
+            "UNKNOWN" => Some(Self::Unknown),
             _ => None,
         }
     }

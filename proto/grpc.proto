@@ -150,6 +150,9 @@ enum TaskStatusRationale {
 
     // Invalid Action
     INVALID_ACTION = 6;
+
+    // Unknown
+    UNKNOWN = 7;
 }
 
 // Types of scheduler tasks
