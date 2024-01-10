@@ -51,6 +51,7 @@ async fn create_itinerary_example(
         priority: FlightPriority::Low.into(),
         flight_plans: itinerary.flight_plans.clone(),
         expiry: None,
+        user_id: uuid::Uuid::new_v4().to_string(), // arbitrary
     };
 
     match client.create_itinerary(request).await {
@@ -94,6 +95,7 @@ async fn cancel_itinerary_example(
     let request = CancelItineraryRequest {
         priority: FlightPriority::Low.into(),
         itinerary_id: itinerary_id.to_string(),
+        user_id: uuid::Uuid::new_v4().to_string(), // arbitrary
     };
 
     match client.cancel_itinerary(request).await {

@@ -49,6 +49,9 @@ pub struct CreateItineraryRequest {
     /// Expiry time for this task
     #[prost(message, optional, tag = "3")]
     pub expiry: ::core::option::Option<::prost_wkt_types::Timestamp>,
+    /// User ID
+    #[prost(string, tag = "4")]
+    pub user_id: ::prost::alloc::string::String,
 }
 /// Cancel an itinerary by ID
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -63,6 +66,9 @@ pub struct CancelItineraryRequest {
     /// Itinerary UUID
     #[prost(string, tag = "2")]
     pub itinerary_id: ::prost::alloc::string::String,
+    /// User ID
+    #[prost(string, tag = "3")]
+    pub user_id: ::prost::alloc::string::String,
 }
 /// Itinerary includes id, flight plan and potential deadhead flights
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -92,7 +98,7 @@ pub struct TaskRequest {
     pub task_id: i64,
 }
 /// Response to Task-Related Requests
-#[derive(Eq, Copy)]
+#[derive(Eq)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TaskResponse {
@@ -104,7 +110,7 @@ pub struct TaskResponse {
     pub task_metadata: ::core::option::Option<TaskMetadata>,
 }
 /// Metadata for a Scheduler Task
-#[derive(serde::Serialize, serde::Deserialize, Eq, Copy)]
+#[derive(serde::Serialize, serde::Deserialize, Eq)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TaskMetadata {
@@ -117,6 +123,9 @@ pub struct TaskMetadata {
     /// Task action
     #[prost(enumeration = "TaskAction", tag = "3")]
     pub action: i32,
+    /// Task user ID
+    #[prost(string, tag = "4")]
+    pub user_id: ::prost::alloc::string::String,
 }
 /// Ready Request
 ///
@@ -135,6 +144,7 @@ pub struct ReadyResponse {
     pub ready: bool,
 }
 /// The status of a scheduler task
+#[derive(num_derive::FromPrimitive)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum TaskStatus {

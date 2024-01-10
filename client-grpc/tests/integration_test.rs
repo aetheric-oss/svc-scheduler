@@ -34,14 +34,15 @@ async fn test_cancel_itinerary() -> Result<(), Box<dyn std::error::Error>> {
     let request = CancelItineraryRequest {
         priority: FlightPriority::Low.into(),
         itinerary_id: uuid::Uuid::new_v4().to_string(),
+        user_id: uuid::Uuid::new_v4().to_string(),
     };
 
-    let response = client.cancel_itinerary(request).await?.into_inner();
+    let response = client.cancel_itinerary(request.clone()).await?.into_inner();
     println!("RESPONSE={:?}", response);
-    assert_eq!(
-        response.task_metadata.unwrap().action,
-        TaskAction::CancelItinerary as i32
-    );
+    let metadata = response.task_metadata.unwrap();
+    assert_eq!(metadata.action, TaskAction::CancelItinerary as i32);
+
+    assert_eq!(metadata.user_id, request.user_id);
     Ok(())
 }
 
@@ -56,14 +57,15 @@ async fn test_create_itinerary() -> Result<(), Box<dyn std::error::Error>> {
             seconds: (Utc::now() + Duration::hours(1)).timestamp(),
             nanos: 0,
         }),
+        user_id: uuid::Uuid::new_v4().to_string(),
     };
 
-    let response = client.create_itinerary(request).await?.into_inner();
+    let response = client.create_itinerary(request.clone()).await?.into_inner();
     println!("RESPONSE={:?}", response);
-    assert_eq!(
-        response.task_metadata.unwrap().action,
-        TaskAction::CreateItinerary as i32
-    );
+    let metadata = response.task_metadata.unwrap();
+    assert_eq!(metadata.action, TaskAction::CreateItinerary as i32);
+
+    assert_eq!(metadata.user_id, request.user_id);
     Ok(())
 }
 

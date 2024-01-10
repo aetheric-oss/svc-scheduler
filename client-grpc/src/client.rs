@@ -134,6 +134,7 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
                 status: TaskStatus::Queued.into(),
                 status_rationale: None,
                 action: TaskAction::CreateItinerary.into(),
+                user_id: request.user_id,
             }),
         }))
     }
@@ -151,6 +152,7 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
                 status: TaskStatus::Queued.into(),
                 status_rationale: None,
                 action: TaskAction::CancelItinerary.into(),
+                user_id: request.user_id,
             }),
         }))
     }
@@ -167,6 +169,7 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
                 status: TaskStatus::Rejected.into(),
                 status_rationale: Some(TaskStatusRationale::ClientCancelled.into()),
                 action: TaskAction::CancelItinerary.into(),
+                user_id: uuid::Uuid::new_v4().to_string(), // arbitrary
             }),
         }))
     }
@@ -183,6 +186,7 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
                 status: TaskStatus::Complete.into(),
                 status_rationale: None,
                 action: TaskAction::CreateItinerary.into(),
+                user_id: uuid::Uuid::new_v4().to_string(), // arbitrary
             }),
         }))
     }

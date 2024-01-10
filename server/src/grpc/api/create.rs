@@ -25,6 +25,15 @@ pub async fn create_itinerary(request: CreateItineraryRequest) -> Result<TaskRes
         }
     };
 
+    let user_id = match uuid::Uuid::parse_str(&request.user_id.clone()) {
+        Ok(user_id) => user_id,
+        Err(e) => {
+            let error_msg = "Invalid user ID provided";
+            grpc_error!("(create_itinerary) {error_msg}: {e}");
+            return Err(Status::invalid_argument(format!("{error_msg}.")));
+        }
+    };
+
     let Ok(schedules): Result<Vec<FlightPlanSchedule>, FlightPlanError> = request
         .flight_plans
         .into_iter()
@@ -56,6 +65,7 @@ pub async fn create_itinerary(request: CreateItineraryRequest) -> Result<TaskRes
             status: TaskStatus::Queued as i32,
             status_rationale: None,
             action: TaskAction::CreateItinerary as i32,
+            user_id: user_id.to_string(),
         },
         body: TaskBody::CreateItinerary(schedules),
     };

@@ -25,19 +25,26 @@ pub async fn cancel_itinerary(task: &mut Task) -> Result<(), TaskError> {
     tasks_info!("(cancel_itinerary) for id {}.", &itinerary_id);
 
     let clients = get_clients().await;
-    let itinerary = match clients
-        .storage
-        .itinerary
-        .get_by_id(Id {
-            id: itinerary_id.to_string(),
-        })
-        .await
-    {
-        Ok(i) => i.into_inner(),
+
+    // prevent cancellations by a different user
+    let filter = AdvancedSearchFilter::search_equals("id".to_string(), itinerary_id.to_string())
+        .and_equals("user_id".to_string(), task.metadata.user_id.clone())
+        .and_equals(
+            "status".to_string(),
+            (itinerary::ItineraryStatus::Active as i32).to_string(),
+        );
+
+    let mut result = match clients.storage.itinerary.search(filter).await {
+        Ok(r) => r.into_inner(),
         Err(e) => {
             tasks_warn!("(cancel_itinerary) Could not find itinerary with ID {itinerary_id}: {e}",);
             return Err(TaskError::InvalidData);
         }
+    };
+
+    let Some(itinerary) = result.list.pop() else {
+        tasks_warn!("(cancel_itinerary) Could not find active itinerary with ID {itinerary_id} for user ID {}.", task.metadata.user_id);
+        return Err(TaskError::InvalidData);
     };
 
     let Some(data) = itinerary.data else {

@@ -12,6 +12,7 @@ use svc_storage_client_grpc::simple_service::Client as SimpleClient;
 
 /// Register flight plans with svc-storage
 async fn register_flight_plans(
+    user_id: &uuid::Uuid,
     flight_plans: &[FlightPlanSchedule],
     clients: &GrpcClients,
 ) -> Result<(), TaskError> {
@@ -47,7 +48,7 @@ async fn register_flight_plans(
     // 2) Add itinerary to `itinerary` DB table
     //
     let data = itinerary::Data {
-        user_id: uuid::Uuid::new_v4().to_string(), // TODO(R4): use user ID or remove field
+        user_id: user_id.to_string(),
         status: itinerary::ItineraryStatus::Active as i32,
     };
 
@@ -96,6 +97,14 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
             task.metadata.action
         );
         return Err(TaskError::InvalidMetadata);
+    };
+
+    let user_id = match uuid::Uuid::parse_str(&task.metadata.user_id.clone()) {
+        Ok(user_id) => user_id,
+        Err(e) => {
+            tasks_error!("(create_itinerary) Invalid user_id: {}", e);
+            return Err(TaskError::InvalidUserId);
+        }
     };
 
     let TaskBody::CreateItinerary(ref proposed_flight_plans) = task.body else {
@@ -237,7 +246,7 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
 
     // If we've reached this point, the itinerary is valid
     // Register it with svc-storage
-    register_flight_plans(proposed_flight_plans, clients).await
+    register_flight_plans(&user_id, proposed_flight_plans, clients).await
 }
 
 #[cfg(test)]
@@ -262,6 +271,7 @@ mod tests {
         let mut task = Task {
             metadata: TaskMetadata {
                 action: TaskAction::CreateItinerary as i32,
+                user_id: Uuid::new_v4().to_string(),
                 ..Default::default()
             },
             body: TaskBody::CancelItinerary(Uuid::new_v4()),
@@ -278,6 +288,7 @@ mod tests {
         let mut task = Task {
             metadata: TaskMetadata {
                 action: TaskAction::CancelItinerary as i32,
+                user_id: Uuid::new_v4().to_string(),
                 ..Default::default()
             },
             body: TaskBody::CreateItinerary(vec![]),
@@ -285,6 +296,18 @@ mod tests {
 
         let e = create_itinerary(&mut task).await.unwrap_err();
         assert_eq!(e, TaskError::InvalidMetadata);
+
+        let mut task = Task {
+            metadata: TaskMetadata {
+                action: TaskAction::CreateItinerary as i32,
+                user_id: "invalid".to_string(),
+                ..Default::default()
+            },
+            body: TaskBody::CreateItinerary(vec![]),
+        };
+
+        let e = create_itinerary(&mut task).await.unwrap_err();
+        assert_eq!(e, TaskError::InvalidUserId);
 
         Ok(())
     }
@@ -295,6 +318,7 @@ mod tests {
         let mut task = Task {
             metadata: TaskMetadata {
                 action: TaskAction::CreateItinerary as i32,
+                user_id: Uuid::new_v4().to_string(),
                 ..Default::default()
             },
             body: TaskBody::CreateItinerary(vec![FlightPlanSchedule {

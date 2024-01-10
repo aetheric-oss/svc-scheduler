@@ -243,6 +243,7 @@ impl RpcService for ServerImpl {
             task_metadata: Some(TaskMetadata {
                 status: TaskStatus::Queued as i32,
                 action: TaskAction::CreateItinerary as i32,
+                user_id: request.into_inner().user_id,
                 ..Default::default()
             }),
         }))
@@ -261,6 +262,7 @@ impl RpcService for ServerImpl {
             task_metadata: Some(TaskMetadata {
                 status: TaskStatus::Queued as i32,
                 action: TaskAction::CancelItinerary as i32,
+                user_id: request.into_inner().user_id,
                 ..Default::default()
             }),
         }))

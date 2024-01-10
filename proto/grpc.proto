@@ -63,6 +63,9 @@ message CreateItineraryRequest {
 
     // Expiry time for this task
     google.protobuf.Timestamp expiry = 3;
+
+    // User ID
+    string user_id = 4;
 }
 
 // Cancel an itinerary by ID
@@ -72,6 +75,9 @@ message CancelItineraryRequest {
 
     // Itinerary UUID
     string itinerary_id = 2;
+
+    // User ID
+    string user_id = 3;
 }
 
 // Itinerary includes id, flight plan and potential deadhead flights
@@ -111,6 +117,9 @@ message TaskMetadata {
 
     // Task action
     TaskAction action = 3;
+
+    // Task user ID
+    string user_id = 4;
 }
 
 // The status of a scheduler task

@@ -19,6 +19,13 @@ pub async fn cancel_itinerary(request: CancelItineraryRequest) -> Result<TaskRes
         }
     };
 
+    let user_id = match Uuid::parse_str(&request.user_id) {
+        Ok(id) => id,
+        Err(_) => {
+            return Err(Status::invalid_argument("Invalid user ID."));
+        }
+    };
+
     let Some(priority) = FromPrimitive::from_i32(request.priority) else {
         return Err(Status::invalid_argument("Invalid priority provided."));
     };
@@ -31,6 +38,7 @@ pub async fn cancel_itinerary(request: CancelItineraryRequest) -> Result<TaskRes
             status: TaskStatus::Queued as i32,
             status_rationale: None,
             action: TaskAction::CancelItinerary as i32,
+            user_id: user_id.to_string(),
         },
         body: TaskBody::CancelItinerary(itinerary_id),
     };

@@ -94,6 +94,9 @@ pub enum TaskError {
     /// Invalid metadata provided,
     InvalidMetadata,
 
+    /// Invalid User ID provided
+    InvalidUserId,
+
     /// Invalid data provided
     InvalidData,
 
@@ -110,6 +113,7 @@ impl Display for TaskError {
             TaskError::InvalidMetadata => write!(f, "Invalid metadata."),
             TaskError::InvalidData => write!(f, "Invalid data."),
             TaskError::ScheduleConflict => write!(f, "Schedule conflict."),
+            TaskError::InvalidUserId => write!(f, "Invalid user ID."),
         }
     }
 }
