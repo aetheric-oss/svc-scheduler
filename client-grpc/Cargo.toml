@@ -2,7 +2,7 @@
 description = "gRPC client for the scheduler service."
 keywords    = ["vtol", "client", "grpc", "scheduler"]  # max 5
 name        = "svc-scheduler-client-grpc"
-version     = "0.4.1-develop.3"
+version     = "0.4.1-develop.4"
 
 authors.workspace      = true
 categories.workspace   = true
