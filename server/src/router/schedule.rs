@@ -3,7 +3,7 @@
 
 use chrono::{DateTime, Duration, NaiveDateTime, TimeZone, Utc};
 use iso8601_duration::Duration as Iso8601Duration;
-pub use rrule::{RRuleResult, RRuleSet, Tz as RRuleTz};
+pub use rrule::{RRuleSet, Tz as RRuleTz};
 use std::cmp::{max, min};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::Sub;

@@ -82,7 +82,8 @@ tag = "latest-develop"
 
 [dependencies.svc-gis-client-grpc]
 git = "https://github.com/Arrow-air/svc-gis.git"
-tag = "latest-develop"
+# tag = "latest-develop"
+branch = "am-smith/get-flights-grpc"
 
 [dependencies.log4rs]
 features = [

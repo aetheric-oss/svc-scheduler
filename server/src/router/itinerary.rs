@@ -278,15 +278,17 @@ async fn deadhead_helper(
     // See what the path and cost would be for a flight between the starting
     // available timeslot and the ending flight time
     let best_path_request = BestPathRequest {
-        start_type: NodeType::Vertiport as i32,
-        node_start_id: args.origin_vertiport_id.to_owned(),
-        node_uuid_end: args.target_vertiport_id.to_owned(),
+        origin_type: NodeType::Vertiport as i32,
+        target_type: NodeType::Vertiport as i32,
+        origin_identifier: args.origin_vertiport_id.to_owned(),
+        target_identifier: args.target_vertiport_id.to_owned(),
         time_start: Some(args.aircraft_earliest.into()),
         time_end: Some(args.vertipad_earliest.into()),
+        limit: 1,
     };
 
-    let (path, distance_meters) = match best_path(&best_path_request, clients).await {
-        Ok((path, d)) => (path, d as f32),
+    let paths = match best_path(&best_path_request, clients).await {
+        Ok(paths) => paths,
         Err(BestPathError::NoPathFound) => {
             // no path found, perhaps temporary no-fly zone
             //  is blocking journeys from this depart timeslot
@@ -294,8 +296,8 @@ async fn deadhead_helper(
             router_debug!(
                 "(deadhead_helper) No path found from vertiport {}
             to vertiport {} (from {} to {}).",
-                best_path_request.node_start_id,
-                best_path_request.node_uuid_end,
+                best_path_request.origin_identifier,
+                best_path_request.target_identifier,
                 args.aircraft_earliest,
                 args.vertipad_earliest
             );
@@ -308,6 +310,14 @@ async fn deadhead_helper(
             return Err(ItineraryError::ClientError);
         }
     };
+
+    let Some(path) = paths.first() else {
+        router_error!("(deadhead_helper) No path found.");
+        return Err(ItineraryError::NoPathFound);
+    };
+
+    let distance_meters = path.1 as f32;
+    let path = path.0.clone();
 
     let flight_duration = estimate_flight_time_seconds(&distance_meters);
     let total_duration =

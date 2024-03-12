@@ -324,11 +324,13 @@ pub async fn get_vertipad_timeslot_pairs(
     let mut pairs = vec![];
 
     let mut best_path_request = BestPathRequest {
-        node_start_id: origin_vertiport_id.to_string(),
-        node_uuid_end: target_vertiport_id.to_string(),
-        start_type: NodeType::Vertiport as i32,
+        origin_identifier: origin_vertiport_id.to_string(),
+        target_identifier: target_vertiport_id.to_string(),
+        origin_type: NodeType::Vertiport as i32,
+        target_type: NodeType::Vertiport as i32,
         time_start: None,
         time_end: None,
+        limit: 5,
     };
 
     // Iterate through origin pads and their schedules
@@ -357,9 +359,8 @@ pub async fn get_vertipad_timeslot_pairs(
                     best_path_request.time_start = Some(dts.time_start.into());
                     best_path_request.time_end = Some(ats.time_end.into());
 
-                    let (path, distance_meters) = match best_path(&best_path_request, clients).await
-                    {
-                        Ok((path, distance_meters)) => (path, distance_meters as f32),
+                    let paths = match best_path(&best_path_request, clients).await {
+                        Ok(paths) => paths,
                         Err(BestPathError::NoPathFound) => {
                             // no path found, perhaps temporary no-fly zone
                             //  is blocking journeys from this depart timeslot
@@ -384,6 +385,25 @@ pub async fn get_vertipad_timeslot_pairs(
                         }
                     };
 
+                    // For now only get the first path
+                    let Some(path) = paths.first() else {
+                        // no path found, perhaps temporary no-fly zone
+                        //  is blocking journeys from this depart timeslot
+                        // Break out and try the next depart timeslot
+                        router_debug!(
+                            "(get_vertipad_timeslot_pairs) No path found from vertiport {}
+                            to vertiport {} (from {} to {}).",
+                            origin_vertiport_id,
+                            target_vertiport_id,
+                            dts.time_start,
+                            ats.time_end
+                        );
+
+                        break 'origin_timeslots;
+                    };
+
+                    let distance_meters = path.1 as f32;
+                    let path = path.0.clone();
                     let estimated_duration_s = estimate_flight_time_seconds(&distance_meters);
 
                     // Since both schedules are sorted, we can break early once

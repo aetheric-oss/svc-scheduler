@@ -31,51 +31,59 @@ impl std::fmt::Display for BestPathError {
 pub async fn best_path(
     request: &BestPathRequest,
     clients: &GrpcClients,
-) -> Result<(GeoLineString, f64), BestPathError> {
-    let mut path = match clients.gis.best_path(request.clone()).await {
-        Ok(response) => response.into_inner().segments,
+) -> Result<Vec<(GeoLineString, f64)>, BestPathError> {
+    let mut paths = match clients.gis.best_path(request.clone()).await {
+        Ok(response) => response.into_inner().paths,
         Err(e) => {
             router_error!("(best_path) Failed to get best path: {e}");
             return Err(BestPathError::ClientError);
         }
     };
 
-    if path.is_empty() {
+    if paths.is_empty() {
         router_error!("(best_path) No path found.");
         return Err(BestPathError::NoPathFound);
     }
 
-    path.sort_by(|a, b| a.index.cmp(&b.index));
-    router_debug!("(best_path) svc-gis Path: {:?}", path);
-
-    let total_distance_meters = path.iter().map(|x| x.distance_meters as f64).sum();
+    paths.sort_by(|a, b| {
+        if a.distance_meters == b.distance_meters {
+            std::cmp::Ordering::Equal
+        } else if a.distance_meters < b.distance_meters {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Greater
+        }
+    });
+    router_debug!("(best_path) svc-gis paths: {:?}", paths);
 
     // convert segments to GeoLineString
-    let points: Vec<GeoPoint> = path
-        .into_iter()
-        .enumerate()
-        .flat_map(|(i, x)| {
-            let end = GeoPoint {
-                latitude: x.end_latitude as f64,
-                longitude: x.end_longitude as f64,
-            };
-
-            if i == 0 {
-                let start = GeoPoint {
-                    latitude: x.start_latitude as f64,
-                    longitude: x.start_longitude as f64,
+    let mut result: Vec<(GeoLineString, f64)> = vec![];
+    for path in paths {
+        let Ok(points) = path
+            .path
+            .into_iter()
+            .map(|node| {
+                let geom = match node.geom {
+                    Some(geom) => geom,
+                    None => {
+                        router_error!("(best_path) No geometry found for node: {:#?}", node);
+                        return Err(BestPathError::NoPathFound);
+                    }
                 };
 
-                vec![start, end]
-            } else {
-                vec![end]
-            }
-        })
-        .collect::<Vec<GeoPoint>>();
+                Ok(GeoPoint {
+                    latitude: geom.latitude,
+                    longitude: geom.longitude,
+                })
+            })
+            .collect::<Result<Vec<GeoPoint>, BestPathError>>()
+        else {
+            continue;
+        };
 
-    router_debug!("(best_path) Points: {:?}", points);
-    router_debug!("(best_path) Cost: {:?}", total_distance_meters);
+        let linestring = GeoLineString { points };
+        result.push((linestring, path.distance_meters.into()));
+    }
 
-    let path = GeoLineString { points };
-    Ok((path, total_distance_meters))
+    Ok(result)
 }

@@ -6,6 +6,9 @@ use crate::router::vertiport::get_timeslot_pairs;
 use crate::tasks::{Task, TaskAction, TaskBody, TaskError};
 use num_traits::FromPrimitive;
 use std::collections::HashSet;
+use svc_gis_client_grpc::client::UpdateFlightPathRequest;
+use svc_gis_client_grpc::prelude::types::AircraftType;
+use svc_gis_client_grpc::prelude::GisServiceClient;
 use svc_storage_client_grpc::link_service::Client as LinkClient;
 use svc_storage_client_grpc::prelude::{itinerary, IdList};
 use svc_storage_client_grpc::simple_service::Client as SimpleClient;
@@ -35,13 +38,35 @@ async fn register_flight_plans(
             return Err(TaskError::Internal);
         };
 
-        match result.into_inner().object {
-            Some(object) => flight_plan_ids.push(object.id),
+        let flight_id = match result.into_inner().object {
+            Some(object) => object.id,
             None => {
                 tasks_error!("(register_flight_plans) Couldn't insert flight plan into storage.");
                 return Err(TaskError::Internal);
             }
-        }
+        };
+
+        let request = UpdateFlightPathRequest {
+            flight_identifier: Some(flight_id.clone()),
+            aircraft_identifier: Some(flight_plan.vehicle_id.clone()),
+            simulated: false,
+            path: vec![],
+            aircraft_type: AircraftType::Rotorcraft as i32, // TODO(R5): Get from storage
+            timestamp_start: Some(flight_plan.origin_timeslot_end.into()),
+            timestamp_end: Some(flight_plan.target_timeslot_start.into()),
+        };
+
+        clients.gis.update_flight_path(request).await.map_err(|e| {
+            tasks_error!(
+                "(register_flight_plans) Couldn't update flight path in GIS: {}",
+                e
+            );
+
+            // TODO(R5): Rollback the changes in storage
+            TaskError::Internal
+        })?;
+
+        flight_plan_ids.push(flight_id);
     }
 
     //

@@ -88,3 +88,4 @@ FLUSHDB
 loglevel
 seccomp
 Lcov
+linestring
