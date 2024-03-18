@@ -10,7 +10,6 @@ pub mod vertiport;
 
 use crate::grpc::client::GrpcClients;
 use svc_gis_client_grpc::prelude::{gis::*, *};
-use svc_storage_client_grpc::prelude::*;
 
 pub enum BestPathError {
     ClientError,
@@ -31,7 +30,7 @@ impl std::fmt::Display for BestPathError {
 pub async fn best_path(
     request: &BestPathRequest,
     clients: &GrpcClients,
-) -> Result<Vec<(GeoLineString, f64)>, BestPathError> {
+) -> Result<Vec<(Vec<PointZ>, f64)>, BestPathError> {
     let mut paths = match clients.gis.best_path(request.clone()).await {
         Ok(response) => response.into_inner().paths,
         Err(e) => {
@@ -57,32 +56,24 @@ pub async fn best_path(
     router_debug!("(best_path) svc-gis paths: {:?}", paths);
 
     // convert segments to GeoLineString
-    let mut result: Vec<(GeoLineString, f64)> = vec![];
+    let mut result: Vec<(Vec<PointZ>, f64)> = vec![];
     for path in paths {
         let Ok(points) = path
             .path
             .into_iter()
-            .map(|node| {
-                let geom = match node.geom {
-                    Some(geom) => geom,
-                    None => {
-                        router_error!("(best_path) No geometry found for node: {:#?}", node);
-                        return Err(BestPathError::NoPathFound);
-                    }
-                };
-
-                Ok(GeoPoint {
-                    latitude: geom.latitude,
-                    longitude: geom.longitude,
-                })
+            .map(|node| match node.geom {
+                Some(geom) => Ok(geom),
+                None => {
+                    router_error!("(best_path) No geometry found for node: {:#?}", node);
+                    Err(BestPathError::NoPathFound)
+                }
             })
-            .collect::<Result<Vec<GeoPoint>, BestPathError>>()
+            .collect::<Result<Vec<PointZ>, BestPathError>>()
         else {
             continue;
         };
 
-        let linestring = GeoLineString { points };
-        result.push((linestring, path.distance_meters.into()));
+        result.push((points, path.distance_meters.into()));
     }
 
     Ok(result)

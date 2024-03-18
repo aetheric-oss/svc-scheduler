@@ -89,3 +89,4 @@ loglevel
 seccomp
 Lcov
 linestring
+rotorcraft

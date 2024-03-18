@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use svc_storage_client_grpc::prelude::*;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Eq, Deserialize)]
 pub struct FlightPlanSchedule {
     pub origin_vertiport_id: String,
     pub origin_vertipad_id: String,

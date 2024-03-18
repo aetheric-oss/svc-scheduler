@@ -137,11 +137,18 @@ pub async fn cancel_task(task_id: i64) -> Result<(), TaskError> {
     task.metadata.status = TaskStatus::Rejected.into();
     task.metadata.status_rationale = Some(TaskStatusRationale::ClientCancelled.into());
 
-    let new_expiry = Utc::now() + Duration::minutes(TASK_KEEPALIVE_DURATION_MINUTES);
-    if let Err(e) = pool.update_task(task_id, &task, new_expiry).await {
-        tasks_warn!("(cancel_task) error updating task: {}", e);
-        return Err(TaskError::Internal);
-    }
+    let delta = Duration::try_minutes(1).ok_or_else(|| {
+        tasks_error!("(cancel_task) error creating time delta.");
+        TaskError::Internal
+    })?;
+
+    let new_expiry = Utc::now() + delta;
+    pool.update_task(task_id, &task, new_expiry)
+        .await
+        .map_err(|e| {
+            tasks_warn!("(cancel_task) error updating task: {}", e);
+            TaskError::Internal
+        })?;
 
     Ok(())
 }
@@ -168,6 +175,11 @@ pub async fn task_loop(_config: crate::config::Config) {
 
     let Some(mut pool) = crate::tasks::pool::get_pool().await else {
         tasks_error!("(task_loop) Couldn't get the redis pool.");
+        return;
+    };
+
+    let Some(keepalive_delta) = Duration::try_minutes(TASK_KEEPALIVE_DURATION_MINUTES) else {
+        tasks_warn!("(task_loop) error creating time delta.");
         return;
     };
 
@@ -207,7 +219,7 @@ pub async fn task_loop(_config: crate::config::Config) {
             task.metadata.status_rationale = Some(TaskStatusRationale::Internal.into());
         }
 
-        let new_expiry = Utc::now() + Duration::minutes(TASK_KEEPALIVE_DURATION_MINUTES);
+        let new_expiry = Utc::now() + keepalive_delta;
         let _ = pool.update_task(task_id, &task, new_expiry).await;
     }
 }

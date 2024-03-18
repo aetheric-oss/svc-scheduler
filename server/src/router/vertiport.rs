@@ -18,11 +18,23 @@ const MAX_DURATION_TIMESLOT_MINUTES: i64 = 30;
 /// Error type for vertiport-related errors
 #[derive(Debug, Copy, Clone)]
 pub enum VertiportError {
+    /// Error communicating with a client
     ClientError,
+
+    /// Invalid data
     InvalidData,
+
+    /// No vertipads found
     NoVertipads,
+
+    /// No schedule found
     NoSchedule,
+
+    /// Invalid schedule
     InvalidSchedule,
+
+    /// Internal error
+    Internal,
 }
 
 impl std::fmt::Display for VertiportError {
@@ -33,6 +45,7 @@ impl std::fmt::Display for VertiportError {
             VertiportError::NoVertipads => write!(f, "No vertipads"),
             VertiportError::NoSchedule => write!(f, "No schedule"),
             VertiportError::InvalidSchedule => write!(f, "Invalid schedule"),
+            VertiportError::Internal => write!(f, "Internal error"),
         }
     }
 }
@@ -149,7 +162,13 @@ async fn get_available_timeslots(
     let calendar = get_vertiport_calendar(vertiport_id, clients).await?;
 
     // TODO(R4): Use each vertipad's calendar
-    let base_timeslots = calendar.to_timeslots(&timeslot.time_start, &timeslot.time_end);
+    let base_timeslots = calendar
+        .to_timeslots(&timeslot.time_start, &timeslot.time_end)
+        .map_err(|e| {
+            router_error!("(get_available_timeslots) Could not convert calendar to timeslots: {e}");
+            VertiportError::Internal
+        })?;
+
     router_debug!(
         "(get_available_timeslots) base_timeslots: {:?}",
         base_timeslots
@@ -157,7 +176,11 @@ async fn get_available_timeslots(
 
     // TODO(R4): This is currently hardcoded, get the duration of the timeslot
     // try min and max both the necessary landing time
-    let max_duration = Duration::minutes(MAX_DURATION_TIMESLOT_MINUTES);
+    let max_duration = Duration::try_minutes(MAX_DURATION_TIMESLOT_MINUTES).ok_or_else(|| {
+        router_error!("(get_available_timeslots) error creating time delta.");
+        VertiportError::Internal
+    })?;
+
     let filter = match vertipad_id {
         Some(id) => GetVertipadsArg::VertipadIds(vec![id.to_string()]),
         None => GetVertipadsArg::VertiportId(vertiport_id.to_string()),
@@ -175,7 +198,7 @@ async fn get_available_timeslots(
     // TODO(R4): This will be replaced with a call to svc-storage vertipad_timeslots to
     //  return a list of occupied timeslots for each vertipad, so we don't
     //  need to rebuild each pad's schedule from flight plans each time
-    let occupied_slots = build_timeslots_from_flight_plans(vertiport_id, existing_flight_plans);
+    let occupied_slots = build_timeslots_from_flight_plans(vertiport_id, existing_flight_plans)?;
 
     router_debug!("(get_available_timeslots): vertiport: {:?}", vertiport_id);
     router_debug!("(get_available_timeslots): vertipads {:?}", timeslots);
@@ -263,15 +286,24 @@ async fn get_vertiport_calendar(
 fn build_timeslots_from_flight_plans(
     vertiport_id: &str,
     flight_plans: &[FlightPlanSchedule],
-) -> Vec<(String, Timeslot)> {
+) -> Result<Vec<(String, Timeslot)>, VertiportError> {
     // TODO(R4): This is currently hardcoded, get the duration of the timeslot
     //  directly from the vertipad_timeslot object
     let required_loading_time =
-        Duration::seconds(crate::grpc::api::query_flight::LOADING_AND_TAKEOFF_TIME_SECONDS);
-    let required_unloading_time =
-        Duration::seconds(crate::grpc::api::query_flight::LANDING_AND_UNLOADING_TIME_SECONDS);
+        Duration::try_seconds(crate::grpc::api::query_flight::LOADING_AND_TAKEOFF_TIME_SECONDS)
+            .ok_or_else(|| {
+                router_error!("(build_timeslots_from_flight_plans) error creating time delta.");
+                VertiportError::Internal
+            })?;
 
-    flight_plans
+    let required_unloading_time =
+        Duration::try_seconds(crate::grpc::api::query_flight::LANDING_AND_UNLOADING_TIME_SECONDS)
+            .ok_or_else(|| {
+            router_error!("(build_timeslots_from_flight_plans) error creating time delta.");
+            VertiportError::Internal
+        })?;
+
+    let results = flight_plans
         .iter()
         .filter_map(|fp| {
             if *vertiport_id == fp.origin_vertiport_id {
@@ -296,20 +328,50 @@ fn build_timeslots_from_flight_plans(
                 None
             }
         })
-        .collect::<Vec<(String, Timeslot)>>()
+        .collect::<Vec<(String, Timeslot)>>();
+
+    Ok(results)
 }
 
 /// Gets all available timeslot pairs and a path for each pair
 #[derive(Debug, Clone)]
 pub struct TimeslotPair {
-    pub origin_port_id: String,
-    pub origin_pad_id: String,
+    pub origin_vertiport_id: String,
+    pub origin_vertipad_id: String,
     pub origin_timeslot: Timeslot,
-    pub target_port_id: String,
-    pub target_pad_id: String,
+    pub target_vertiport_id: String,
+    pub target_vertipad_id: String,
     pub target_timeslot: Timeslot,
-    pub path: GeoLineString,
+    pub path: Vec<PointZ>,
     pub distance_meters: f32,
+}
+
+impl From<TimeslotPair> for flight_plan::Data {
+    fn from(val: TimeslotPair) -> Self {
+        let points = val
+            .path
+            .iter()
+            .map(|p| GeoPoint {
+                latitude: p.latitude,
+                longitude: p.longitude,
+                // TODO(R5): put altitude information in storage
+            })
+            .collect();
+
+        let path = Some(GeoLineString { points });
+        flight_plan::Data {
+            origin_vertiport_id: Some(val.origin_vertiport_id),
+            origin_vertipad_id: val.origin_vertipad_id,
+            origin_timeslot_start: Some(val.origin_timeslot.time_start.into()),
+            origin_timeslot_end: Some(val.origin_timeslot.time_end.into()),
+            target_vertiport_id: Some(val.target_vertiport_id),
+            target_vertipad_id: val.target_vertipad_id,
+            target_timeslot_start: Some(val.target_timeslot.time_start.into()),
+            target_timeslot_end: Some(val.target_timeslot.time_end.into()),
+            path,
+            ..Default::default()
+        }
+    }
 }
 
 /// Attempts to find a pairing of origin and target pad
@@ -334,13 +396,13 @@ pub async fn get_vertipad_timeslot_pairs(
     };
 
     // Iterate through origin pads and their schedules
-    for (origin_pad_id, origin_schedule) in origin_vertipads.iter_mut() {
+    for (origin_vertipad_id, origin_schedule) in origin_vertipads.iter_mut() {
         origin_schedule.sort_by(|a, b| a.time_end.cmp(&b.time_end));
 
         // Iterate through the available timeslots for this pad
         'origin_timeslots: for dts in origin_schedule.iter() {
             // Iterate through target pads and their schedules
-            for (target_pad_id, target_schedule) in target_vertipads.iter_mut() {
+            for (target_vertipad_id, target_schedule) in target_vertipads.iter_mut() {
                 target_schedule.sort_by(|a, b| a.time_start.cmp(&b.time_start));
 
                 // Iterate through available timeslots for this pad
@@ -404,7 +466,13 @@ pub async fn get_vertipad_timeslot_pairs(
 
                     let distance_meters = path.1 as f32;
                     let path = path.0.clone();
-                    let estimated_duration_s = estimate_flight_time_seconds(&distance_meters);
+                    let estimated_duration_s = estimate_flight_time_seconds(&distance_meters)
+                        .map_err(|e| {
+                            router_error!(
+                                "(get_vertipad_timeslot_pairs) Could not estimate flight time: {e}"
+                            );
+                            VertiportError::Internal
+                        })?;
 
                     // Since both schedules are sorted, we can break early once
                     //  origin end time + flight time is less than the target timeslot's start time
@@ -449,11 +517,11 @@ pub async fn get_vertipad_timeslot_pairs(
                     };
 
                     pairs.push(TimeslotPair {
-                        origin_port_id: origin_vertiport_id.to_string(),
-                        origin_pad_id: origin_pad_id.clone(),
+                        origin_vertiport_id: origin_vertiport_id.to_string(),
+                        origin_vertipad_id: origin_vertipad_id.clone(),
                         origin_timeslot,
-                        target_port_id: target_vertiport_id.to_string(),
-                        target_pad_id: target_pad_id.clone(),
+                        target_vertiport_id: target_vertiport_id.to_string(),
+                        target_vertipad_id: target_vertipad_id.clone(),
                         target_timeslot,
                         path,
                         distance_meters,
@@ -637,10 +705,10 @@ mod tests {
 
         assert_eq!(pairs.len(), 1);
         let pair = pairs.last().unwrap();
-        let flight_duration = estimate_flight_time_seconds(&pair.distance_meters);
+        let flight_duration = estimate_flight_time_seconds(&pair.distance_meters).unwrap();
 
-        assert_eq!(pair.origin_pad_id, origin_vertipad_id);
-        assert_eq!(pair.target_pad_id, target_vertipad_id);
+        assert_eq!(pair.origin_vertipad_id, origin_vertipad_id);
+        assert_eq!(pair.target_vertipad_id, target_vertipad_id);
         assert_eq!(
             pair.origin_timeslot.time_start,
             target_start - flight_duration
@@ -701,10 +769,10 @@ mod tests {
 
         assert_eq!(pairs.len(), 1);
         let pair = pairs.last().unwrap();
-        let flight_duration = estimate_flight_time_seconds(&pair.distance_meters);
+        let flight_duration = estimate_flight_time_seconds(&pair.distance_meters).unwrap();
 
-        assert_eq!(pair.origin_pad_id, origin_vertipad_id);
-        assert_eq!(pair.target_pad_id, target_vertipad_id);
+        assert_eq!(pair.origin_vertipad_id, origin_vertipad_id);
+        assert_eq!(pair.target_vertipad_id, target_vertipad_id);
         assert_eq!(
             pair.origin_timeslot.time_start,
             target_start - flight_duration
@@ -763,10 +831,10 @@ mod tests {
 
         assert_eq!(pairs.len(), 1);
         let pair = pairs.last().unwrap();
-        let flight_duration = estimate_flight_time_seconds(&pair.distance_meters);
+        let flight_duration = estimate_flight_time_seconds(&pair.distance_meters).unwrap();
 
-        assert_eq!(pair.origin_pad_id, origin_vertipad_id);
-        assert_eq!(pair.target_pad_id, target_vertipad_id);
+        assert_eq!(pair.origin_vertipad_id, origin_vertipad_id);
+        assert_eq!(pair.target_vertipad_id, target_vertipad_id);
         assert_eq!(pair.origin_timeslot.time_start, origin_start);
         assert_eq!(pair.origin_timeslot.time_end, target_end - flight_duration);
         assert_eq!(
@@ -833,10 +901,10 @@ mod tests {
         {
             let pair = pairs[0].clone();
             let target_timeslot = target_timeslot_1;
-            assert_eq!(pair.origin_pad_id, origin_vertipad_id);
-            assert_eq!(pair.target_pad_id, target_vertipad_id);
+            assert_eq!(pair.origin_vertipad_id, origin_vertipad_id);
+            assert_eq!(pair.target_vertipad_id, target_vertipad_id);
 
-            let flight_duration = estimate_flight_time_seconds(&pair.distance_meters);
+            let flight_duration = estimate_flight_time_seconds(&pair.distance_meters).unwrap();
             assert_eq!(
                 pair.origin_timeslot.time_start,
                 target_timeslot.time_start - flight_duration
@@ -854,10 +922,10 @@ mod tests {
         {
             let pair = pairs[1].clone();
             let target_timeslot = target_timeslot_2;
-            assert_eq!(pair.origin_pad_id, origin_vertipad_id);
-            assert_eq!(pair.target_pad_id, target_vertipad_id);
+            assert_eq!(pair.origin_vertipad_id, origin_vertipad_id);
+            assert_eq!(pair.target_vertipad_id, target_vertipad_id);
 
-            let flight_duration = estimate_flight_time_seconds(&pair.distance_meters);
+            let flight_duration = estimate_flight_time_seconds(&pair.distance_meters).unwrap();
             assert_eq!(
                 pair.origin_timeslot.time_start,
                 target_timeslot.time_start - flight_duration

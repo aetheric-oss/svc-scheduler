@@ -22,10 +22,20 @@ const AVERAGE_CARGO_AIRCRAFT_CRUISE_VELOCITY_M_PER_S: f32 = 10.0;
 /// Reasons for unavailable aircraft
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum VehicleError {
+    /// Error from the vehicle client
     ClientError,
+
+    /// Vehicle data is corrupt or invalid
     InvalidData,
+
+    /// Vehicle doesn't have a schedule
     NoScheduleProvided,
+
+    /// Vehicle has an invalid schedule
     InvalidSchedule,
+
+    /// Internal error
+    Internal,
 }
 
 impl std::fmt::Display for VehicleError {
@@ -35,6 +45,7 @@ impl std::fmt::Display for VehicleError {
             VehicleError::InvalidData => write!(f, "Vehicle data is corrupt or invalid"),
             VehicleError::NoScheduleProvided => write!(f, "Vehicle doesn't have a schedule"),
             VehicleError::InvalidSchedule => write!(f, "Vehicle has an invalid schedule"),
+            VehicleError::Internal => write!(f, "Internal error"),
         }
     }
 }
@@ -220,7 +231,7 @@ pub async fn get_aircraft(
 
 /// Estimates the time needed to travel between two locations including loading and unloading
 /// Estimate should be rather generous to block resources instead of potentially overloading them
-pub fn estimate_flight_time_seconds(distance_meters: &f32) -> Duration {
+pub fn estimate_flight_time_seconds(distance_meters: &f32) -> Result<Duration, VehicleError> {
     router_debug!(
         "(estimate_flight_time_seconds) distance_meters: {}",
         *distance_meters
@@ -237,7 +248,11 @@ pub fn estimate_flight_time_seconds(distance_meters: &f32) -> Duration {
             let cruise_duration_s: f32 =
                 *distance_meters / AVERAGE_CARGO_AIRCRAFT_CRUISE_VELOCITY_M_PER_S;
 
-            Duration::seconds((liftoff_duration_s + cruise_duration_s + landing_duration_s) as i64)
+            let total_duration_s: f32 = liftoff_duration_s + cruise_duration_s + landing_duration_s;
+            Duration::try_milliseconds((total_duration_s * 1000.0) as i64).ok_or_else(|| {
+                router_error!("(estimate_flight_time_seconds) error creating time delta.");
+                VehicleError::Internal
+            })
         }
     }
 }
@@ -248,9 +263,12 @@ pub fn get_aircraft_availabilities(
     existing_flight_plans: &[FlightPlanSchedule],
     aircraft: &[Aircraft],
     timeslot: &Timeslot,
-) -> HashMap<String, Vec<Availability>> {
+) -> Result<HashMap<String, Vec<Availability>>, VehicleError> {
     router_debug!("(get_aircraft_availabilities) aircraft: {:?}", aircraft);
-    let deadhead_padding: Duration = Duration::hours(2);
+    let deadhead_padding: Duration = Duration::try_hours(2).ok_or_else(|| {
+        router_error!("(get_aircraft_availabilities) error creating time delta.");
+        VehicleError::Internal
+    })?;
 
     let mut aircraft_availabilities: HashMap<String, Vec<Availability>> = HashMap::new();
     for a in aircraft.iter() {
@@ -264,6 +282,13 @@ pub fn get_aircraft_availabilities(
                 &(timeslot.time_start - deadhead_padding),
                 &(timeslot.time_end + deadhead_padding),
             )
+            .map_err(|e| {
+                router_error!(
+                    "(get_aircraft_availabilities) error creating timeslots: {}",
+                    e
+                );
+                VehicleError::Internal
+            })?
             .into_iter()
             .for_each(|timeslot| {
                 aircraft_availabilities
@@ -304,7 +329,7 @@ pub fn get_aircraft_availabilities(
         aircraft_availabilities
     );
 
-    aircraft_availabilities
+    Ok(aircraft_availabilities)
 }
 
 #[cfg(test)]
@@ -328,7 +353,7 @@ mod tests {
         let availability = Availability {
             timeslot: Timeslot {
                 time_start: dt_start,
-                time_end: dt_start + Duration::hours(2),
+                time_end: dt_start + Duration::try_hours(2).unwrap(),
             },
             vertiport_id: vertiport_start_id.clone(),
             vertipad_id: vertipad_start_id.clone(),
@@ -341,10 +366,10 @@ mod tests {
                 origin_vertipad_id: vertipad_start_id.clone(),
                 target_vertiport_id: vertiport_middle_id.clone(),
                 target_vertipad_id: vertipad_middle_id.clone(),
-                origin_timeslot_start: dt_start + Duration::minutes(10),
-                origin_timeslot_end: dt_start + Duration::minutes(10),
-                target_timeslot_start: dt_start + Duration::minutes(20),
-                target_timeslot_end: dt_start + Duration::minutes(20),
+                origin_timeslot_start: dt_start + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: dt_start + Duration::try_minutes(10).unwrap(),
+                target_timeslot_start: dt_start + Duration::try_minutes(20).unwrap(),
+                target_timeslot_end: dt_start + Duration::try_minutes(20).unwrap(),
             },
             FlightPlanSchedule {
                 vehicle_id: aircraft_id.clone(),
@@ -352,10 +377,10 @@ mod tests {
                 origin_vertipad_id: vertipad_middle_id.clone(),
                 target_vertiport_id: vertiport_start_id.clone(),
                 target_vertipad_id: vertipad_start_id.clone(),
-                origin_timeslot_start: dt_start + Duration::minutes(25),
-                origin_timeslot_end: dt_start + Duration::minutes(25),
-                target_timeslot_start: dt_start + Duration::minutes(35),
-                target_timeslot_end: dt_start + Duration::minutes(35),
+                origin_timeslot_start: dt_start + Duration::try_minutes(25).unwrap(),
+                origin_timeslot_end: dt_start + Duration::try_minutes(25).unwrap(),
+                target_timeslot_start: dt_start + Duration::try_minutes(35).unwrap(),
+                target_timeslot_end: dt_start + Duration::try_minutes(35).unwrap(),
             },
         ];
 
@@ -377,7 +402,7 @@ mod tests {
             Availability {
                 timeslot: Timeslot {
                     time_start: flight_plans[0].target_timeslot_start,
-                    time_end: dt_start + Duration::hours(2),
+                    time_end: dt_start + Duration::try_hours(2).unwrap(),
                 },
                 vertiport_id: vertiport_middle_id.clone(),
                 vertipad_id: vertipad_middle_id.clone()
@@ -402,7 +427,7 @@ mod tests {
             Availability {
                 timeslot: Timeslot {
                     time_start: flight_plans[1].target_timeslot_start,
-                    time_end: dt_start + Duration::hours(2),
+                    time_end: dt_start + Duration::try_hours(2).unwrap(),
                 },
                 vertiport_id: vertiport_start_id.clone(),
                 vertipad_id: vertipad_start_id.clone()
@@ -448,7 +473,7 @@ mod tests {
             Availability {
                 timeslot: Timeslot {
                     time_start: flight_plans[1].target_timeslot_start,
-                    time_end: dt_start + Duration::hours(2),
+                    time_end: dt_start + Duration::try_hours(2).unwrap(),
                 },
                 vertiport_id: vertiport_start_id.clone(),
                 vertipad_id: vertipad_start_id.clone()
@@ -472,13 +497,14 @@ mod tests {
 
         let timeslots = schedule
             .clone()
-            .to_timeslots(&dt_start, &(dt_start + Duration::hours(2)));
+            .to_timeslots(&dt_start, &(dt_start + Duration::try_hours(2).unwrap()))
+            .unwrap();
         assert_eq!(timeslots.len(), 1);
         assert_eq!(
             timeslots[0],
             Timeslot {
                 time_start: dt_start,
-                time_end: dt_start + Duration::hours(2),
+                time_end: dt_start + Duration::try_hours(2).unwrap(),
             }
         );
 
@@ -497,7 +523,7 @@ mod tests {
 
         let timeslot = Timeslot {
             time_start: dt_start,
-            time_end: dt_start + Duration::hours(2),
+            time_end: dt_start + Duration::try_hours(2).unwrap(),
         };
 
         let flight_plans = vec![
@@ -507,10 +533,10 @@ mod tests {
                 origin_vertipad_id: vertipad_start_id.clone(),
                 target_vertiport_id: vertiport_middle_id.clone(),
                 target_vertipad_id: vertipad_middle_id.clone(),
-                origin_timeslot_start: dt_start + Duration::minutes(10),
-                origin_timeslot_end: dt_start + Duration::minutes(10),
-                target_timeslot_start: dt_start + Duration::minutes(20),
-                target_timeslot_end: dt_start + Duration::minutes(20),
+                origin_timeslot_start: dt_start + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: dt_start + Duration::try_minutes(10).unwrap(),
+                target_timeslot_start: dt_start + Duration::try_minutes(20).unwrap(),
+                target_timeslot_end: dt_start + Duration::try_minutes(20).unwrap(),
             },
             FlightPlanSchedule {
                 vehicle_id: aircraft_id.clone(),
@@ -518,14 +544,14 @@ mod tests {
                 origin_vertipad_id: vertipad_middle_id.clone(),
                 target_vertiport_id: vertiport_start_id.clone(),
                 target_vertipad_id: vertipad_start_id.clone(),
-                origin_timeslot_start: dt_start + Duration::minutes(25),
-                origin_timeslot_end: dt_start + Duration::minutes(25),
-                target_timeslot_start: dt_start + Duration::minutes(35),
-                target_timeslot_end: dt_start + Duration::minutes(35),
+                origin_timeslot_start: dt_start + Duration::try_minutes(25).unwrap(),
+                origin_timeslot_end: dt_start + Duration::try_minutes(25).unwrap(),
+                target_timeslot_start: dt_start + Duration::try_minutes(35).unwrap(),
+                target_timeslot_end: dt_start + Duration::try_minutes(35).unwrap(),
             },
         ];
 
-        let mut gaps = get_aircraft_availabilities(&flight_plans, &aircraft, &timeslot);
+        let mut gaps = get_aircraft_availabilities(&flight_plans, &aircraft, &timeslot).unwrap();
 
         println!("gaps: {:?}", gaps);
 
@@ -568,7 +594,7 @@ mod tests {
                     // see 'deadhead_padding' in the function
                     // the vehicle schedule in this example is 3 hours long, less than the deadhead padding,
                     //  so the end time is the end of the vehicle schedule in this case
-                    time_end: dt_start + Duration::hours(vehicle_duration_hours), // the vehicle schedule is 3 hours long
+                    time_end: dt_start + Duration::try_hours(vehicle_duration_hours).unwrap(), // the vehicle schedule is 3 hours long
                 },
                 vertiport_id: vertiport_start_id,
                 vertipad_id: vertipad_start_id

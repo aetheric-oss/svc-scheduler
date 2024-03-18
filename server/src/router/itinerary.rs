@@ -28,6 +28,9 @@ pub enum ItineraryError {
 
     /// There was a schedule conflict
     ScheduleConflict,
+
+    /// An internal error occurred
+    Internal,
 }
 
 impl Display for ItineraryError {
@@ -37,6 +40,7 @@ impl Display for ItineraryError {
             ItineraryError::InvalidData => write!(f, "Invalid data."),
             ItineraryError::NoPathFound => write!(f, "No path found."),
             ItineraryError::ScheduleConflict => write!(f, "Schedule conflict."),
+            ItineraryError::Internal => write!(f, "Internal error."),
         }
     }
 }
@@ -138,33 +142,52 @@ pub async fn calculate_itineraries(
 ) -> Result<Vec<Vec<flight_plan::Data>>, ItineraryError> {
     let mut itineraries: Vec<Vec<flight_plan::Data>> = vec![];
 
-    router_debug!(
-        "(calculate_itineraries) aircraft_gaps: {:#?}",
-        aircraft_gaps
-    );
-    router_debug!(
-        "(calculate_itineraries) timeslot_pairs: {:#?}",
-        timeslot_pairs
-    );
+    // router_debug!(
+    //     "(calculate_itineraries) aircraft_gaps: {:#?}",
+    //     aircraft_gaps
+    // );
+    // router_debug!(
+    //     "(calculate_itineraries) timeslot_pairs: {:#?}",
+    //     timeslot_pairs
+    // );
 
     // For each available aircraft, see if it can do the flight
     for (aircraft_id, aircraft_availability) in aircraft_gaps {
         // Try different timeslots for the aircraft
         for pair in timeslot_pairs {
             // TODO(R4): Include vehicle model to improve estimate
-            let flight_duration = estimate_flight_time_seconds(&pair.distance_meters);
+            let Ok(flight_duration) = estimate_flight_time_seconds(&pair.distance_meters) else {
+                router_error!(
+                    "(calculate_itineraries) Could not estimate flight time for aircraft {}.",
+                    aircraft_id
+                );
+
+                continue;
+            };
 
             let flight_window = Timeslot {
                 time_start: pair.origin_timeslot.time_start,
                 time_end: pair.target_timeslot.time_end,
             };
 
+            let points = pair
+                .path
+                .clone()
+                .into_iter()
+                .map(|point| GeoPoint {
+                    latitude: point.latitude,
+                    longitude: point.longitude,
+                    // z: 0.0, // TODO(R5): add altitude to svc-storage
+                })
+                .collect();
+
+            let path = Some(GeoLineString { points });
             let flight_plan = svc_storage_client_grpc::prelude::flight_plan::Data {
-                origin_vertiport_id: Some(pair.origin_port_id.clone()),
-                target_vertiport_id: Some(pair.target_port_id.clone()),
-                origin_vertipad_id: pair.origin_pad_id.clone(),
-                target_vertipad_id: pair.target_pad_id.clone(),
-                path: Some(pair.path.clone()),
+                origin_vertiport_id: Some(pair.origin_vertiport_id.clone()),
+                target_vertiport_id: Some(pair.target_vertiport_id.clone()),
+                origin_vertipad_id: pair.origin_vertipad_id.clone(),
+                target_vertipad_id: pair.target_vertipad_id.clone(),
+                path,
                 vehicle_id: aircraft_id.clone(),
                 ..Default::default()
             };
@@ -318,8 +341,22 @@ async fn deadhead_helper(
 
     let distance_meters = path.1 as f32;
     let path = path.0.clone();
+    let points = path
+        .into_iter()
+        .map(|point| GeoPoint {
+            latitude: point.latitude,
+            longitude: point.longitude,
+            // z: 0.0, // TODO(R5): add altitude to svc-storage
+        })
+        .collect();
 
-    let flight_duration = estimate_flight_time_seconds(&distance_meters);
+    let path = Some(GeoLineString { points });
+
+    let flight_duration = estimate_flight_time_seconds(&distance_meters).map_err(|e| {
+        router_error!("(deadhead_helper) Could not estimate flight time: {e}");
+        ItineraryError::Internal
+    })?;
+
     let total_duration =
         flight_duration + args.required_loading_time + args.required_unloading_time;
 
@@ -342,7 +379,7 @@ async fn deadhead_helper(
         target_vertiport_id: Some(args.target_vertiport_id.to_string()),
         target_vertipad_id: args.target_vertipad_id.to_string(),
         vehicle_id: args.vehicle_id.to_string(),
-        path: Some(path),
+        path,
         ..Default::default()
     };
 
@@ -391,6 +428,10 @@ async fn get_itinerary(
     };
 
     let vehicle_id = flight_plan.vehicle_id.clone();
+    let deadhead_loading_time = Duration::try_seconds(0).ok_or_else(|| {
+        router_error!("(get_itinerary) error creating loading time.");
+        ItineraryError::Internal
+    })?;
 
     //
     // 1) Create the flight plan for the deadhead flight to the requested departure vertiport
@@ -409,8 +450,8 @@ async fn get_itinerary(
             aircraft_earliest: availability.timeslot.time_start,
             vertipad_earliest: overlap.time_start,
             arrival_latest: overlap.time_end,
-            required_loading_time: Duration::seconds(0), // deadhead - no loading
-            required_unloading_time: Duration::seconds(0), // deadhead - no unloading
+            required_loading_time: deadhead_loading_time, // deadhead - no loading
+            required_unloading_time: deadhead_loading_time, // deadhead - no unloading
         };
 
         let deadhead = match deadhead_helper(clients, args).await {
@@ -492,8 +533,8 @@ async fn get_itinerary(
             aircraft_earliest: (*last_arrival).clone().into(),
             vertipad_earliest: (*last_arrival).clone().into(), // reserved pad can be accessed any time
             arrival_latest: availability.timeslot.time_end,
-            required_loading_time: Duration::seconds(0), // deadhead - no loading
-            required_unloading_time: Duration::seconds(0), // deadhead - no unloading
+            required_loading_time: deadhead_loading_time, // deadhead - no loading
+            required_unloading_time: deadhead_loading_time, // deadhead - no unloading
         };
 
         let deadhead = match deadhead_helper(clients, args).await {
@@ -523,27 +564,27 @@ mod tests {
     async fn test_get_itinerary_valid_pre_post_deadheads() {
         let clients = get_clients().await;
         let time_start = Utc::now();
-        let time_end = Utc::now() + Duration::seconds(1000);
+        let time_end = Utc::now() + Duration::try_seconds(1000).unwrap();
         let vertiport_1 = Uuid::new_v4().to_string();
         let vertiport_2 = Uuid::new_v4().to_string();
         let vertiport_3 = Uuid::new_v4().to_string();
         let vertipad_1 = Uuid::new_v4().to_string();
         let vertipad_2 = Uuid::new_v4().to_string();
         let vehicle_id = Uuid::new_v4().to_string();
-        let required_loading_time = Duration::seconds(30);
-        let required_unloading_time = Duration::seconds(30);
+        let required_loading_time = Duration::try_seconds(30).unwrap();
+        let required_unloading_time = Duration::try_seconds(30).unwrap();
 
         let aircraft_availability = Availability {
             vertiport_id: vertiport_1.clone(),
             vertipad_id: vertipad_1.clone(),
             timeslot: Timeslot {
-                time_start: time_start - Duration::seconds(1000),
+                time_start: time_start - Duration::try_seconds(1000).unwrap(),
                 time_end: time_end,
             },
         };
 
         let distance_meters = 50.0;
-        let flight_duration = estimate_flight_time_seconds(&distance_meters);
+        let flight_duration = estimate_flight_time_seconds(&distance_meters).unwrap();
         let flight_window = Timeslot {
             time_end,
             time_start,
@@ -643,26 +684,26 @@ mod tests {
     async fn test_get_itinerary_valid_pre_deadhead() {
         let clients = get_clients().await;
         let time_start = Utc::now();
-        let time_end = Utc::now() + Duration::seconds(1000);
+        let time_end = Utc::now() + Duration::try_seconds(1000).unwrap();
         let vertiport_1 = Uuid::new_v4().to_string();
         let vertiport_3 = Uuid::new_v4().to_string();
         let vertipad_1 = Uuid::new_v4().to_string();
         let vertipad_2 = Uuid::new_v4().to_string();
         let vehicle_id = Uuid::new_v4().to_string();
-        let required_loading_time = Duration::seconds(30);
-        let required_unloading_time = Duration::seconds(30);
+        let required_loading_time = Duration::try_seconds(30).unwrap();
+        let required_unloading_time = Duration::try_seconds(30).unwrap();
 
         let aircraft_availability = Availability {
             vertiport_id: vertiport_1.clone(),
             vertipad_id: vertipad_1.clone(),
             timeslot: Timeslot {
-                time_start: time_start - Duration::seconds(1000),
-                time_end: time_end + Duration::seconds(1000),
+                time_start: time_start - Duration::try_seconds(1000).unwrap(),
+                time_end: time_end + Duration::try_seconds(1000).unwrap(),
             },
         };
 
         let distance_meters = 50.0;
-        let flight_duration = estimate_flight_time_seconds(&distance_meters);
+        let flight_duration = estimate_flight_time_seconds(&distance_meters).unwrap();
         let flight_window = Timeslot {
             time_end,
             time_start,
@@ -742,26 +783,26 @@ mod tests {
     async fn test_get_itinerary_valid_post_deadhead() {
         let clients = get_clients().await;
         let time_start = Utc::now();
-        let time_end = Utc::now() + Duration::seconds(1000);
+        let time_end = Utc::now() + Duration::try_seconds(1000).unwrap();
         let vertiport_1 = Uuid::new_v4().to_string();
         let vertiport_3 = Uuid::new_v4().to_string();
         let vertipad_1 = Uuid::new_v4().to_string();
         let vertipad_2 = Uuid::new_v4().to_string();
         let vehicle_id = Uuid::new_v4().to_string();
-        let required_loading_time = Duration::seconds(30);
-        let required_unloading_time = Duration::seconds(30);
+        let required_loading_time = Duration::try_seconds(30).unwrap();
+        let required_unloading_time = Duration::try_seconds(30).unwrap();
 
         let aircraft_availability = Availability {
             vertiport_id: vertiport_1.clone(),
             vertipad_id: vertipad_1.clone(),
             timeslot: Timeslot {
-                time_start: time_start - Duration::seconds(1000),
+                time_start: time_start - Duration::try_seconds(1000).unwrap(),
                 time_end,
             },
         };
 
         let distance_meters = 50.0;
-        let flight_duration = estimate_flight_time_seconds(&distance_meters);
+        let flight_duration = estimate_flight_time_seconds(&distance_meters).unwrap();
         let flight_window = Timeslot {
             time_start,
             time_end,
@@ -840,15 +881,15 @@ mod tests {
     async fn test_get_itinerary_valid_later_flight_window() {
         let clients = get_clients().await;
         let time_start = Utc::now();
-        let time_end = Utc::now() + Duration::hours(1);
+        let time_end = Utc::now() + Duration::try_hours(1).unwrap();
         let vertiport_1 = Uuid::new_v4().to_string();
         let vertiport_2 = Uuid::new_v4().to_string();
         let vertiport_3 = Uuid::new_v4().to_string();
         let vertipad_1 = Uuid::new_v4().to_string();
         let vertipad_2 = Uuid::new_v4().to_string();
         let vehicle_id = Uuid::new_v4().to_string();
-        let required_loading_time = Duration::seconds(30);
-        let required_unloading_time = Duration::seconds(30);
+        let required_loading_time = Duration::try_seconds(30).unwrap();
+        let required_unloading_time = Duration::try_seconds(30).unwrap();
 
         //       |    flight window  |
         //  |     takeoff and land time window     |
@@ -858,13 +899,13 @@ mod tests {
             vertiport_id: vertiport_1.clone(),
             vertipad_id: vertipad_1.clone(),
             timeslot: Timeslot {
-                time_start: time_start + Duration::minutes(10),
-                time_end: time_end - Duration::minutes(20),
+                time_start: time_start + Duration::try_minutes(10).unwrap(),
+                time_end: time_end - Duration::try_minutes(20).unwrap(),
             },
         };
 
         let distance_meters = 50.0;
-        let flight_duration = estimate_flight_time_seconds(&distance_meters);
+        let flight_duration = estimate_flight_time_seconds(&distance_meters).unwrap();
         let flight_window = Timeslot {
             time_end,
             time_start,
@@ -937,15 +978,15 @@ mod tests {
     async fn test_get_itinerary_valid_incompatible_flight_window() {
         let clients = get_clients().await;
         let time_start = Utc::now();
-        let time_end = Utc::now() + Duration::hours(1);
+        let time_end = Utc::now() + Duration::try_hours(1).unwrap();
         let vertiport_1 = Uuid::new_v4().to_string();
         let vertiport_2 = Uuid::new_v4().to_string();
         let vertiport_3 = Uuid::new_v4().to_string();
         let vertipad_1 = Uuid::new_v4().to_string();
         let vertipad_2 = Uuid::new_v4().to_string();
         let vehicle_id = Uuid::new_v4().to_string();
-        let required_loading_time = Duration::seconds(30);
-        let required_unloading_time = Duration::seconds(30);
+        let required_loading_time = Duration::try_seconds(30).unwrap();
+        let required_unloading_time = Duration::try_seconds(30).unwrap();
 
         //                                       |    flight window    |
         //  |     takeoff and land time window     |
@@ -955,13 +996,13 @@ mod tests {
             vertiport_id: vertiport_1.clone(),
             vertipad_id: vertipad_1.clone(),
             timeslot: Timeslot {
-                time_start: time_end - Duration::seconds(30),
-                time_end: time_end + Duration::minutes(20),
+                time_start: time_end - Duration::try_seconds(30).unwrap(),
+                time_end: time_end + Duration::try_minutes(20).unwrap(),
             },
         };
 
         let distance_meters = 1000.0; // too far to fly
-        let flight_duration = estimate_flight_time_seconds(&distance_meters);
+        let flight_duration = estimate_flight_time_seconds(&distance_meters).unwrap();
         let flight_window = Timeslot {
             time_end,
             time_start,
@@ -996,7 +1037,7 @@ mod tests {
     async fn test_calculate_itineraries() {
         let clients = get_clients().await;
         let time_start = Utc::now();
-        let time_end = Utc::now() + Duration::seconds(1000);
+        let time_end = Utc::now() + Duration::try_seconds(1000).unwrap();
         let vertiport_1 = Uuid::new_v4().to_string();
         let vertiport_2 = Uuid::new_v4().to_string();
         let vertiport_3 = Uuid::new_v4().to_string();
@@ -1004,8 +1045,8 @@ mod tests {
         let vertipad_3 = Uuid::new_v4().to_string();
         let vehicle_1 = Uuid::new_v4().to_string();
         let vehicle_2 = Uuid::new_v4().to_string();
-        let required_loading_time = Duration::seconds(30);
-        let required_unloading_time = Duration::seconds(30);
+        let required_loading_time = Duration::try_seconds(30).unwrap();
+        let required_unloading_time = Duration::try_seconds(30).unwrap();
 
         let availabilities = HashMap::from([
             (
@@ -1014,8 +1055,8 @@ mod tests {
                     vertiport_id: vertiport_1.clone(),
                     vertipad_id: vertipad_1.clone(),
                     timeslot: Timeslot {
-                        time_start: time_start - Duration::hours(1),
-                        time_end: time_end + Duration::hours(1),
+                        time_start: time_start - Duration::try_hours(1).unwrap(),
+                        time_end: time_end + Duration::try_hours(1).unwrap(),
                     },
                 }],
             ),
@@ -1025,46 +1066,46 @@ mod tests {
                     vertiport_id: vertiport_3.clone(),
                     vertipad_id: vertipad_3.clone(),
                     timeslot: Timeslot {
-                        time_start: time_end + Duration::hours(1),
-                        time_end: time_end + Duration::hours(2),
+                        time_start: time_end + Duration::try_hours(1).unwrap(),
+                        time_end: time_end + Duration::try_hours(2).unwrap(),
                     },
                 }],
             ),
         ]);
 
         let distance_meters = 50.0;
-        let flight_duration = estimate_flight_time_seconds(&distance_meters);
+        let flight_duration = estimate_flight_time_seconds(&distance_meters).unwrap();
         let timeslot_pairs = vec![
             TimeslotPair {
-                origin_port_id: vertiport_1.clone(),
-                origin_pad_id: vertipad_1.clone(),
+                origin_vertiport_id: vertiport_1.clone(),
+                origin_vertipad_id: vertipad_1.clone(),
                 origin_timeslot: Timeslot {
                     time_start: time_start.clone(),
                     time_end: time_end.clone(),
                 },
-                target_port_id: vertiport_2.clone(),
-                target_pad_id: vertiport_2.clone(),
+                target_vertiport_id: vertiport_2.clone(),
+                target_vertipad_id: vertiport_2.clone(),
                 target_timeslot: Timeslot {
                     time_start: time_start + flight_duration,
                     time_end: time_end + flight_duration,
                 },
-                path: GeoLineString { points: vec![] },
+                path: vec![],
                 distance_meters,
             },
             TimeslotPair {
-                origin_port_id: vertiport_1.clone(),
-                origin_pad_id: vertipad_1.clone(),
+                origin_vertiport_id: vertiport_1.clone(),
+                origin_vertipad_id: vertipad_1.clone(),
                 origin_timeslot: Timeslot {
-                    time_start: time_end + Duration::hours(1),
-                    time_end: time_end + Duration::hours(2),
+                    time_start: time_end + Duration::try_hours(1).unwrap(),
+                    time_end: time_end + Duration::try_hours(2).unwrap(),
                 },
-                target_port_id: vertiport_2.clone(),
-                target_pad_id: vertiport_2.clone(),
+                target_vertiport_id: vertiport_2.clone(),
+                target_vertipad_id: vertiport_2.clone(),
                 target_timeslot: Timeslot {
-                    time_start: time_end + Duration::hours(1) + flight_duration,
-                    time_end: time_end + Duration::hours(2) + flight_duration,
+                    time_start: time_end + Duration::try_hours(1).unwrap() + flight_duration,
+                    time_end: time_end + Duration::try_hours(2).unwrap() + flight_duration,
                 },
-                path: GeoLineString { points: vec![] },
+                path: vec![],
                 distance_meters,
             },
         ];
@@ -1112,23 +1153,23 @@ mod tests {
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
                 origin_vertipad_id: vertipad_1.clone(),
-                origin_timeslot_start: Utc::now() + Duration::minutes(10),
-                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
                 target_vertiport_id: Uuid::new_v4().to_string(),
                 target_vertipad_id: vertipad_2.clone(),
-                target_timeslot_start: Utc::now() + Duration::minutes(30),
-                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
                 origin_vertipad_id: vertipad_2.clone(),
-                origin_timeslot_start: Utc::now() + Duration::minutes(10),
-                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
                 target_vertiport_id: Uuid::new_v4().to_string(),
                 target_vertipad_id: Uuid::new_v4().to_string(),
-                target_timeslot_start: Utc::now() + Duration::minutes(30),
-                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: uuid::Uuid::new_v4().to_string(),
             },
         ];
@@ -1149,23 +1190,23 @@ mod tests {
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
                 origin_vertipad_id: Uuid::new_v4().to_string(),
-                origin_timeslot_start: Utc::now() + Duration::minutes(10),
-                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
                 target_vertiport_id: Uuid::new_v4().to_string(),
                 target_vertipad_id: Uuid::new_v4().to_string(),
-                target_timeslot_start: Utc::now() + Duration::minutes(30),
-                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
                 origin_vertipad_id: Uuid::new_v4().to_string(),
-                origin_timeslot_start: Utc::now() + Duration::minutes(10),
-                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
                 target_vertiport_id: Uuid::new_v4().to_string(),
                 target_vertipad_id: Uuid::new_v4().to_string(),
-                target_timeslot_start: Utc::now() + Duration::minutes(30),
-                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
             },
         ];
@@ -1189,23 +1230,23 @@ mod tests {
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
                 origin_vertipad_id: vertipad_1.clone(),
-                origin_timeslot_start: Utc::now() + Duration::minutes(10),
-                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
                 target_vertiport_id: Uuid::new_v4().to_string(),
                 target_vertipad_id: vertipad_2.clone(),
-                target_timeslot_start: Utc::now() + Duration::minutes(30),
-                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
                 origin_vertipad_id: vertipad_2.clone(),
-                origin_timeslot_start: Utc::now() + Duration::minutes(10),
-                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
                 target_vertiport_id: Uuid::new_v4().to_string(),
                 target_vertipad_id: Uuid::new_v4().to_string(),
-                target_timeslot_start: Utc::now() + Duration::minutes(40),
-                target_timeslot_end: Utc::now() + Duration::minutes(41),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(40).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(41).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
             },
         ];
@@ -1228,23 +1269,23 @@ mod tests {
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
                 origin_vertipad_id: vertipad_1.clone(),
-                origin_timeslot_start: Utc::now() + Duration::minutes(10),
-                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
                 target_vertiport_id: Uuid::new_v4().to_string(),
                 target_vertipad_id: vertipad_2.clone(),
-                target_timeslot_start: Utc::now() + Duration::minutes(30),
-                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
                 origin_vertipad_id: vertipad_2.clone(),
-                origin_timeslot_start: Utc::now() + Duration::minutes(31),
-                origin_timeslot_end: Utc::now() + Duration::minutes(32),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(31).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(32).unwrap(),
                 target_vertiport_id: Uuid::new_v4().to_string(),
                 target_vertipad_id: Uuid::new_v4().to_string(),
-                target_timeslot_start: Utc::now() + Duration::minutes(40),
-                target_timeslot_end: Utc::now() + Duration::minutes(41),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(40).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(41).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
             },
         ];

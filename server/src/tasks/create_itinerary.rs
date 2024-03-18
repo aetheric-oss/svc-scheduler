@@ -2,7 +2,7 @@ use crate::grpc::client::{get_clients, GrpcClients};
 use crate::router::flight_plan::{get_sorted_flight_plans, FlightPlanSchedule};
 use crate::router::schedule::Timeslot;
 use crate::router::vehicle::{get_aircraft, get_aircraft_availabilities};
-use crate::router::vertiport::get_timeslot_pairs;
+use crate::router::vertiport::{get_timeslot_pairs, TimeslotPair};
 use crate::tasks::{Task, TaskAction, TaskBody, TaskError};
 use num_traits::FromPrimitive;
 use std::collections::HashSet;
@@ -10,13 +10,15 @@ use svc_gis_client_grpc::client::UpdateFlightPathRequest;
 use svc_gis_client_grpc::prelude::types::AircraftType;
 use svc_gis_client_grpc::prelude::GisServiceClient;
 use svc_storage_client_grpc::link_service::Client as LinkClient;
+use svc_storage_client_grpc::prelude::flight_plan;
 use svc_storage_client_grpc::prelude::{itinerary, IdList};
 use svc_storage_client_grpc::simple_service::Client as SimpleClient;
 
 /// Register flight plans with svc-storage
 async fn register_flight_plans(
     user_id: &uuid::Uuid,
-    flight_plans: &[FlightPlanSchedule],
+    flight_plans: &[TimeslotPair],
+    aircraft_id: &str,
     clients: &GrpcClients,
 ) -> Result<(), TaskError> {
     //
@@ -28,12 +30,10 @@ async fn register_flight_plans(
     //
     let mut flight_plan_ids = vec![];
     for flight_plan in flight_plans.iter() {
-        let Ok(result) = clients
-            .storage
-            .flight_plan
-            .insert(flight_plan.clone().into())
-            .await
-        else {
+        let mut tmp: flight_plan::Data = flight_plan.clone().into();
+        tmp.vehicle_id = aircraft_id.to_string();
+
+        let Ok(result) = clients.storage.flight_plan.insert(tmp).await else {
             tasks_error!("(register_flight_plans) Couldn't insert flight plan into storage.");
             return Err(TaskError::Internal);
         };
@@ -48,12 +48,12 @@ async fn register_flight_plans(
 
         let request = UpdateFlightPathRequest {
             flight_identifier: Some(flight_id.clone()),
-            aircraft_identifier: Some(flight_plan.vehicle_id.clone()),
+            aircraft_identifier: Some(aircraft_id.to_string()),
             simulated: false,
-            path: vec![],
+            path: flight_plan.path.clone(),
             aircraft_type: AircraftType::Rotorcraft as i32, // TODO(R5): Get from storage
-            timestamp_start: Some(flight_plan.origin_timeslot_end.into()),
-            timestamp_end: Some(flight_plan.target_timeslot_start.into()),
+            timestamp_start: Some(flight_plan.origin_timeslot.time_end.into()),
+            timestamp_end: Some(flight_plan.target_timeslot.time_start.into()),
         };
 
         clients.gis.update_flight_path(request).await.map_err(|e| {
@@ -217,7 +217,12 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     // Get the availability that contains at minimum the requested flight
     // The supplied itinerary (from query_itinerary) should also include the deadhead flights
     let mut aircraft_gaps =
-        get_aircraft_availabilities(&existing_flight_plans, &aircraft, &aircraft_time_window);
+        get_aircraft_availabilities(&existing_flight_plans, &aircraft, &aircraft_time_window)
+            .map_err(|e| {
+                tasks_error!("(create_itinerary) {}", e);
+                TaskError::Internal
+            })?;
+
     let Some(aircraft_gaps) = aircraft_gaps.remove(&aircraft_id) else {
         tasks_error!("(create_itinerary) Aircraft not available for the itinerary.");
         return Err(TaskError::ScheduleConflict);
@@ -236,6 +241,7 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     // Get available timeslots for departure vertiport that are large enough to
     //  fit the required loading and takeoff time.
     //
+    let mut pairs = vec![];
     for flight_plan in proposed_flight_plans {
         let loading_time = flight_plan.origin_timeslot_end - flight_plan.origin_timeslot_start;
         let unloading_time = flight_plan.target_timeslot_end - flight_plan.target_timeslot_start;
@@ -244,7 +250,7 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
             time_end: flight_plan.target_timeslot_end,
         };
 
-        let Ok(timeslot_pairs) = get_timeslot_pairs(
+        let pair = get_timeslot_pairs(
             &flight_plan.origin_vertiport_id,
             Some(&flight_plan.origin_vertipad_id),
             &flight_plan.target_vertiport_id,
@@ -256,22 +262,23 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
             clients,
         )
         .await
-        else {
-            let error_str = "Could not find a timeslot pairing.";
-            tasks_error!("(create_itinerary) {}", error_str);
-            return Err(TaskError::ScheduleConflict);
-        };
+        .map_err(|e| {
+            tasks_error!("(create_itinerary) {}", e);
+            TaskError::ScheduleConflict
+        })?
+        .first()
+        .ok_or_else(|| {
+            tasks_info!("(create_itinerary) No routes available for the given time.");
+            TaskError::ScheduleConflict
+        })?
+        .clone();
 
-        if timeslot_pairs.is_empty() {
-            let info_str = "No routes available for the given time.";
-            tasks_info!("(create_itinerary) {info_str}");
-            return Err(TaskError::ScheduleConflict);
-        }
+        pairs.push(pair);
     }
 
     // If we've reached this point, the itinerary is valid
     // Register it with svc-storage
-    register_flight_plans(&user_id, proposed_flight_plans, clients).await
+    register_flight_plans(&user_id, &pairs, &aircraft_id, clients).await
 }
 
 #[cfg(test)]
@@ -349,12 +356,12 @@ mod tests {
             body: TaskBody::CreateItinerary(vec![FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
                 origin_vertipad_id: Uuid::new_v4().to_string(),
-                origin_timeslot_start: Utc::now() + Duration::minutes(10),
-                origin_timeslot_end: Utc::now() + Duration::minutes(11),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
                 target_vertiport_id: Uuid::new_v4().to_string(),
                 target_vertipad_id: Uuid::new_v4().to_string(),
-                target_timeslot_start: Utc::now() + Duration::minutes(30),
-                target_timeslot_end: Utc::now() + Duration::minutes(31),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: Uuid::new_v4().to_string(),
             }]),
         };

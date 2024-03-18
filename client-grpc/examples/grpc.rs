@@ -1,5 +1,6 @@
 //! gRPC client implementation
 
+use chrono::Duration;
 use chrono::Utc;
 use lib_common::grpc::{get_endpoint_from_env, GrpcClient};
 use svc_scheduler_client_grpc::{
@@ -12,7 +13,11 @@ use tonic::transport::Channel;
 async fn query_itinerary_example(
     client: &GrpcClient<RpcServiceClient<Channel>>,
 ) -> Option<Vec<Itinerary>> {
-    let itinerary_date = (Utc::now() + chrono::Duration::days(10)).date_naive();
+    let Some(delta) = Duration::try_days(10) else {
+        panic!("Couldn't get time delta.");
+    };
+
+    let itinerary_date = (Utc::now() + delta).date_naive();
     let departure_time = itinerary_date.and_hms_opt(8, 0, 0).unwrap().and_utc();
     let arrival_time = itinerary_date.and_hms_opt(9, 0, 0).unwrap().and_utc();
     let origin_vertiport_id = uuid::Uuid::new_v4().to_string();
@@ -163,12 +168,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         flight_plans: vec![scheduler_storage::flight_plan::Data {
             origin_vertiport_id: Some(uuid::Uuid::new_v4().to_string()),
             origin_vertipad_id: uuid::Uuid::new_v4().to_string(),
-            origin_timeslot_start: Some((Utc::now() + chrono::Duration::minutes(10)).into()),
-            origin_timeslot_end: Some((Utc::now() + chrono::Duration::minutes(11)).into()),
+            origin_timeslot_start: Some((Utc::now() + Duration::try_minutes(10).unwrap()).into()),
+            origin_timeslot_end: Some((Utc::now() + Duration::try_minutes(11).unwrap()).into()),
             target_vertiport_id: Some(uuid::Uuid::new_v4().to_string()),
             target_vertipad_id: uuid::Uuid::new_v4().to_string(),
-            target_timeslot_start: Some((Utc::now() + chrono::Duration::minutes(30)).into()),
-            target_timeslot_end: Some((Utc::now() + chrono::Duration::minutes(31)).into()),
+            target_timeslot_start: Some((Utc::now() + Duration::try_minutes(30).unwrap()).into()),
+            target_timeslot_end: Some((Utc::now() + Duration::try_minutes(31).unwrap()).into()),
             vehicle_id: uuid::Uuid::new_v4().to_string(),
             ..Default::default()
         }],

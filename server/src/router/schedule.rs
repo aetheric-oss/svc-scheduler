@@ -183,6 +183,7 @@ pub enum CalendarError {
     RruleSet,
     HeaderPartsLength,
     Duration,
+    Internal,
 }
 
 impl Display for CalendarError {
@@ -192,6 +193,7 @@ impl Display for CalendarError {
             CalendarError::RruleSet => write!(f, "Invalid rrule set"),
             CalendarError::HeaderPartsLength => write!(f, "Invalid header parts length"),
             CalendarError::Duration => write!(f, "Invalid duration"),
+            CalendarError::Internal => write!(f, "Internal error"),
         }
     }
 }
@@ -315,10 +317,15 @@ impl Calendar {
         &self,
         time_start: &DateTime<Utc>,
         time_end: &DateTime<Utc>,
-    ) -> Vec<Timeslot> {
+    ) -> Result<Vec<Timeslot>, CalendarError> {
         // Want to grab the full day's schedule, so we need to expand the start and end times
-        let start: NaiveDateTime = (*time_start).naive_utc() - Duration::days(1);
-        let end: NaiveDateTime = (*time_end).naive_utc() + Duration::days(1);
+        let delta = Duration::try_days(1).ok_or_else(|| {
+            router_error!("(Calendar to_timeslots) error creating time delta.");
+            CalendarError::Internal
+        })?;
+
+        let start: NaiveDateTime = (*time_start).naive_utc() - delta;
+        let end: NaiveDateTime = (*time_end).naive_utc() + delta;
 
         // convert to a Tz type understood by the rrule library
         let start: DateTime<rrule::Tz> = rrule::Tz::UTC.from_utc_datetime(&start);
@@ -350,7 +357,7 @@ impl Calendar {
             }
         }
 
-        timeslots
+        Ok(timeslots)
     }
 }
 
@@ -380,8 +387,14 @@ mod tests {
     fn test_parse_calendar() {
         let calendar = Calendar::from_str(CAL_WORKDAYS_8AM_6PM).unwrap();
         assert_eq!(calendar.events.len(), 2);
-        assert_eq!(calendar.events[0].duration, Duration::hours(14));
-        assert_eq!(calendar.events[1].duration, Duration::hours(24));
+        assert_eq!(
+            calendar.events[0].duration,
+            Duration::try_hours(14).unwrap()
+        );
+        assert_eq!(
+            calendar.events[1].duration,
+            Duration::try_hours(24).unwrap()
+        );
     }
 
     #[test]
@@ -392,7 +405,10 @@ mod tests {
         let cal_str = calendar.to_string();
         let calendar = Calendar::from_str(&cal_str).unwrap();
         assert_eq!(calendar.events.len(), 4);
-        assert_eq!(calendar.events[0].duration, Duration::hours(14));
+        assert_eq!(
+            calendar.events[0].duration,
+            Duration::try_hours(14).unwrap()
+        );
     }
 
     #[test]
@@ -415,20 +431,22 @@ mod tests {
         let cal_start = Utc.with_ymd_and_hms(2022, 10, 20, 8, 0, 0).unwrap();
         let expected_timeslots = vec![
             Timeslot {
-                time_start: cal_start,                    // 8AM
-                time_end: cal_start + Duration::hours(4), // 12PM
+                time_start: cal_start,                                 // 8AM
+                time_end: cal_start + Duration::try_hours(4).unwrap(), // 12PM
             },
             Timeslot {
-                time_start: cal_start + Duration::hours(6), // 2PM
-                time_end: cal_start + Duration::hours(10),  // 6PM
+                time_start: cal_start + Duration::try_hours(6).unwrap(), // 2PM
+                time_end: cal_start + Duration::try_hours(10).unwrap(),  // 6PM
             },
         ];
 
         // Get full day schedule
-        let timeslots = calendar.to_timeslots(
-            &(cal_start - Duration::hours(1)),
-            &(cal_start + Duration::hours(12)),
-        );
+        let timeslots = calendar
+            .to_timeslots(
+                &(cal_start - Duration::try_hours(1).unwrap()),
+                &(cal_start + Duration::try_hours(12).unwrap()),
+            )
+            .unwrap();
         assert_eq!(timeslots.len(), 2);
         assert_eq!(timeslots, expected_timeslots);
     }
@@ -447,22 +465,22 @@ mod tests {
         let cal_start = Utc.with_ymd_and_hms(2022, 10, 20, 8, 0, 0).unwrap();
 
         // Crop to 10AM to 6PM
-        let start: DateTime<Utc> = cal_start + Duration::hours(2);
-        let end: DateTime<Utc> = cal_start + Duration::hours(8);
+        let start: DateTime<Utc> = cal_start + Duration::try_hours(2).unwrap();
+        let end: DateTime<Utc> = cal_start + Duration::try_hours(8).unwrap();
 
         let expected_timeslots = vec![
             Timeslot {
-                time_start: start,                        // 10 AM
-                time_end: cal_start + Duration::hours(4), // 12PM
+                time_start: start,                                     // 10 AM
+                time_end: cal_start + Duration::try_hours(4).unwrap(), // 12PM
             },
             Timeslot {
-                time_start: cal_start + Duration::hours(6), // 2PM
-                time_end: end,                              // 4PM
+                time_start: cal_start + Duration::try_hours(6).unwrap(), // 2PM
+                time_end: end,                                           // 4PM
             },
         ];
 
         // Get full day schedule
-        let timeslots = calendar.to_timeslots(&start, &end);
+        let timeslots = calendar.to_timeslots(&start, &end).unwrap();
         assert_eq!(timeslots.len(), 2);
         assert_eq!(timeslots, expected_timeslots);
     }
@@ -481,8 +499,8 @@ mod tests {
         let cal_start = Utc.with_ymd_and_hms(2022, 10, 20, 8, 0, 0).unwrap();
 
         // Crop to 10AM to 6PM
-        let start: DateTime<Utc> = cal_start + Duration::hours(2);
-        let end: DateTime<Utc> = cal_start + Duration::hours(3);
+        let start: DateTime<Utc> = cal_start + Duration::try_hours(2).unwrap();
+        let end: DateTime<Utc> = cal_start + Duration::try_hours(3).unwrap();
 
         let expected_timeslots = vec![Timeslot {
             time_start: start, // 10 AM
@@ -490,7 +508,7 @@ mod tests {
         }];
 
         // Get full day schedule
-        let timeslots = calendar.to_timeslots(&start, &end);
+        let timeslots = calendar.to_timeslots(&start, &end).unwrap();
         assert_eq!(timeslots.len(), 1);
         assert_eq!(timeslots, expected_timeslots);
     }
@@ -510,22 +528,22 @@ mod tests {
         let cal_start = Utc.with_ymd_and_hms(2023, 10, 20, 8, 0, 0).unwrap();
 
         // Crop to 10AM to 6PM
-        let start: DateTime<Utc> = cal_start - Duration::hours(2);
-        let end: DateTime<Utc> = cal_start + Duration::hours(16);
+        let start: DateTime<Utc> = cal_start - Duration::try_hours(2).unwrap();
+        let end: DateTime<Utc> = cal_start + Duration::try_hours(16).unwrap();
 
         let expected_timeslots = vec![
             Timeslot {
-                time_start: cal_start,                    // 8
-                time_end: cal_start + Duration::hours(4), // 12
+                time_start: cal_start,                                 // 8
+                time_end: cal_start + Duration::try_hours(4).unwrap(), // 12
             },
             Timeslot {
-                time_start: cal_start + Duration::hours(6), // 14
-                time_end: cal_start + Duration::hours(10),  // 18
+                time_start: cal_start + Duration::try_hours(6).unwrap(), // 14
+                time_end: cal_start + Duration::try_hours(10).unwrap(),  // 18
             },
         ];
 
         // Get full day schedule
-        let timeslots = calendar.to_timeslots(&start, &end);
+        let timeslots = calendar.to_timeslots(&start, &end).unwrap();
         assert_eq!(timeslots.len(), 2);
         assert_eq!(timeslots, expected_timeslots);
     }
@@ -544,12 +562,12 @@ mod tests {
 
         let timeslot_a = Timeslot {
             time_start: dt_start,
-            time_end: dt_start + Duration::hours(3),
+            time_end: dt_start + Duration::try_hours(3).unwrap(),
         };
 
         let timeslot_b = Timeslot {
-            time_start: dt_start + Duration::hours(1),
-            time_end: dt_start + Duration::hours(2),
+            time_start: dt_start + Duration::try_hours(1).unwrap(),
+            time_end: dt_start + Duration::try_hours(2).unwrap(),
         };
 
         let timeslots = timeslot_a - timeslot_b;
@@ -559,11 +577,11 @@ mod tests {
             vec![
                 Timeslot {
                     time_start: dt_start,
-                    time_end: dt_start + Duration::hours(1),
+                    time_end: dt_start + Duration::try_hours(1).unwrap(),
                 },
                 Timeslot {
-                    time_start: dt_start + Duration::hours(2),
-                    time_end: dt_start + Duration::hours(3),
+                    time_start: dt_start + Duration::try_hours(2).unwrap(),
+                    time_end: dt_start + Duration::try_hours(3).unwrap(),
                 },
             ]
         );
@@ -583,12 +601,12 @@ mod tests {
 
         let timeslot_a = Timeslot {
             time_start: dt_start,
-            time_end: dt_start + Duration::hours(3),
+            time_end: dt_start + Duration::try_hours(3).unwrap(),
         };
 
         let timeslot_b = Timeslot {
-            time_start: dt_start + Duration::hours(2),
-            time_end: dt_start + Duration::hours(4),
+            time_start: dt_start + Duration::try_hours(2).unwrap(),
+            time_end: dt_start + Duration::try_hours(4).unwrap(),
         };
 
         let timeslots = timeslot_a - timeslot_b;
@@ -597,7 +615,7 @@ mod tests {
             timeslots,
             vec![Timeslot {
                 time_start: dt_start,
-                time_end: dt_start + Duration::hours(2),
+                time_end: dt_start + Duration::try_hours(2).unwrap(),
             },]
         );
     }
@@ -615,13 +633,13 @@ mod tests {
         };
 
         let timeslot_a = Timeslot {
-            time_start: dt_start + Duration::hours(1),
-            time_end: dt_start + Duration::hours(3),
+            time_start: dt_start + Duration::try_hours(1).unwrap(),
+            time_end: dt_start + Duration::try_hours(3).unwrap(),
         };
 
         let timeslot_b = Timeslot {
             time_start: dt_start,
-            time_end: dt_start + Duration::hours(2),
+            time_end: dt_start + Duration::try_hours(2).unwrap(),
         };
 
         let timeslots = timeslot_a - timeslot_b;
@@ -629,8 +647,8 @@ mod tests {
         assert_eq!(
             timeslots,
             vec![Timeslot {
-                time_start: dt_start + Duration::hours(2),
-                time_end: dt_start + Duration::hours(3),
+                time_start: dt_start + Duration::try_hours(2).unwrap(),
+                time_end: dt_start + Duration::try_hours(3).unwrap(),
             },]
         );
     }
@@ -648,13 +666,13 @@ mod tests {
         //           =
         //           |               |
         let timeslot_a = Timeslot {
-            time_start: dt_start + Duration::hours(2),
-            time_end: dt_start + Duration::hours(3),
+            time_start: dt_start + Duration::try_hours(2).unwrap(),
+            time_end: dt_start + Duration::try_hours(3).unwrap(),
         };
 
         let timeslot_b = Timeslot {
             time_start: dt_start,
-            time_end: dt_start + Duration::hours(2),
+            time_end: dt_start + Duration::try_hours(2).unwrap(),
         };
 
         let timeslots = timeslot_a - timeslot_b;
@@ -668,12 +686,12 @@ mod tests {
         //           |               |
         let timeslot_a = Timeslot {
             time_start: dt_start,
-            time_end: dt_start + Duration::hours(1),
+            time_end: dt_start + Duration::try_hours(1).unwrap(),
         };
 
         let timeslot_b = Timeslot {
-            time_start: dt_start + Duration::hours(1),
-            time_end: dt_start + Duration::hours(2),
+            time_start: dt_start + Duration::try_hours(1).unwrap(),
+            time_end: dt_start + Duration::try_hours(2).unwrap(),
         };
 
         let timeslots = timeslot_a - timeslot_b;

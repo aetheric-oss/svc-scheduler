@@ -54,7 +54,7 @@ async fn test_create_itinerary() -> Result<(), Box<dyn std::error::Error>> {
         priority: FlightPriority::Low.into(),
         flight_plans: vec![],
         expiry: Some(Timestamp {
-            seconds: (Utc::now() + Duration::hours(1)).timestamp(),
+            seconds: (Utc::now() + Duration::try_hours(1).unwrap()).timestamp(),
             nanos: 0,
         }),
         user_id: uuid::Uuid::new_v4().to_string(),

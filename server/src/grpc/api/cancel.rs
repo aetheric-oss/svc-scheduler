@@ -32,7 +32,12 @@ pub async fn cancel_itinerary(request: CancelItineraryRequest) -> Result<TaskRes
 
     // TODO(R4): Get the itinerary start time from storage
     // For now hardcode next hour
-    let expiry = Utc::now() + Duration::hours(1);
+    let delta = Duration::try_hours(1).ok_or_else(|| {
+        grpc_error!("(cancel_itinerary) error creating time delta.");
+        Status::internal("Could not create new task.")
+    })?;
+
+    let expiry = Utc::now() + delta;
     let task = Task {
         metadata: TaskMetadata {
             status: TaskStatus::Queued as i32,
