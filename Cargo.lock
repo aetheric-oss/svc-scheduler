@@ -2659,7 +2659,7 @@ dependencies = [
 
 [[package]]
 name = "svc-scheduler"
-version = "0.4.1-develop.4"
+version = "0.4.1-develop.5"
 dependencies = [
  "anyhow",
  "cargo-husky",
@@ -2706,7 +2706,7 @@ dependencies = [
 
 [[package]]
 name = "svc-scheduler-client-grpc"
-version = "0.4.1-develop.4"
+version = "0.4.1-develop.5"
 dependencies = [
  "cfg-if",
  "chrono",
