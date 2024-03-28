@@ -430,6 +430,7 @@ async fn create_flight_plan(
     );
 
     flight_plan.flight_status = flight_plan::FlightStatus::Ready as i32;
+    flight_plan.session_id = format!("AETH{}", rand::random::<u16>());
 
     client
         .insert(flight_plan)
