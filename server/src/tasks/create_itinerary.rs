@@ -11,8 +11,10 @@ use svc_gis_client_grpc::prelude::types::AircraftType;
 use svc_gis_client_grpc::prelude::GisServiceClient;
 use svc_storage_client_grpc::link_service::Client as LinkClient;
 use svc_storage_client_grpc::prelude::flight_plan;
-use svc_storage_client_grpc::prelude::{itinerary, IdList};
+use svc_storage_client_grpc::prelude::{itinerary, Id, IdList};
 use svc_storage_client_grpc::simple_service::Client as SimpleClient;
+
+const SESSION_ID_PREFIX: &str = "AETH";
 
 /// Register flight plans with svc-storage
 async fn register_flight_plans(
@@ -30,25 +32,67 @@ async fn register_flight_plans(
     //
     let mut flight_plan_ids = vec![];
     for flight_plan in flight_plans.iter() {
+        // TODO(R5): This is a temporary solution to generate a session id
+        //  should be replaced with a proper session id generator that won't
+        //  conflict with an active or future ID already in storage
+        let session_id = format!("{SESSION_ID_PREFIX}{}", rand::random::<u16>());
         let mut tmp: flight_plan::Data = flight_plan.clone().into();
         tmp.vehicle_id = aircraft_id.to_string();
+        tmp.session_id = session_id.clone();
 
-        let Ok(result) = clients.storage.flight_plan.insert(tmp).await else {
-            tasks_error!("(register_flight_plans) Couldn't insert flight plan into storage.");
-            return Err(TaskError::Internal);
-        };
-
-        let flight_id = match result.into_inner().object {
-            Some(object) => object.id,
-            None => {
+        let result = clients
+            .storage
+            .flight_plan
+            .insert(tmp)
+            .await
+            .map_err(|e| {
+                tasks_error!(
+                    "(register_flight_plans) Couldn't insert flight plan into storage: {}",
+                    e
+                );
+                TaskError::Internal
+            })?
+            .into_inner()
+            .object
+            .ok_or_else(|| {
                 tasks_error!("(register_flight_plans) Couldn't insert flight plan into storage.");
-                return Err(TaskError::Internal);
-            }
-        };
+                TaskError::Internal
+            })?;
+
+        let flight_id = result.id.clone();
+        let session_id = result
+            .data
+            .ok_or_else(|| {
+                tasks_error!("(register_flight_plans) Flight plan object had no data.");
+                TaskError::Internal
+            })?
+            .session_id; // the short flight id (i.e. KLM 1234)
+
+        let registration_id = clients
+            .storage
+            .vehicle
+            .get_by_id(Id {
+                id: aircraft_id.to_string(),
+            })
+            .await
+            .map_err(|e| {
+                tasks_error!(
+                    "(register_flight_plans) Couldn't get aircraft information from storage: {}",
+                    e
+                );
+                TaskError::Internal
+            })?
+            .into_inner()
+            .data
+            .ok_or_else(|| {
+                tasks_error!("(register_flight_plans) Vehicle object had no data.");
+                TaskError::Internal
+            })?
+            .registration_number; // the tail number
 
         let request = UpdateFlightPathRequest {
-            flight_identifier: Some(flight_id.clone()),
-            aircraft_identifier: Some(aircraft_id.to_string()),
+            flight_identifier: Some(session_id.clone()),
+            aircraft_identifier: Some(registration_id.to_string()),
             simulated: false,
             path: flight_plan.path.clone(),
             aircraft_type: AircraftType::Rotorcraft as i32, // TODO(R5): Get from storage
