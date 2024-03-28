@@ -175,6 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             target_timeslot_start: Some((Utc::now() + Duration::try_minutes(30).unwrap()).into()),
             target_timeslot_end: Some((Utc::now() + Duration::try_minutes(31).unwrap()).into()),
             vehicle_id: uuid::Uuid::new_v4().to_string(),
+            session_id: "AETH1234".to_string(),
             ..Default::default()
         }],
     };
