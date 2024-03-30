@@ -14,6 +14,8 @@ use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
+const MAX_ITINERARIES: usize = 5;
+
 /// Errors that may occur while processing an itinerary
 #[derive(Debug, Clone, PartialEq)]
 pub enum ItineraryError {
@@ -116,7 +118,7 @@ pub fn validate_itinerary(
             return Err(ItineraryError::InvalidData);
         }
 
-        if fp_1.target_timeslot_end >= fp_2.origin_timeslot_start {
+        if fp_1.target_timeslot_end > fp_2.origin_timeslot_start {
             router_error!(
                 "(validate_itinerary) Flight plans should be in order of departure time: {:#?}",
                 flight_plans
@@ -152,7 +154,7 @@ pub async fn calculate_itineraries(
     // );
 
     // For each available aircraft, see if it can do the flight
-    for (aircraft_id, aircraft_availability) in aircraft_gaps {
+    'outer: for (aircraft_id, aircraft_availability) in aircraft_gaps {
         // Try different timeslots for the aircraft
         for pair in timeslot_pairs {
             // TODO(R4): Include vehicle model to improve estimate
@@ -203,7 +205,18 @@ pub async fn calculate_itineraries(
             )
             .await
             {
-                Ok(itinerary) => itineraries.push(itinerary),
+                Ok(itinerary) => {
+                    itineraries.push(itinerary);
+
+                    if itineraries.len() >= MAX_ITINERARIES {
+                        router_info!(
+                            "(calculate_itineraries) max itineraries reached {}.",
+                            itineraries.len()
+                        );
+
+                        break 'outer;
+                    }
+                }
                 Err(ItineraryError::ClientError) => {
                     // exit immediately if svc-gis is down, don't allow new flights
                     router_error!(
