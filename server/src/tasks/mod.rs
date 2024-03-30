@@ -206,17 +206,21 @@ pub async fn task_loop(_config: crate::config::Config) {
             Some(TaskAction::CancelItinerary) => cancel_itinerary(&mut task).await,
             None => {
                 tasks_warn!("(task_loop) Invalid task action: {}", task.metadata.action);
-
                 task.metadata.status = TaskStatus::Rejected.into();
                 task.metadata.status_rationale = Some(TaskStatusRationale::InvalidAction.into());
-                Ok(())
+                Err(TaskError::InvalidMetadata)
             }
         };
 
-        if let Err(e) = result {
-            tasks_warn!("(task_loop) error executing task: {}", e);
-            task.metadata.status = TaskStatus::Rejected.into();
-            task.metadata.status_rationale = Some(TaskStatusRationale::Internal.into());
+        match result {
+            Ok(_) => {
+                tasks_info!("(task_loop) Task completed successfully.");
+                task.metadata.status = TaskStatus::Complete.into();
+            }
+            Err(e) => {
+                tasks_warn!("(task_loop) error executing task: {}", e);
+                task.metadata.status = TaskStatus::Rejected.into();
+            }
         }
 
         let new_expiry = Utc::now() + keepalive_delta;

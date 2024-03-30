@@ -207,14 +207,13 @@ pub async fn get_aircraft(
     // We should further limit this, but for now we'll just get all aircraft
     //  Need something to sort by, ascending distance from the
     //  departure vertiport or charge level before cutting off the list
-    let mut filter = AdvancedSearchFilter {
-        results_per_page: 1000,
-        ..Default::default()
+
+    let mut filter = match aircraft_id {
+        Some(id) => AdvancedSearchFilter::search_equals("vehicle_id".to_string(), id.to_string()),
+        None => AdvancedSearchFilter::default(),
     };
 
-    if let Some(id) = aircraft_id {
-        filter = filter.and_equals("vehicle_id".to_string(), id)
-    }
+    filter.results_per_page = 1000;
 
     let Ok(response) = clients.storage.vehicle.search(filter).await else {
         router_error!("(get_aircraft) request to svc-storage failed.");

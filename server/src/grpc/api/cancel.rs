@@ -44,6 +44,7 @@ pub async fn cancel_itinerary(request: CancelItineraryRequest) -> Result<TaskRes
             status_rationale: None,
             action: TaskAction::CancelItinerary as i32,
             user_id: user_id.to_string(),
+            result: None,
         },
         body: TaskBody::CancelItinerary(itinerary_id),
     };

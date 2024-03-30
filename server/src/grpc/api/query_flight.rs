@@ -15,11 +15,11 @@ use crate::router::vehicle::*;
 use crate::router::vertiport::*;
 
 /// Time to block vertiport for cargo loading and takeoff
-pub const LOADING_AND_TAKEOFF_TIME_SECONDS: i64 = 600;
+pub const LOADING_AND_TAKEOFF_TIME_SECONDS: i64 = 60;
 /// Time to block vertiport for cargo unloading and landing
-pub const LANDING_AND_UNLOADING_TIME_SECONDS: i64 = 600;
+pub const LANDING_AND_UNLOADING_TIME_SECONDS: i64 = 60;
 /// Maximum time between departure and arrival times for flight queries
-pub const MAX_FLIGHT_QUERY_WINDOW_MINUTES: i64 = 360; // +/- 3 hours (6 total)
+pub const MAX_FLIGHT_QUERY_WINDOW_MINUTES: i64 = 720; // +/- 3 hours (6 total)
 
 /// Sanitized version of the gRPC query
 #[derive(Debug)]
