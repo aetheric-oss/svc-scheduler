@@ -126,6 +126,9 @@ pub struct TaskMetadata {
     /// Task user ID
     #[prost(string, tag = "4")]
     pub user_id: ::prost::alloc::string::String,
+    /// Result from the task, if any
+    #[prost(string, optional, tag = "5")]
+    pub result: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Ready Request
 ///
