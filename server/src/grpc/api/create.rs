@@ -66,6 +66,7 @@ pub async fn create_itinerary(request: CreateItineraryRequest) -> Result<TaskRes
             status_rationale: None,
             action: TaskAction::CreateItinerary as i32,
             user_id: user_id.to_string(),
+            result: None,
         },
         body: TaskBody::CreateItinerary(schedules),
     };

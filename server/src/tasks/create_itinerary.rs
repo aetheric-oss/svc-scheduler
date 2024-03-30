@@ -13,16 +13,17 @@ use svc_storage_client_grpc::link_service::Client as LinkClient;
 use svc_storage_client_grpc::prelude::flight_plan;
 use svc_storage_client_grpc::prelude::{itinerary, Id, IdList};
 use svc_storage_client_grpc::simple_service::Client as SimpleClient;
+use uuid::Uuid;
 
 const SESSION_ID_PREFIX: &str = "AETH";
 
-/// Register flight plans with svc-storage
+/// Register flight plans with svc-storage and return the itinerary ID
 async fn register_flight_plans(
-    user_id: &uuid::Uuid,
+    user_id: &Uuid,
     flight_plans: &[TimeslotPair],
     aircraft_id: &str,
     clients: &GrpcClients,
-) -> Result<(), TaskError> {
+) -> Result<String, TaskError> {
     //
     // TODO(R5): Do this in a transaction if possible, so that flight plans
     //  are rolled back if any part of the itinerary fails to be created.
@@ -39,6 +40,7 @@ async fn register_flight_plans(
         let mut tmp: flight_plan::Data = flight_plan.clone().into();
         tmp.vehicle_id = aircraft_id.to_string();
         tmp.session_id = session_id.clone();
+        tmp.pilot_id = Uuid::new_v4().to_string(); // TODO(R5): Pilots not currently supported
 
         let result = clients
             .storage
@@ -121,23 +123,30 @@ async fn register_flight_plans(
         status: itinerary::ItineraryStatus::Active as i32,
     };
 
-    let Ok(result) = clients.storage.itinerary.insert(data).await else {
-        tasks_error!("(register_flight_plans) Couldn't insert itinerary into storage.");
-        return Err(TaskError::Internal);
-    };
-
-    let itinerary_id = match result.into_inner().object {
-        Some(object) => object.id,
-        None => {
+    let itinerary_id = clients
+        .storage
+        .itinerary
+        .insert(data)
+        .await
+        .map_err(|e| {
+            tasks_error!(
+                "(register_flight_plans) Couldn't insert itinerary into storage: {}",
+                e
+            );
+            TaskError::Internal
+        })?
+        .into_inner()
+        .object
+        .ok_or_else(|| {
             tasks_error!("(register_flight_plans) Couldn't insert itinerary into storage.");
-            return Err(TaskError::Internal);
-        }
-    };
+            TaskError::Internal
+        })?
+        .id;
 
     //
     // 3) Link flight plans to itinerary in `itinerary_flight_plan`
     //
-    if let Err(e) = clients
+    let _ = clients
         .storage
         .itinerary_flight_plan_link
         .link(itinerary::ItineraryFlightPlans {
@@ -147,15 +156,19 @@ async fn register_flight_plans(
             }),
         })
         .await
-    {
-        tasks_error!(
-            "(register_flight_plans) Couldn't link flight plans to itinerary in storage: {}",
-            e
-        );
-        return Err(TaskError::Internal);
-    }
+        .map_err(|e| {
+            tasks_error!(
+                "(register_flight_plans) Couldn't link flight plans to itinerary in storage: {}",
+                e
+            );
+            TaskError::Internal
+        })?;
 
-    Ok(())
+    tasks_info!(
+        "(register_flight_plans) Registered itinerary: {}",
+        itinerary_id
+    );
+    Ok(itinerary_id)
 }
 
 /// Creates an itinerary given a list of flight plans, if valid
@@ -168,7 +181,7 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
         return Err(TaskError::InvalidMetadata);
     };
 
-    let user_id = match uuid::Uuid::parse_str(&task.metadata.user_id.clone()) {
+    let user_id = match Uuid::parse_str(&task.metadata.user_id.clone()) {
         Ok(user_id) => user_id,
         Err(e) => {
             tasks_error!("(create_itinerary) Invalid user_id: {}", e);
@@ -322,7 +335,10 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
 
     // If we've reached this point, the itinerary is valid
     // Register it with svc-storage
-    register_flight_plans(&user_id, &pairs, &aircraft_id, clients).await
+    let itinerary_id = register_flight_plans(&user_id, &pairs, &aircraft_id, clients).await?;
+    task.metadata.result = Some(itinerary_id);
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -338,7 +354,6 @@ mod tests {
     }
 
     use crate::tasks::{TaskAction, TaskBody, TaskMetadata};
-    use uuid::Uuid;
 
     type TaskResult = Result<(), TaskError>;
 

@@ -120,6 +120,9 @@ message TaskMetadata {
 
     // Task user ID
     string user_id = 4;
+
+    // Result from the task, if any
+    optional string result = 5;
 }
 
 // The status of a scheduler task
