@@ -1,6 +1,6 @@
 ## DO NOT EDIT!
-# This file was provisioned by Terraform
-# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/.github/workflows/autosquash.yml
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/all/.github/workflows/autosquash.yml
 
 name: Auto-squash
 
@@ -18,7 +18,7 @@ jobs:
     name: Autosquash
     runs-on: ubuntu-latest
     steps:
-      - name: Import Arrow bot's GPG key for signing commits
+      - name: Import Aetheric bot's GPG key for signing commits
         id: import-gpg
         uses: crazy-max/ghaction-import-gpg@v5
         with:

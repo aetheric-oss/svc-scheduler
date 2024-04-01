@@ -1,6 +1,6 @@
 ## DO NOT EDIT!
-# This file was provisioned by Terraform
-# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-svc/.github/workflows/post_release.yml
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/.github/workflows/post_release.yml
 
 name: Post Release Events
 
@@ -67,7 +67,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_WEBSITE }}:role/${{ secrets.AWS_S3_SERVICES_DOCS_ROLE }}"
-          role-session-name: arrow-openapi-docs
+          role-session-name: aetheric-openapi-docs
           aws-region: "us-east-2"
       - name: Sync OpenAPI docs to S3 for processing
         if: steps.openapi_files.outputs.files_exists == 'true'
@@ -79,9 +79,14 @@ jobs:
         id: grpc_api_sync_s3
         run: |
           aws s3 cp ./out/${{ github.event.repository.name }}-grpc-api.json "s3://${{ secrets.AWS_S3_SERVICES_DOCS_BUCKET }}${{ env.AWS_S3_DOCS_GRPC_DEST_PATH }}${BRANCHPATH}/grpc-api.json"
+
   docker_build:
     name: Build and push Docker image
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
     concurrency:
       group: docker-build-${{ github.ref_name }}
     env:
@@ -163,7 +168,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_WEBSITE }}:role/${{ secrets.AWS_S3_SERVICES_DOCS_ROLE }}"
-          role-session-name: arrow-rust-docs
+          role-session-name: aetheric-rust-docs
           aws-region: "us-east-2"
       - name: Sync rust docs to S3 for processing
         run: |

@@ -1,8 +1,9 @@
 ## DO NOT EDIT!
-# This file was provisioned by Terraform
-# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/all/.make/env.mk
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/all/.make/env.mk
 
 ENV_FILE := $(wildcard .env .env.base)
+
 # If .env is missing, install .env.base+.env.repo as .env and load that.
 ifeq ($(ENV_FILE),.env.base)
 $(warning Settings file '.env' missing: '$(ENV_FILE)' => installing .env as merge of .env.base + .env.repo!)
