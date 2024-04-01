@@ -1,6 +1,6 @@
 ## DO NOT EDIT!
-# This file was provisioned by Terraform
-# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/.github/workflows/release.yml
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/all/.github/workflows/release.yml
 
 name: Tag and Release
 
@@ -29,9 +29,9 @@ jobs:
     concurrency:
       group: release-${{ github.head_ref || 'main' }}
     steps:
-      - name: Import Arrow bot's GPG key for signing commits
+      - name: Import Aetheric bot's GPG key for signing commits
         id: import-gpg
-        uses: crazy-max/ghaction-import-gpg@v4
+        uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.COMMITBOT_GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.COMMITBOT_GPG_PASSPHRASE }}
@@ -41,7 +41,7 @@ jobs:
           git_tag_gpgsign: true
 
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           token: ${{ secrets.COMMITBOT_GITHUB_TOKEN }}
           fetch-depth: 0
@@ -59,7 +59,7 @@ jobs:
           fi
 
       - name: Determine new Tag
-        uses: mathieudutour/github-tag-action@v6.1
+        uses: mathieudutour/github-tag-action@v6.2
         id: tag_version
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -99,9 +99,9 @@ jobs:
           sed -i 's/releases\/tag\/${{ github.sha }}/releases\/tag\/${{ steps.tag_version.outputs.new_tag }}/g' temp
           mv temp CHANGELOG.md
 
-      - name: Add release tag to .terraform_init
+      - name: Add release tag to .tofu_init
         if: ${{ github.ref_name == 'main' }}
-        run: echo "${{ steps.tag_version.outputs.new_tag }}" >> .terraform_init
+        run: echo "${{ steps.tag_version.outputs.new_tag }}" >> .tofu_init
 
       - name: Update package version
         run: |
