@@ -7,17 +7,17 @@ License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
 
 Parameters
 
-Licensor:             Arrow DAO
+Licensor:             Aetheric B.V.
 
-Licensed Work:        Arrow Services
-                      The Licensed Work is (c) 2022 Arrow DAO
+Licensed Work:        Aetheric B.V.
+                      The Licensed Work is (c) 2024 Aetheric B.V.
 
 Additional Use Grant: Limited production uses, or as otherwise permitted by
-                      Arrow DAO governance vote
+                      Aetheric B.V. governance vote
 
 Change Date:          for each release of svc-scheduler, the earlier of (i) two
                       years from the release date, or (ii) a date specified at
-                      https://github.com/Arrow-air/svc-scheduler/blob/main/README.md
+                      https://github.com/aetheric-sso/svc-scheduler/blob/main/README.md
 
 Change License:       GNU Affero General Public License v3.0 or later
 

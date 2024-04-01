@@ -1,1 +1,1 @@
-See [Contributing Guide](https://www.arrowair.com/docs/contributing/intro)  on Arrow website.
+See [Contributing Guide](https://www.aetheric.nl/docs/contributing/intro) on the Aetheric website.

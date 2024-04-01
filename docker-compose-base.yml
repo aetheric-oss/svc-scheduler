@@ -1,7 +1,7 @@
 ---
 ## DO NOT EDIT!
-# This file was provisioned by Terraform
-# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-svc/docker-compose-base.yml
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/docker-compose-base.yml
 version: '3.8'
 
 # Define an extension with an anchor so it can be used as an alias to merge in the fields
@@ -76,7 +76,7 @@ services:
     depends_on:
       web-server:
         condition: service_healthy
-    command: cargo tarpaulin --manifest-path "${CARGO_MANIFEST_PATH}" --workspace -l --include-tests --tests --no-fail-fast --features ${PACKAGE_IT_FEATURES} --skip-clean -t 600 --out Lcov --output-dir coverage/
+    command: cargo tarpaulin --manifest-path "${CARGO_MANIFEST_PATH}" --workspace -l --test integration_test --features ${PACKAGE_IT_FEATURES} -v -t 600 --out Lcov --output-dir coverage/
 
   ut-coverage: &ut-coverage
     <<: *coverage
