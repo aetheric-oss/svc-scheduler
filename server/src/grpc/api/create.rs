@@ -3,9 +3,7 @@
 use crate::grpc::server::grpc_server::{
     CreateItineraryRequest, TaskAction, TaskMetadata, TaskResponse, TaskStatus,
 };
-use chrono::{DateTime, Utc};
 use num_traits::FromPrimitive;
-use std::cmp::min;
 use tonic::Status;
 
 use crate::router::flight_plan::{FlightPlanError, FlightPlanSchedule};
@@ -51,14 +49,18 @@ pub async fn create_itinerary(request: CreateItineraryRequest) -> Result<TaskRes
         }
     };
 
+    grpc_debug!("(create_itinerary) Default expiry: {expiry}.");
+
     let expiry = match request.expiry {
         // if an earlier expiry was provided in the request, use that instead
         Some(request_expiry) => {
-            let request_expiry: DateTime<Utc> = request_expiry.into();
-            min(request_expiry, expiry)
+            grpc_debug!("(create_itinerary) Request expiry: {expiry}.");
+            expiry.min(request_expiry.into())
         }
         None => expiry,
     };
+
+    grpc_debug!("(create_itinerary) Task expiry set to: {expiry}.");
 
     let task = Task {
         metadata: TaskMetadata {

@@ -58,48 +58,50 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
     fn try_from(request: QueryFlightRequest) -> Result<Self, Self::Error> {
         const ERROR_PREFIX: &str = "(try_from)";
 
-        let origin_vertiport_id = match Uuid::parse_str(&request.origin_vertiport_id) {
-            Ok(id) => id.to_string(),
-            _ => {
+        let origin_vertiport_id = Uuid::parse_str(&request.origin_vertiport_id)
+            .map_err(|_| {
                 grpc_error!(
                     "{} Invalid departure vertiport ID: {}",
                     ERROR_PREFIX,
                     request.origin_vertiport_id
                 );
-                return Err(FlightQueryError::InvalidVertiportId);
-            }
-        };
+                FlightQueryError::InvalidVertiportId
+            })?
+            .to_string();
 
-        let arrival_vertiport_id = match Uuid::parse_str(&request.target_vertiport_id) {
-            Ok(id) => id.to_string(),
-            _ => {
+        let arrival_vertiport_id = Uuid::parse_str(&request.target_vertiport_id)
+            .map_err(|e| {
                 grpc_error!(
-                    "{} Invalid departure vertiport ID: {}",
+                    "{} Invalid departure vertiport ID {}: {e}",
                     ERROR_PREFIX,
                     request.target_vertiport_id
                 );
-                return Err(FlightQueryError::InvalidVertiportId);
-            }
-        };
+                FlightQueryError::InvalidVertiportId
+            })?
+            .to_string();
 
-        let Some(latest_arrival_time) = request.latest_arrival_time.clone() else {
-            grpc_warn!("{} latest arrival time not provided.", ERROR_PREFIX);
-            return Err(FlightQueryError::InvalidTime);
-        };
+        let latest_arrival_time: DateTime<Utc> = request
+            .latest_arrival_time
+            .ok_or_else(|| {
+                grpc_warn!("{} latest arrival time not provided.", ERROR_PREFIX);
+                FlightQueryError::InvalidTime
+            })?
+            .into();
 
-        let Some(earliest_departure_time) = request.earliest_departure_time else {
-            grpc_warn!("{} earliest departure time not provided.", ERROR_PREFIX);
-            return Err(FlightQueryError::InvalidTime);
-        };
-
-        let latest_arrival_time: DateTime<Utc> = latest_arrival_time.into();
-        let earliest_departure_time: DateTime<Utc> = earliest_departure_time.into();
+        let earliest_departure_time: DateTime<Utc> = request
+            .earliest_departure_time
+            .ok_or_else(|| {
+                grpc_warn!("{} earliest departure time not provided.", ERROR_PREFIX);
+                FlightQueryError::InvalidTime
+            })?
+            .into();
 
         if earliest_departure_time > latest_arrival_time {
             grpc_warn!(
                 "{} earliest departure time is after latest arrival time.",
                 ERROR_PREFIX
             );
+
             return Err(FlightQueryError::InvalidTime);
         }
 
@@ -115,8 +117,13 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
             return Err(FlightQueryError::TimeRangeTooLarge);
         }
 
-        if latest_arrival_time < Utc::now() {
-            grpc_warn!("{} latest arrival time is in the past.", ERROR_PREFIX);
+        let delta = Duration::try_minutes(ADVANCE_NOTICE_MINUTES).ok_or_else(|| {
+            grpc_error!("{} error creating time delta.", ERROR_PREFIX);
+            FlightQueryError::Internal
+        })?;
+
+        if earliest_departure_time < (Utc::now() + delta) {
+            grpc_warn!("{} earliest departure time is in the past, or within the next {ADVANCE_NOTICE_MINUTES} minutes.", ERROR_PREFIX);
             return Err(FlightQueryError::InvalidTime);
         }
 
@@ -149,14 +156,11 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
 pub async fn query_flight(
     request: QueryFlightRequest,
 ) -> Result<Response<QueryFlightResponse>, Status> {
-    let request = match FlightQuery::try_from(request) {
-        Ok(request) => request,
-        Err(e) => {
-            let error_str = "Invalid flight query request";
-            grpc_error!("(query_flight) {error_str}: {e}");
-            return Err(Status::invalid_argument(error_str));
-        }
-    };
+    let request = FlightQuery::try_from(request).map_err(|e| {
+        grpc_error!("(query_flight) {}", e);
+        let error_str = "Invalid flight query request";
+        Status::invalid_argument(error_str)
+    })?;
 
     let timeslot = Timeslot {
         time_start: request.earliest_departure_time,
@@ -168,14 +172,13 @@ pub async fn query_flight(
     // Get all flight plans from this time to latest departure time (including partially fitting flight plans)
     // - this assumes that all landed flights have updated vehicle.last_vertiport_id (otherwise we would need to look in to the past)
     let existing_flight_plans: Vec<FlightPlanSchedule> =
-        match get_sorted_flight_plans(clients, &request.latest_arrival_time).await {
-            Ok(plans) => plans,
-            Err(e) => {
+        get_sorted_flight_plans(clients, &request.latest_arrival_time)
+            .await
+            .map_err(|e| {
+                grpc_error!("(query_flight) {}", e);
                 let error_str = "Could not get existing flight plans.";
-                grpc_error!("(query_flight) {} {}", error_str, e);
-                return Err(Status::internal(error_str));
-            }
-        };
+                Status::internal(error_str)
+            })?;
 
     grpc_debug!(
         "(query_flight) found existing flight plans: {:?}",
@@ -190,7 +193,7 @@ pub async fn query_flight(
     // Get available timeslots for departure vertiport that are large enough to
     //  fit the required loading and takeoff time.
     //
-    let Ok(timeslot_pairs) = get_timeslot_pairs(
+    let timeslot_pairs = get_timeslot_pairs(
         &request.origin_vertiport_id,
         None,
         &request.arrival_vertiport_id,
@@ -202,11 +205,11 @@ pub async fn query_flight(
         clients,
     )
     .await
-    else {
-        let error_str = "Could not find a timeslot pairing.";
-        grpc_error!("(query_flight) {}", error_str);
-        return Err(Status::internal(error_str));
-    };
+    .map_err(|e| {
+        grpc_error!("(query_flight) {}", e);
+        let error_str = "Could not get timeslot pairs.";
+        Status::internal(error_str)
+    })?;
 
     if timeslot_pairs.is_empty() {
         let info_str = "No routes available for the given time.";
@@ -217,14 +220,19 @@ pub async fn query_flight(
     //
     // Get all aircraft availabilities
     //
-    let Ok(aircraft) = get_aircraft(clients, None).await else {
+    let aircraft = get_aircraft(&clients, None).await.map_err(|e| {
+        grpc_error!("(query_flight) {}", e);
         let error_str = "Could not get aircraft.";
-        grpc_error!("(query_flight) {}", error_str);
-        return Err(Status::internal(error_str));
-    };
+        Status::internal(error_str)
+    })?;
 
-    let aircraft_gaps = get_aircraft_availabilities(&existing_flight_plans, &aircraft, &timeslot)
-        .map_err(|e| {
+    let aircraft_gaps = get_aircraft_availabilities(
+        &existing_flight_plans,
+        &timeslot.time_start,
+        &aircraft,
+        &timeslot,
+    )
+    .map_err(|e| {
         grpc_error!("(query_flight) {}", e);
         let error_str = "Could not get aircraft availabilities.";
         Status::internal(error_str)
@@ -235,7 +243,7 @@ pub async fn query_flight(
     //  including deadhead flights
     //
     grpc_debug!("(query_flight) timeslot pairs count {:?}", timeslot_pairs);
-    let Ok(itineraries) = calculate_itineraries(
+    let itineraries = calculate_itineraries(
         &request.required_loading_time,
         &request.required_unloading_time,
         &timeslot_pairs,
@@ -243,17 +251,16 @@ pub async fn query_flight(
         clients,
     )
     .await
-    else {
-        let error_str = "Could not get itineraries.";
-        grpc_error!("(query_flight) {}", error_str);
-        return Err(Status::internal(error_str));
-    };
-    grpc_debug!("(query_flight) itineraries count {:?}", itineraries);
+    .map_err(|e| {
+        let error_str = "Could not get itineraries";
+        grpc_error!("(query_flight) {error_str}: {e}");
+        Status::internal(error_str)
+    })?
+    .into_iter()
+    .map(|flight_plans| Itinerary { flight_plans })
+    .collect::<Vec<Itinerary>>();
 
-    let itineraries = itineraries
-        .into_iter()
-        .map(|flight_plans| Itinerary { flight_plans })
-        .collect::<Vec<Itinerary>>();
+    grpc_debug!("(query_flight) itineraries count {:?}", itineraries);
 
     let response = QueryFlightResponse { itineraries };
     grpc_info!(

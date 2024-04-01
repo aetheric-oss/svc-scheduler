@@ -3,7 +3,7 @@ use crate::router::flight_plan::*;
 use crate::router::schedule::*;
 use svc_storage_client_grpc::prelude::*;
 
-use chrono::Duration;
+use chrono::{DateTime, Duration, Utc};
 use std::collections::HashMap;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -18,6 +18,9 @@ pub enum AircraftType {
 /// TODO(R4): Hardcoded for the demo. This is solely used to
 ///  estimate a duration of a flight.
 const AVERAGE_CARGO_AIRCRAFT_CRUISE_VELOCITY_M_PER_S: f32 = 10.0;
+
+/// Cannot schedule flight leaving within the next N minutes
+pub const ADVANCE_NOTICE_MINUTES: i64 = 3;
 
 /// Reasons for unavailable aircraft
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -260,6 +263,7 @@ pub fn estimate_flight_time_seconds(distance_meters: &f32) -> Result<Duration, V
 ///  given a list of existing flight plans.
 pub fn get_aircraft_availabilities(
     existing_flight_plans: &[FlightPlanSchedule],
+    earliest_departure_time: &DateTime<Utc>,
     aircraft: &[Aircraft],
     timeslot: &Timeslot,
 ) -> Result<HashMap<String, Vec<Availability>>, VehicleError> {
@@ -273,7 +277,6 @@ pub fn get_aircraft_availabilities(
     for a in aircraft.iter() {
         let hangar_id = a.hangar_id.clone();
         let hangar_bay_id = a.hangar_bay_id.clone();
-
         // Aircraft also needs time to deadhead before and after primary flight
         // Base availability from vehicle calendar
         a.vehicle_calendar
@@ -289,7 +292,15 @@ pub fn get_aircraft_availabilities(
                 VehicleError::Internal
             })?
             .into_iter()
-            .for_each(|timeslot| {
+            .for_each(|mut timeslot| {
+                // ignore timeslots that are in the past
+                // the user will need time to select an itinerary, by the time they select
+                // the itinerary start should not be in the past. Add delta to compensate
+                timeslot.time_start = timeslot.time_start.max(*earliest_departure_time);
+                if timeslot.time_start >= timeslot.time_end {
+                    return;
+                }
+
                 aircraft_availabilities
                     .entry(a.vehicle_uuid.clone())
                     .or_default()
@@ -334,7 +345,7 @@ pub fn get_aircraft_availabilities(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{TimeZone, Utc};
+    use chrono::{Datelike, TimeZone, Utc};
 
     #[test]
     fn test_subtract_flight_plan() {
@@ -344,7 +355,8 @@ mod tests {
         let vertipad_middle_id = Uuid::new_v4().to_string();
         let aircraft_id = Uuid::new_v4().to_string();
 
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 20, 0, 0, 0)
+        let year = Utc::now().year() + 1;
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(year, 10, 20, 0, 0, 0)
         else {
             panic!();
         };
@@ -489,7 +501,8 @@ mod tests {
         ))
         .unwrap();
 
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 20, 0, 0, 0)
+        let year = Utc::now().year() + 1;
+        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(year, 10, 20, 0, 0, 0)
         else {
             panic!();
         };
@@ -550,7 +563,9 @@ mod tests {
             },
         ];
 
-        let mut gaps = get_aircraft_availabilities(&flight_plans, &aircraft, &timeslot).unwrap();
+        let mut gaps =
+            get_aircraft_availabilities(&flight_plans, &timeslot.time_start, &aircraft, &timeslot)
+                .unwrap();
 
         println!("gaps: {:?}", gaps);
 
