@@ -178,16 +178,14 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
             "(create_itinerary) Invalid task action: {}",
             task.metadata.action
         );
+
         return Err(TaskError::InvalidMetadata);
     };
 
-    let user_id = match Uuid::parse_str(&task.metadata.user_id.clone()) {
-        Ok(user_id) => user_id,
-        Err(e) => {
-            tasks_error!("(create_itinerary) Invalid user_id: {}", e);
-            return Err(TaskError::InvalidUserId);
-        }
-    };
+    let user_id = Uuid::parse_str(&task.metadata.user_id.clone()).map_err(|e| {
+        tasks_error!("(create_itinerary) Invalid user_id: {}", e);
+        TaskError::InvalidUserId
+    })?;
 
     let TaskBody::CreateItinerary(ref proposed_flight_plans) = task.body else {
         tasks_error!("(create_itinerary) Invalid task body: {:?}", task.body);
@@ -197,35 +195,30 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     // For retrieving asset information in one go
     let mut vertipad_ids = HashSet::new();
     let mut aircraft_id = String::new();
-    if let Err(e) = crate::router::itinerary::validate_itinerary(
+
+    // Validate the itinerary request
+    crate::router::itinerary::validate_itinerary(
         proposed_flight_plans,
         &mut vertipad_ids,
         &mut aircraft_id,
-    ) {
-        let error_msg = "Invalid itinerary provided";
-        tasks_error!("(create_itinerary) {error_msg}: {e}");
-        return Err(TaskError::InvalidData);
-    }
-
-    if aircraft_id.is_empty() {
-        tasks_error!("(create_itinerary) No aircraft provided.");
-        return Err(TaskError::InvalidData);
-    };
-
-    let vertipad_ids = vertipad_ids.into_iter().collect::<Vec<String>>();
+    )
+    .map_err(|e| {
+        tasks_error!("(create_itinerary) Invalid itinerary provided: {}", e);
+        TaskError::InvalidData
+    })?;
 
     //
     // Get total block of time needed by the aircraft
     //
-    let Some(itinerary_start) = proposed_flight_plans.first() else {
+    let itinerary_start = proposed_flight_plans.first().ok_or_else(|| {
         tasks_error!("(create_itinerary) No flight plans provided.");
-        return Err(TaskError::InvalidData);
-    };
+        TaskError::InvalidData
+    })?;
 
-    let Some(itinerary_end) = proposed_flight_plans.last() else {
+    let itinerary_end = proposed_flight_plans.last().ok_or_else(|| {
         tasks_error!("(create_itinerary) No flight plans provided.");
-        return Err(TaskError::InvalidData);
-    };
+        TaskError::InvalidData
+    })?;
 
     let aircraft_time_window = Timeslot {
         time_start: itinerary_start.origin_timeslot_start,
@@ -239,51 +232,57 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
 
     // Get all flight plans from this time to latest departure time (including partially fitting flight plans)
     // - this assumes that all landed flights have updated vehicle.last_vertiport_id (otherwise we would need to look in to the past)
-    let existing_flight_plans: Vec<FlightPlanSchedule> =
-        match get_sorted_flight_plans(clients, &aircraft_time_window.time_end).await {
-            Ok(plans) => plans,
-            Err(e) => {
-                let error_str = "Could not get existing flight plans.";
-                tasks_error!("(create_itinerary) {} {}", error_str, e);
-                return Err(TaskError::Internal);
-            }
-        };
-
     // TODO(R5): For R4 we'll manually filter out the plans we don't care about
     //  in R5 if there's a more complicated way to form (A & B) || (C & D) type queries
     //  to storage we'll replace it.
-    let existing_flight_plans = existing_flight_plans
-        .into_iter()
-        .filter(|plan| {
-            // Filter out plans that are not in the vertipad list
-            vertipad_ids.contains(&plan.origin_vertiport_id)
-                || vertipad_ids.contains(&plan.target_vertiport_id)
-                || plan.vehicle_id == aircraft_id
-        })
-        .collect::<Vec<FlightPlanSchedule>>();
+    // let vertipad_ids = vertipad_ids.into_iter().collect::<Vec<String>>();
+    let existing_flight_plans: Vec<FlightPlanSchedule> =
+        get_sorted_flight_plans(clients, &aircraft_time_window.time_end)
+            .await
+            .map_err(|e| {
+                tasks_error!(
+                    "(create_itinerary) Could not get existing flight plans: {}",
+                    e
+                );
+                TaskError::Internal
+            })?
+            .into_iter()
+            .filter(|plan| {
+                // Filter out plans that are not in the vertipad list
+                vertipad_ids.contains(&plan.origin_vertipad_id)
+                    || vertipad_ids.contains(&plan.target_vertipad_id)
+                    || plan.vehicle_id == aircraft_id
+            })
+            .collect::<Vec<FlightPlanSchedule>>();
 
     //
     // Get all aircraft availabilities
     //
-    let Ok(aircraft) = get_aircraft(clients, Some(aircraft_id.clone())).await else {
-        tasks_error!("(create_itinerary) Could not find aircraft.");
-        return Err(TaskError::Internal);
-    };
+    let aircraft = get_aircraft(clients, Some(aircraft_id.clone()))
+        .await
+        .map_err(|e| {
+            tasks_error!("(create_itinerary) {}", e);
+            TaskError::Internal
+        })?;
 
     //
     // Get the availability that contains at minimum the requested flight
     // The supplied itinerary (from query_itinerary) should also include the deadhead flights
-    let mut aircraft_gaps =
-        get_aircraft_availabilities(&existing_flight_plans, &aircraft, &aircraft_time_window)
-            .map_err(|e| {
-                tasks_error!("(create_itinerary) {}", e);
-                TaskError::Internal
-            })?;
+    let mut aircraft_gaps = get_aircraft_availabilities(
+        &existing_flight_plans,
+        &aircraft_time_window.time_start,
+        &aircraft,
+        &aircraft_time_window,
+    )
+    .map_err(|e| {
+        tasks_error!("(create_itinerary) {}", e);
+        TaskError::Internal
+    })?;
 
-    let Some(aircraft_gaps) = aircraft_gaps.remove(&aircraft_id) else {
+    let aircraft_gaps = aircraft_gaps.remove(&aircraft_id).ok_or_else(|| {
         tasks_error!("(create_itinerary) Aircraft not available for the itinerary.");
-        return Err(TaskError::ScheduleConflict);
-    };
+        TaskError::ScheduleConflict
+    })?;
 
     if !aircraft_gaps.into_iter().any(|gap| {
         gap.vertiport_id == itinerary_start.origin_vertiport_id

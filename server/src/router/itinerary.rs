@@ -128,6 +128,11 @@ pub fn validate_itinerary(
         }
     }
 
+    if aircraft_id.is_empty() {
+        router_error!("(validate_itinerary) No aircraft id found.");
+        return Err(ItineraryError::InvalidData);
+    }
+
     Ok(())
 }
 
@@ -143,36 +148,34 @@ pub async fn calculate_itineraries(
     clients: &GrpcClients,
 ) -> Result<Vec<Vec<flight_plan::Data>>, ItineraryError> {
     let mut itineraries: Vec<Vec<flight_plan::Data>> = vec![];
+    let mut ordered: Vec<(String, Availability)> = aircraft_gaps
+        .into_iter()
+        .flat_map(|(k, vs)| {
+            vs.into_iter()
+                .map(|v| (k.clone(), v.to_owned()))
+                .collect::<Vec<(String, Availability)>>()
+        })
+        .collect();
 
-    // router_debug!(
-    //     "(calculate_itineraries) aircraft_gaps: {:#?}",
-    //     aircraft_gaps
-    // );
-    // router_debug!(
-    //     "(calculate_itineraries) timeslot_pairs: {:#?}",
-    //     timeslot_pairs
-    // );
+    ordered.sort_by(|a, b| a.1.timeslot.time_start.cmp(&b.1.timeslot.time_start));
 
     // For each available aircraft, see if it can do the flight
-    'outer: for (aircraft_id, aircraft_availability) in aircraft_gaps {
-        // Try different timeslots for the aircraft
-        for pair in timeslot_pairs {
-            // TODO(R4): Include vehicle model to improve estimate
-            let Ok(flight_duration) = estimate_flight_time_seconds(&pair.distance_meters) else {
-                router_error!(
-                    "(calculate_itineraries) Could not estimate flight time for aircraft {}.",
-                    aircraft_id
-                );
+    'outer: for pair in timeslot_pairs {
+        // TODO(R4): Include vehicle model to improve estimate
+        let flight_duration =
+            estimate_flight_time_seconds(&pair.distance_meters).map_err(|_| {
+                router_error!("(calculate_itineraries) Could not estimate flight time.",);
 
-                continue;
-            };
+                ItineraryError::Internal
+            })?;
 
-            let flight_window = Timeslot {
-                time_start: pair.origin_timeslot.time_start,
-                time_end: pair.target_timeslot.time_end,
-            };
+        let flight_window = Timeslot {
+            time_start: pair.origin_timeslot.time_start,
+            time_end: pair.target_timeslot.time_end,
+        };
 
-            let points = pair
+        let path = Some(GeoLineString {
+            points: pair
                 .path
                 .clone()
                 .into_iter()
@@ -181,22 +184,23 @@ pub async fn calculate_itineraries(
                     longitude: point.longitude,
                     // z: 0.0, // TODO(R5): add altitude to svc-storage
                 })
-                .collect();
+                .collect(),
+        });
 
-            let path = Some(GeoLineString { points });
+        for (aircraft_id, availability) in &ordered {
             let flight_plan = svc_storage_client_grpc::prelude::flight_plan::Data {
                 origin_vertiport_id: Some(pair.origin_vertiport_id.clone()),
                 target_vertiport_id: Some(pair.target_vertiport_id.clone()),
                 origin_vertipad_id: pair.origin_vertipad_id.clone(),
                 target_vertipad_id: pair.target_vertipad_id.clone(),
-                path,
+                path: path.clone(),
                 vehicle_id: aircraft_id.clone(),
                 ..Default::default()
             };
 
-            match aircraft_selection(
-                flight_plan,
-                aircraft_availability,
+            let itinerary = match get_itinerary(
+                flight_plan.clone(),
+                availability,
                 &flight_duration,
                 required_loading_time,
                 required_unloading_time,
@@ -205,23 +209,13 @@ pub async fn calculate_itineraries(
             )
             .await
             {
-                Ok(itinerary) => {
-                    itineraries.push(itinerary);
-
-                    if itineraries.len() >= MAX_ITINERARIES {
-                        router_info!(
-                            "(calculate_itineraries) max itineraries reached {}.",
-                            itineraries.len()
-                        );
-
-                        break 'outer;
-                    }
-                }
+                Ok(itinerary) => itinerary,
                 Err(ItineraryError::ClientError) => {
                     // exit immediately if svc-gis is down, don't allow new flights
                     router_error!(
                         "(calculate_itineraries) Could not determine path; client error."
                     );
+
                     return Err(ItineraryError::ClientError);
                 }
                 _ => {
@@ -231,6 +225,16 @@ pub async fn calculate_itineraries(
                     );
                     continue;
                 }
+            };
+
+            itineraries.push(itinerary);
+            if itineraries.len() >= MAX_ITINERARIES {
+                router_info!(
+                    "(calculate_itineraries) max itineraries reached {}.",
+                    itineraries.len()
+                );
+
+                break 'outer;
             }
         }
     }
@@ -241,54 +245,6 @@ pub async fn calculate_itineraries(
     );
 
     Ok(itineraries)
-}
-
-/// Iterate through an aircraft's available timeslots
-///  and see if it can do the requested flight.
-/// TODO(R4): Return more than one itinerary per aircraft
-async fn aircraft_selection(
-    flight_plan: flight_plan::Data,
-    availability: &[Availability],
-    flight_duration: &Duration,
-    required_loading_time: &Duration,
-    required_unloading_time: &Duration,
-    flight_window: &Timeslot,
-    clients: &GrpcClients,
-) -> Result<Vec<flight_plan::Data>, ItineraryError> {
-    router_debug!("(aircraft_selection) availabilities: {:#?}", availability);
-
-    for gap in availability.iter() {
-        match get_itinerary(
-            flight_plan.clone(),
-            gap,
-            flight_duration,
-            required_loading_time,
-            required_unloading_time,
-            flight_window,
-            clients,
-        )
-        .await
-        {
-            Ok(itinerary) => {
-                // only return the first valid itinerary for an aircraft
-                return Ok(itinerary);
-            }
-            Err(ItineraryError::ClientError) => {
-                // exit immediately if svc-gis is down, don't allow new flights
-                router_error!("(aircraft_selection) Could not determine path; client error.");
-                return Err(ItineraryError::ClientError);
-            }
-            _ => {
-                router_debug!(
-                    "(aircraft_selection) No itinerary found for aircraft {}.",
-                    flight_plan.vehicle_id
-                );
-                continue;
-            }
-        }
-    }
-
-    Err(ItineraryError::ScheduleConflict)
 }
 
 /// Struct to hold flight plan metadata
