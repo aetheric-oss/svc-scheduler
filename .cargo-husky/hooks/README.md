@@ -1,6 +1,6 @@
 [//]: # (DO NOT EDIT!)
-[//]: # (This file was provisioned by Terraform)
-[//]: # (File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-all/.cargo-husky/hooks/README.md)
+[//]: # (This file was provisioned by OpenTofu)
+[//]: # (File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/all/.cargo-husky/hooks/README.md)
 
 These hooks will be copied to `.git/hooks/` when `cargo test` is run.
 
