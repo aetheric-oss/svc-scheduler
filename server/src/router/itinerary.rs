@@ -127,6 +127,28 @@ pub fn validate_itinerary(
 
             return Err(ItineraryError::InvalidData);
         }
+
+        if fp_1.path.is_none() || fp_2.path.is_none() {
+            router_error!(
+                "(validate_itinerary) Flight plans should have a path: {:#?}",
+                flight_plans
+            );
+
+            return Err(ItineraryError::InvalidData);
+        }
+
+        for path in &[&fp_1.path, &fp_2.path] {
+            if let Some(ref path) = path {
+                if path.len() < 2 {
+                    router_error!(
+                        "(validate_itinerary) Flight plan path needs two or more points: {:#?}",
+                        flight_plans
+                    );
+
+                    return Err(ItineraryError::InvalidData);
+                }
+            }
+        }
     }
 
     if aircraft_id.is_empty() {
@@ -183,7 +205,7 @@ pub async fn calculate_itineraries(
                 .map(|point| GeoPoint {
                     latitude: point.latitude,
                     longitude: point.longitude,
-                    // z: 0.0, // TODO(R5): add altitude to svc-storage
+                    altitude: point.altitude_meters as f64,
                 })
                 .collect(),
         });
@@ -310,7 +332,7 @@ async fn deadhead_helper(
         .map(|point| GeoPoint {
             latitude: point.latitude,
             longitude: point.longitude,
-            // z: 0.0, // TODO(R5): add altitude to svc-storage
+            altitude: point.altitude_meters as f64,
         })
         .collect();
 
@@ -1123,6 +1145,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: Some(vec![]),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1134,6 +1157,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: uuid::Uuid::new_v4().to_string(),
+                path: Some(vec![]),
             },
         ];
 
@@ -1160,6 +1184,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: Some(vec![]),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1171,6 +1196,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: Some(vec![]),
             },
         ];
 
@@ -1200,6 +1226,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: Some(vec![]),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1211,6 +1238,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(40).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(41).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: Some(vec![]),
             },
         ];
 
@@ -1228,6 +1256,19 @@ mod tests {
         let vertipad_1 = Uuid::new_v4().to_string();
         let vertipad_2 = Uuid::new_v4().to_string();
 
+        let path = Some(vec![
+            PointZ {
+                latitude: 0.0,
+                longitude: 0.0,
+                altitude_meters: 0.0,
+            },
+            PointZ {
+                latitude: 0.0,
+                longitude: 0.0,
+                altitude_meters: 0.0,
+            },
+        ]);
+
         let flight_plans = vec![
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1239,6 +1280,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: path.clone(),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1250,6 +1292,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(40).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(41).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path,
             },
         ];
 

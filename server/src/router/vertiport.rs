@@ -150,7 +150,7 @@ pub async fn get_timeslot_pairs(
 /// TODO(R4): This will be replaced with a call to svc-storage vertipad_timeslots to
 ///  return a list of available timeslots for each vertipad, so we don't
 ///  need to rebuild each pad's schedule from flight plans each time
-async fn get_available_timeslots(
+pub async fn get_available_timeslots(
     vertiport_id: &str,
     vertipad_id: Option<&str>,
     existing_flight_plans: &[FlightPlanSchedule],
@@ -354,7 +354,7 @@ impl From<TimeslotPair> for flight_plan::Data {
             .map(|p| GeoPoint {
                 latitude: p.latitude,
                 longitude: p.longitude,
-                // TODO(R5): put altitude information in storage
+                altitude: p.altitude_meters as f64,
             })
             .collect();
 
@@ -440,7 +440,9 @@ pub async fn get_vertipad_timeslot_pairs(
                 }
                 Err(BestPathError::ClientError) => {
                     // exit immediately if svc-gis is down, don't allow new flights
-                    router_error!("(get_vertipad_timeslot_pairs) Could not determine path.");
+                    router_error!(
+                        "(get_vertipad_timeslot_pairs) Could not determine path - client error."
+                    );
 
                     return Err(VertiportError::ClientError);
                 }
