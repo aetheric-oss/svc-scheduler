@@ -85,6 +85,7 @@ pub fn validate_itinerary(
 
         vertipad_ids.insert(fp_1.origin_vertipad_id.clone());
         vertipad_ids.insert(fp_1.target_vertipad_id.clone());
+        vertipad_ids.insert(fp_2.origin_vertipad_id.clone());
         vertipad_ids.insert(fp_2.target_vertipad_id.clone());
 
         if aircraft_id.is_empty() {
@@ -279,7 +280,7 @@ async fn deadhead_helper(
         limit: 1,
     };
 
-    let paths = match best_path(&best_path_request, clients).await {
+    let mut paths = match best_path(&best_path_request, clients).await {
         Ok(paths) => paths,
         Err(BestPathError::NoPathFound) => {
             // no path found, perhaps temporary no-fly zone
@@ -303,13 +304,7 @@ async fn deadhead_helper(
         }
     };
 
-    let Some(path) = paths.first() else {
-        router_error!("(deadhead_helper) No path found.");
-        return Err(ItineraryError::NoPathFound);
-    };
-
-    let distance_meters = path.1 as f32;
-    let path = path.0.clone();
+    let (path, distance_meters) = paths.remove(0);
     let points = path
         .into_iter()
         .map(|point| GeoPoint {
@@ -427,7 +422,6 @@ async fn get_itinerary(
             Ok(deadhead) => deadhead,
             Err(e) => {
                 router_error!("(get_itinerary) Couldn't schedule deadhead flight: {e}");
-                println!("(get_itinerary) Couldn't schedule deadhead flight: {e}");
                 return Err(ItineraryError::ScheduleConflict);
             }
         };

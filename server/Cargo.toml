@@ -78,8 +78,7 @@ features = [
   "group",
 ]
 git = "https://github.com/Arrow-air/svc-storage.git"
-# tag = "latest-develop"
-branch = "am-smith/flight-plan-add-session-id"
+tag = "latest-develop"
 
 [dependencies.svc-gis-client-grpc]
 git = "https://github.com/Arrow-air/svc-gis.git"

@@ -236,24 +236,23 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     //  in R5 if there's a more complicated way to form (A & B) || (C & D) type queries
     //  to storage we'll replace it.
     // let vertipad_ids = vertipad_ids.into_iter().collect::<Vec<String>>();
-    let existing_flight_plans: Vec<FlightPlanSchedule> =
-        get_sorted_flight_plans(clients, &aircraft_time_window.time_end)
-            .await
-            .map_err(|e| {
-                tasks_error!(
-                    "(create_itinerary) Could not get existing flight plans: {}",
-                    e
-                );
-                TaskError::Internal
-            })?
-            .into_iter()
-            .filter(|plan| {
-                // Filter out plans that are not in the vertipad list
-                vertipad_ids.contains(&plan.origin_vertipad_id)
-                    || vertipad_ids.contains(&plan.target_vertipad_id)
-                    || plan.vehicle_id == aircraft_id
-            })
-            .collect::<Vec<FlightPlanSchedule>>();
+    let existing_flight_plans: Vec<FlightPlanSchedule> = get_sorted_flight_plans(clients)
+        .await
+        .map_err(|e| {
+            tasks_error!(
+                "(create_itinerary) Could not get existing flight plans: {}",
+                e
+            );
+            TaskError::Internal
+        })?
+        .into_iter()
+        .filter(|plan| {
+            // Filter out plans that are not in the vertipad list
+            vertipad_ids.contains(&plan.origin_vertipad_id)
+                || vertipad_ids.contains(&plan.target_vertipad_id)
+                || plan.vehicle_id == aircraft_id
+        })
+        .collect::<Vec<FlightPlanSchedule>>();
 
     //
     // Get all aircraft availabilities
