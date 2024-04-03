@@ -3,10 +3,11 @@
 use crate::grpc::client::GrpcClients;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use svc_gis_client_grpc::client::PointZ;
 use svc_storage_client_grpc::prelude::*;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Eq, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlightPlanSchedule {
     pub origin_vertiport_id: String,
     pub origin_vertipad_id: String,
@@ -17,6 +18,7 @@ pub struct FlightPlanSchedule {
     pub target_timeslot_start: DateTime<Utc>,
     pub target_timeslot_end: DateTime<Utc>,
     pub vehicle_id: String,
+    pub path: Option<Vec<PointZ>>,
 }
 
 impl PartialEq for FlightPlanSchedule {
@@ -24,6 +26,8 @@ impl PartialEq for FlightPlanSchedule {
         self.origin_timeslot_start == other.origin_timeslot_start
     }
 }
+
+impl Eq for FlightPlanSchedule {}
 
 impl PartialOrd for FlightPlanSchedule {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -59,41 +63,67 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
         //
         // Must have valid origin and target times
         //
-        let origin_timeslot_start = match data.origin_timeslot_start {
-            Some(ref origin_timeslot_start) => origin_timeslot_start.clone().into(),
-            None => {
+        let path = match data.path.clone() {
+            Some(p) => Some(
+                p.points
+                    .into_iter()
+                    .map(|p| PointZ {
+                        latitude: p.latitude,
+                        longitude: p.longitude,
+                        altitude_meters: p.altitude as f32,
+                    })
+                    .collect(),
+            ),
+            None => None,
+        };
+
+        let origin_timeslot_start: DateTime<Utc> = data
+            .origin_timeslot_start
+            .clone()
+            .ok_or_else(|| {
                 router_error!(
                     "(try_from) Flight plan has no scheduled origin start: {:?}",
                     data
                 );
-                return Err(FlightPlanError::InvalidData);
-            }
-        };
-        let origin_timeslot_end = match data.origin_timeslot_end {
-            Some(ref origin_timeslot_end) => origin_timeslot_end.clone().into(),
-            None => {
+                FlightPlanError::InvalidData
+            })?
+            .into();
+
+        let origin_timeslot_end: DateTime<Utc> = data
+            .origin_timeslot_end
+            .clone()
+            .ok_or_else(|| {
                 router_error!(
                     "(try_from) Flight plan has no scheduled origin end: {:?}",
                     data
                 );
-                return Err(FlightPlanError::InvalidData);
-            }
-        };
+                FlightPlanError::InvalidData
+            })?
+            .into();
 
-        let target_timeslot_start = match data.target_timeslot_start {
-            Some(ref target_timeslot_start) => target_timeslot_start.clone().into(),
-            None => {
-                router_error!("(try_from) Flight plan has no scheduled target: {:?}", data);
-                return Err(FlightPlanError::InvalidData);
-            }
-        };
-        let target_timeslot_end = match data.target_timeslot_end {
-            Some(ref target_timeslot_end) => target_timeslot_end.clone().into(),
-            None => {
-                router_error!("(try_from) Flight plan has no scheduled target: {:?}", data);
-                return Err(FlightPlanError::InvalidData);
-            }
-        };
+        let target_timeslot_start: DateTime<Utc> = data
+            .target_timeslot_start
+            .clone()
+            .ok_or_else(|| {
+                router_error!(
+                    "(try_from) Flight plan has no scheduled target start: {:?}",
+                    data
+                );
+                FlightPlanError::InvalidData
+            })?
+            .into();
+
+        let target_timeslot_end: DateTime<Utc> = data
+            .target_timeslot_end
+            .clone()
+            .ok_or_else(|| {
+                router_error!(
+                    "(try_from) Flight plan has no scheduled target end: {:?}",
+                    data
+                );
+                FlightPlanError::InvalidData
+            })?
+            .into();
 
         if origin_timeslot_start >= target_timeslot_end {
             router_error!(
@@ -104,60 +134,52 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
         }
 
         //
-        // Must have valid origin and target vertiports in UUID format
+        // Must have valid origin and target vertiports, aircraft in UUID format
         //
-        let Some(ref origin_vertiport_id) = data.origin_vertiport_id else {
+        Uuid::parse_str(&data.vehicle_id).map_err(|e| {
+            router_error!(
+                "(try_from) Flight plan has invalid vehicle id ({}: {e}",
+                data.vehicle_id
+            );
+
+            FlightPlanError::InvalidData
+        })?;
+
+        let origin_vertiport_id = data.origin_vertiport_id.clone().ok_or_else(|| {
             router_error!(
                 "(try_from) Flight plan has no origin vertiport: [{:?}]",
                 data
             );
+            FlightPlanError::InvalidData
+        })?;
 
-            return Err(FlightPlanError::InvalidData);
-        };
+        Uuid::parse_str(&origin_vertiport_id).map_err(|e| {
+            router_error!(
+                "(try_from) Flight plan has invalid origin vertiport ({}): [{:?}]; {}",
+                origin_vertiport_id,
+                data,
+                e
+            );
+            FlightPlanError::InvalidData
+        })?;
 
-        let origin_vertiport_id = match Uuid::parse_str(origin_vertiport_id) {
-            Ok(id) => id.to_string(),
-            Err(e) => {
-                router_error!(
-                    "(try_from) Flight plan has invalid origin vertiport ({}): [{:?}]; {}",
-                    origin_vertiport_id,
-                    data,
-                    e
-                );
-                return Err(FlightPlanError::InvalidData);
-            }
-        };
-
-        let Some(ref target_vertiport_id) = data.target_vertiport_id else {
+        let target_vertiport_id = data.target_vertiport_id.clone().ok_or_else(|| {
             router_error!(
                 "(try_from) Flight plan has no target vertiport: [{:?}]",
                 data
             );
-            return Err(FlightPlanError::InvalidData);
-        };
+            FlightPlanError::InvalidData
+        })?;
 
-        let target_vertiport_id = match Uuid::parse_str(target_vertiport_id) {
-            Ok(id) => id.to_string(),
-            Err(e) => {
-                router_error!(
-                    "(try_from) Flight plan has invalid target vertiport id: {}; {:?}",
-                    target_vertiport_id,
-                    e
-                );
-                return Err(FlightPlanError::InvalidData);
-            }
-        };
-
-        //
-        // Must have a valid vehicle id in UUID format
-        //
-        let Ok(vehicle_id) = Uuid::parse_str(&data.vehicle_id) else {
+        Uuid::parse_str(&target_vertiport_id).map_err(|e| {
             router_error!(
-                "(try_from) Flight plan has invalid vehicle id ({})",
-                data.vehicle_id
+                "(try_from) Flight plan has invalid target vertiport ({}): [{:?}]; {}",
+                target_vertiport_id,
+                data,
+                e
             );
-            return Err(FlightPlanError::InvalidData);
-        };
+            FlightPlanError::InvalidData
+        })?;
 
         Ok(FlightPlanSchedule {
             origin_vertiport_id,
@@ -168,13 +190,28 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
             target_vertipad_id: data.target_vertipad_id,
             target_timeslot_start,
             target_timeslot_end,
-            vehicle_id: vehicle_id.to_string(),
+            vehicle_id: data.vehicle_id.to_string(),
+            path,
         })
     }
 }
 
 impl From<FlightPlanSchedule> for flight_plan::Data {
     fn from(val: FlightPlanSchedule) -> Self {
+        let path = match val.path {
+            Some(p) => Some(GeoLineString {
+                points: p
+                    .into_iter()
+                    .map(|p| GeoPoint {
+                        latitude: p.latitude,
+                        longitude: p.longitude,
+                        altitude: p.altitude_meters as f64,
+                    })
+                    .collect(),
+            }),
+            None => None,
+        };
+
         flight_plan::Data {
             origin_vertiport_id: Some(val.origin_vertiport_id),
             origin_vertipad_id: val.origin_vertipad_id,
@@ -185,6 +222,7 @@ impl From<FlightPlanSchedule> for flight_plan::Data {
             target_timeslot_start: Some(val.target_timeslot_start.into()),
             target_timeslot_end: Some(val.target_timeslot_end.into()),
             vehicle_id: val.vehicle_id,
+            path,
             ..Default::default()
         }
     }
@@ -194,10 +232,10 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
     type Error = FlightPlanError;
 
     fn try_from(flight_plan: flight_plan::Object) -> Result<Self, Self::Error> {
-        let Some(data) = flight_plan.data else {
+        let data = flight_plan.data.ok_or_else(|| {
             router_error!("(try_from) Flight plan [{}] has no data.", flight_plan.id);
-            return Err(FlightPlanError::InvalidData);
-        };
+            FlightPlanError::InvalidData
+        })?;
 
         Self::try_from(data)
     }
@@ -289,6 +327,20 @@ mod tests {
                     nanos: 0,
                 }),
                 vehicle_id: expected_vehicle_id.clone(),
+                path: Some(GeoLineString {
+                    points: vec![
+                        GeoPoint {
+                            latitude: 0.0,
+                            longitude: 0.0,
+                            altitude: 0.0,
+                        },
+                        GeoPoint {
+                            latitude: 1.0,
+                            longitude: 1.0,
+                            altitude: 1.0,
+                        },
+                    ],
+                }),
                 ..Default::default()
             }),
             ..Default::default()

@@ -1,6 +1,6 @@
 [package]
-description = "Arrow fleet routing and vertiport scheduling with gRPC API."
-keywords    = ["vtol", "server", "grpc", "rest", "scheduler"]               # max 5
+description = "Aetheric fleet routing and vertiport scheduling with gRPC API."
+keywords    = ["vtol", "server", "grpc", "rest", "scheduler"]                  # max 5
 name        = "svc-scheduler"
 version     = "0.4.1-develop.5"
 
@@ -65,7 +65,7 @@ uuid             = { version = "1.5", features = ["serde", "v4"] }
 vecmath          = "1.0"
 
 [dependencies.lib-common]
-git = "https://github.com/Arrow-air/lib-common.git"
+git = "https://github.com/aetheric-oss/lib-common.git"
 tag = "latest-develop"
 
 [dependencies.svc-storage-client-grpc]
@@ -77,11 +77,11 @@ features = [
   "vertiport",
   "group",
 ]
-git = "https://github.com/Arrow-air/svc-storage.git"
+git = "https://github.com/aetheric-oss/svc-storage.git"
 tag = "latest-develop"
 
 [dependencies.svc-gis-client-grpc]
-git = "https://github.com/Arrow-air/svc-gis.git"
+git = "https://github.com/aetheric-oss/svc-gis.git"
 tag = "latest-develop"
 
 [dependencies.log4rs]

@@ -2,11 +2,10 @@ use crate::grpc::client::{get_clients, GrpcClients};
 use crate::router::flight_plan::{get_sorted_flight_plans, FlightPlanSchedule};
 use crate::router::schedule::Timeslot;
 use crate::router::vehicle::{get_aircraft, get_aircraft_availabilities};
-use crate::router::vertiport::{get_timeslot_pairs, TimeslotPair};
 use crate::tasks::{Task, TaskAction, TaskBody, TaskError};
 use num_traits::FromPrimitive;
 use std::collections::HashSet;
-use svc_gis_client_grpc::client::UpdateFlightPathRequest;
+use svc_gis_client_grpc::client::{CheckIntersectionRequest, UpdateFlightPathRequest};
 use svc_gis_client_grpc::prelude::types::AircraftType;
 use svc_gis_client_grpc::prelude::GisServiceClient;
 use svc_storage_client_grpc::link_service::Client as LinkClient;
@@ -19,10 +18,9 @@ const SESSION_ID_PREFIX: &str = "AETH";
 
 /// Register flight plans with svc-storage and return the itinerary ID
 async fn register_flight_plans(
-    user_id: &Uuid,
-    flight_plans: &[TimeslotPair],
-    aircraft_id: &str,
     clients: &GrpcClients,
+    user_id: &Uuid,
+    flight_plans: &[FlightPlanSchedule],
 ) -> Result<String, TaskError> {
     //
     // TODO(R5): Do this in a transaction if possible, so that flight plans
@@ -38,9 +36,12 @@ async fn register_flight_plans(
         //  conflict with an active or future ID already in storage
         let session_id = format!("{SESSION_ID_PREFIX}{}", rand::random::<u16>());
         let mut tmp: flight_plan::Data = flight_plan.clone().into();
-        tmp.vehicle_id = aircraft_id.to_string();
         tmp.session_id = session_id.clone();
         tmp.pilot_id = Uuid::new_v4().to_string(); // TODO(R5): Pilots not currently supported
+        let path = flight_plan.path.clone().ok_or_else(|| {
+            tasks_error!("(register_flight_plans) Flight plan has no path.");
+            TaskError::Internal
+        })?;
 
         let result = clients
             .storage
@@ -74,7 +75,7 @@ async fn register_flight_plans(
             .storage
             .vehicle
             .get_by_id(Id {
-                id: aircraft_id.to_string(),
+                id: flight_plan.vehicle_id.to_string(),
             })
             .await
             .map_err(|e| {
@@ -96,10 +97,10 @@ async fn register_flight_plans(
             flight_identifier: Some(session_id.clone()),
             aircraft_identifier: Some(registration_id.to_string()),
             simulated: false,
-            path: flight_plan.path.clone(),
+            path,
             aircraft_type: AircraftType::Rotorcraft as i32, // TODO(R5): Get from storage
-            timestamp_start: Some(flight_plan.origin_timeslot.time_end.into()),
-            timestamp_end: Some(flight_plan.target_timeslot.time_start.into()),
+            timestamp_start: Some(flight_plan.origin_timeslot_end.into()),
+            timestamp_end: Some(flight_plan.target_timeslot_start.into()),
         };
 
         clients.gis.update_flight_path(request).await.map_err(|e| {
@@ -226,9 +227,39 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     };
 
     //
-    // Get all aircraft schedules for the time window
+    // Fast intersection check before collecting all sorts of data
     //
     let clients = get_clients().await;
+    for flight_plan in proposed_flight_plans {
+        let path = flight_plan.path.clone().ok_or_else(|| {
+            tasks_error!("(create_itinerary) Flight plan has no path.");
+            TaskError::InvalidData
+        })?;
+
+        let request = CheckIntersectionRequest {
+            path,
+            time_start: Some(flight_plan.origin_timeslot_end.into()),
+            time_end: Some(flight_plan.target_timeslot_start.into()),
+            origin_identifier: flight_plan.origin_vertiport_id.clone(),
+            target_identifier: flight_plan.target_vertiport_id.clone(),
+        };
+
+        let intersects = clients
+            .gis
+            .check_intersection(request)
+            .await
+            .map_err(|e| {
+                tasks_error!("(create_itinerary) couldn't check intersection {}", e);
+                TaskError::Internal
+            })?
+            .into_inner()
+            .intersects;
+
+        if intersects {
+            tasks_error!("(create_itinerary) Flight plan intersects with another flight plan");
+            return Err(TaskError::ScheduleConflict);
+        }
+    }
 
     // Get all flight plans from this time to latest departure time (including partially fitting flight plans)
     // - this assumes that all landed flights have updated vehicle.last_vertiport_id (otherwise we would need to look in to the past)
@@ -267,7 +298,8 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     //
     // Get the availability that contains at minimum the requested flight
     // The supplied itinerary (from query_itinerary) should also include the deadhead flights
-    let mut aircraft_gaps = get_aircraft_availabilities(
+    //
+    let aircraft_gaps = get_aircraft_availabilities(
         &existing_flight_plans,
         &aircraft_time_window.time_start,
         &aircraft,
@@ -276,9 +308,9 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     .map_err(|e| {
         tasks_error!("(create_itinerary) {}", e);
         TaskError::Internal
-    })?;
-
-    let aircraft_gaps = aircraft_gaps.remove(&aircraft_id).ok_or_else(|| {
+    })?
+    .remove(&aircraft_id)
+    .ok_or_else(|| {
         tasks_error!("(create_itinerary) Aircraft not available for the itinerary.");
         TaskError::ScheduleConflict
     })?;
@@ -289,51 +321,79 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
             && gap.timeslot.time_start <= aircraft_time_window.time_start
             && gap.timeslot.time_end >= aircraft_time_window.time_end
     }) {
-        tasks_error!("(create_itinerary) No available aircraft.");
+        tasks_error!("(create_itinerary) The requested aircraft is not available.");
         return Err(TaskError::ScheduleConflict);
     };
 
-    // Get available timeslots for departure vertiport that are large enough to
-    //  fit the required loading and takeoff time.
     //
-    let mut pairs = vec![];
-    for flight_plan in proposed_flight_plans {
-        let loading_time = flight_plan.origin_timeslot_end - flight_plan.origin_timeslot_start;
-        let unloading_time = flight_plan.target_timeslot_end - flight_plan.target_timeslot_start;
-        let timeslot = Timeslot {
-            time_start: flight_plan.origin_timeslot_start,
-            time_end: flight_plan.target_timeslot_end,
-        };
+    // Get timeslots for each vertipad mentioned in the plan
+    //
+    let timeslot = Timeslot {
+        time_start: aircraft_time_window.time_start,
+        time_end: aircraft_time_window.time_end,
+    };
 
-        let pair = get_timeslot_pairs(
+    for flight_plan in proposed_flight_plans {
+        let origin_duration = flight_plan.origin_timeslot_end - flight_plan.origin_timeslot_start;
+        let origin_timeslots = crate::router::vertiport::get_available_timeslots(
             &flight_plan.origin_vertiport_id,
             Some(&flight_plan.origin_vertipad_id),
-            &flight_plan.target_vertiport_id,
-            Some(&flight_plan.target_vertipad_id),
-            &loading_time,
-            &unloading_time,
-            &timeslot,
             &existing_flight_plans,
+            &timeslot,
+            &origin_duration,
             clients,
         )
         .await
         .map_err(|e| {
             tasks_error!("(create_itinerary) {}", e);
-            TaskError::ScheduleConflict
+            TaskError::Internal
         })?
-        .first()
+        .remove(&flight_plan.origin_vertipad_id)
         .ok_or_else(|| {
-            tasks_info!("(create_itinerary) No routes available for the given time.");
+            tasks_error!("(create_itinerary) No timeslots available for this vertipad.");
             TaskError::ScheduleConflict
-        })?
-        .clone();
+        })?;
 
-        pairs.push(pair);
+        if !origin_timeslots.into_iter().any(|gap| {
+            gap.time_start <= flight_plan.origin_timeslot_start
+                && gap.time_end >= flight_plan.origin_timeslot_end
+        }) {
+            tasks_error!("(create_itinerary) This requested timeslot is not available.");
+            return Err(TaskError::ScheduleConflict);
+        };
+
+        let target_duration = flight_plan.target_timeslot_end - flight_plan.target_timeslot_start;
+        let target_timeslots = crate::router::vertiport::get_available_timeslots(
+            &flight_plan.target_vertiport_id,
+            Some(&flight_plan.target_vertipad_id),
+            &existing_flight_plans,
+            &timeslot,
+            &target_duration,
+            clients,
+        )
+        .await
+        .map_err(|e| {
+            tasks_error!("(create_itinerary) {}", e);
+            TaskError::Internal
+        })?
+        .remove(&flight_plan.target_vertipad_id)
+        .ok_or_else(|| {
+            tasks_error!("(create_itinerary) No timeslots available for this vertipad.");
+            TaskError::ScheduleConflict
+        })?;
+
+        if !target_timeslots.into_iter().any(|gap| {
+            gap.time_start <= flight_plan.target_timeslot_start
+                && gap.time_end >= flight_plan.target_timeslot_end
+        }) {
+            tasks_error!("(create_itinerary) This requested timeslot is not available.");
+            return Err(TaskError::ScheduleConflict);
+        };
     }
 
     // If we've reached this point, the itinerary is valid
     // Register it with svc-storage
-    let itinerary_id = register_flight_plans(&user_id, &pairs, &aircraft_id, clients).await?;
+    let itinerary_id = register_flight_plans(clients, &user_id, &proposed_flight_plans).await?;
     task.metadata.result = Some(itinerary_id);
 
     Ok(())
@@ -420,6 +480,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: Uuid::new_v4().to_string(),
+                path: Some(vec![]),
             }]),
         };
 
