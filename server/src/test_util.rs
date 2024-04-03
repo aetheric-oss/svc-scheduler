@@ -140,6 +140,7 @@ async fn generate_vertiports(client: &VertiportClient) -> Vec<vertiport::Object>
                 points: vec![GeoPoint {
                     latitude: 37.7931,
                     longitude: -122.46283,
+                    altitude: 0.0,
                 }],
             }),
             interiors: vec![],
@@ -149,6 +150,7 @@ async fn generate_vertiports(client: &VertiportClient) -> Vec<vertiport::Object>
                 points: vec![GeoPoint {
                     latitude: 37.70278,
                     longitude: -122.42883,
+                    altitude: 0.0,
                 }],
             }),
             interiors: vec![],
@@ -158,6 +160,7 @@ async fn generate_vertiports(client: &VertiportClient) -> Vec<vertiport::Object>
                 points: vec![GeoPoint {
                     latitude: 37.73278,
                     longitude: -122.45883,
+                    altitude: 0.0,
                 }],
             }),
             interiors: vec![],
@@ -167,6 +170,7 @@ async fn generate_vertiports(client: &VertiportClient) -> Vec<vertiport::Object>
                 points: vec![GeoPoint {
                     latitude: 37.93278,
                     longitude: -122.25883,
+                    altitude: 0.0,
                 }],
             }),
             interiors: vec![],
