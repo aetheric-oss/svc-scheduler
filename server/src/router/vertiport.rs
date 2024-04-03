@@ -343,7 +343,7 @@ pub struct TimeslotPair {
     pub target_vertipad_id: String,
     pub target_timeslot: Timeslot,
     pub path: Vec<PointZ>,
-    pub distance_meters: f32,
+    pub distance_meters: f64,
 }
 
 impl From<TimeslotPair> for flight_plan::Data {
@@ -379,12 +379,11 @@ impl From<TimeslotPair> for flight_plan::Data {
 pub async fn get_vertipad_timeslot_pairs(
     origin_vertiport_id: &str,
     target_vertiport_id: &str,
-    mut origin_vertipads: HashMap<String, Vec<Timeslot>>,
-    mut target_vertipads: HashMap<String, Vec<Timeslot>>,
+    origin_vertipads: HashMap<String, Vec<Timeslot>>,
+    target_vertipads: HashMap<String, Vec<Timeslot>>,
     clients: &GrpcClients,
 ) -> Result<Vec<TimeslotPair>, VertiportError> {
     let mut pairs = vec![];
-
     let mut best_path_request = BestPathRequest {
         origin_identifier: origin_vertiport_id.to_string(),
         target_identifier: target_vertiport_id.to_string(),
@@ -395,139 +394,136 @@ pub async fn get_vertipad_timeslot_pairs(
         limit: 5,
     };
 
+    let mut origin_timeslots = origin_vertipads
+        .into_iter()
+        .flat_map(|(id, slots)| slots.into_iter().map(move |slot| (id.clone(), slot)))
+        .collect::<Vec<(String, Timeslot)>>();
+    origin_timeslots.sort_by(|a, b| a.1.time_start.cmp(&b.1.time_start));
+
+    let mut target_timeslots = target_vertipads
+        .into_iter()
+        .flat_map(|(id, slots)| slots.into_iter().map(move |slot| (id.clone(), slot)))
+        .collect::<Vec<(String, Timeslot)>>();
+    target_timeslots.sort_by(|a, b| a.1.time_start.cmp(&b.1.time_start));
+
     // Iterate through origin pads and their schedules
-    for (origin_vertipad_id, origin_schedule) in origin_vertipads.iter_mut() {
-        origin_schedule.sort_by(|a, b| a.time_end.cmp(&b.time_end));
-
-        // Iterate through the available timeslots for this pad
-        'origin_timeslots: for dts in origin_schedule.iter() {
-            // Iterate through target pads and their schedules
-            for (target_vertipad_id, target_schedule) in target_vertipads.iter_mut() {
-                target_schedule.sort_by(|a, b| a.time_start.cmp(&b.time_start));
-
-                // Iterate through available timeslots for this pad
-                // There will be several opportunities to break out without
-                //  excess work
-                for ats in target_schedule.iter() {
-                    // no timeslot overlap possible
-                    //                    | origin timeslot |
-                    // | target timeslot |
-                    if dts.time_start >= ats.time_end {
-                        continue;
-                    }
-
-                    // Temporary no-fly zones make checking the same route
-                    //  multiple times necessary for different timeslots
-                    best_path_request.time_start = Some(dts.time_start.into());
-                    best_path_request.time_end = Some(ats.time_end.into());
-
-                    let paths = match best_path(&best_path_request, clients).await {
-                        Ok(paths) => paths,
-                        Err(BestPathError::NoPathFound) => {
-                            // no path found, perhaps temporary no-fly zone
-                            //  is blocking journeys from this depart timeslot
-                            // Break out and try the next depart timeslot
-                            router_debug!(
-                                "(get_vertipad_timeslot_pairs) No path found from vertiport {}
-                                to vertiport {} (from {} to {}).",
-                                origin_vertiport_id,
-                                target_vertiport_id,
-                                dts.time_start,
-                                ats.time_end
-                            );
-
-                            break 'origin_timeslots;
-                        }
-                        Err(BestPathError::ClientError) => {
-                            // exit immediately if svc-gis is down, don't allow new flights
-                            router_error!(
-                                "(get_vertipad_timeslot_pairs) Could not determine path."
-                            );
-                            return Err(VertiportError::ClientError);
-                        }
-                    };
-
-                    // For now only get the first path
-                    let Some(path) = paths.first() else {
-                        // no path found, perhaps temporary no-fly zone
-                        //  is blocking journeys from this depart timeslot
-                        // Break out and try the next depart timeslot
-                        router_debug!(
-                            "(get_vertipad_timeslot_pairs) No path found from vertiport {}
-                            to vertiport {} (from {} to {}).",
-                            origin_vertiport_id,
-                            target_vertiport_id,
-                            dts.time_start,
-                            ats.time_end
-                        );
-
-                        break 'origin_timeslots;
-                    };
-
-                    let distance_meters = path.1 as f32;
-                    let path = path.0.clone();
-                    let estimated_duration_s = estimate_flight_time_seconds(&distance_meters)
-                        .map_err(|e| {
-                            router_error!(
-                                "(get_vertipad_timeslot_pairs) Could not estimate flight time: {e}"
-                            );
-                            VertiportError::Internal
-                        })?;
-
-                    // Since both schedules are sorted, we can break early once
-                    //  origin end time + flight time is less than the target timeslot's start time
-                    //  and not look at the other timeslots for that pad
-                    // | origin timeslot |
-                    //                      ---->x
-                    //                                | target timeslot 1 | target timeslot 2 |
-                    // (the next target timeslot start to be checked would be even further away)
-                    if dts.time_end + estimated_duration_s < ats.time_start {
-                        break;
-                    }
-
-                    //
-                    // |     dts              |          (depart timeslot)
-                    //       ----->        ----->        (flight time)
-                    //            |      ats     |       (target timeslot)
-                    //       | actual dts  |             (actual depart timeslot)
-                    //
-                    // The actual origin_timeslot is the timeslot within which origin
-                    //  will result in landing in the target timeslot.
-                    let origin_timeslot = Timeslot {
-                        time_start: max(dts.time_start, ats.time_start - estimated_duration_s),
-                        time_end: min(dts.time_end, ats.time_end - estimated_duration_s),
-                    };
-
-                    //
-                    //  |     dts     |             (depart timeslot)
-                    //   ----->       ----->        (flight time)
-                    //      |    ats            |   (target timeslot)
-                    //         | actual ats |
-                    // The actual target_timeslot is the timeslot within which target is possible
-                    //  given a origin from the actual depart timeslot.
-                    let target_timeslot = Timeslot {
-                        time_start: max(
-                            ats.time_start,
-                            origin_timeslot.time_start + estimated_duration_s,
-                        ),
-                        time_end: min(
-                            ats.time_end,
-                            origin_timeslot.time_end + estimated_duration_s,
-                        ),
-                    };
-
-                    pairs.push(TimeslotPair {
-                        origin_vertiport_id: origin_vertiport_id.to_string(),
-                        origin_vertipad_id: origin_vertipad_id.clone(),
-                        origin_timeslot,
-                        target_vertiport_id: target_vertiport_id.to_string(),
-                        target_vertipad_id: target_vertipad_id.clone(),
-                        target_timeslot,
-                        path,
-                        distance_meters,
-                    });
-                }
+    for (origin_vertipad_id, ots) in origin_timeslots.iter_mut() {
+        // Iterate through target pads and their schedules
+        'target: for (target_vertipad_id, tts) in target_timeslots.iter_mut() {
+            // no timeslot overlap possible
+            //                    | origin timeslot |
+            // | target timeslot |
+            if ots.time_start >= tts.time_end {
+                continue;
             }
+
+            // Temporary no-fly zones make checking the same route
+            //  multiple times necessary for different timeslots
+            best_path_request.time_start = Some(ots.time_start.into());
+            best_path_request.time_end = Some(tts.time_end.into());
+            let mut paths = match best_path(&best_path_request, clients).await {
+                Ok(paths) => paths,
+                Err(BestPathError::NoPathFound) => {
+                    // no path found, perhaps temporary no-fly zone
+                    //  is blocking journeys from this depart timeslot
+                    // Break out and try the next depart timeslot
+                    router_debug!(
+                        "(get_vertipad_timeslot_pairs) No path found from vertiport {}
+                            to vertiport {} (from {} to {}).",
+                        origin_vertiport_id,
+                        target_vertiport_id,
+                        ots.time_start,
+                        tts.time_end
+                    );
+
+                    break 'target;
+                }
+                Err(BestPathError::ClientError) => {
+                    // exit immediately if svc-gis is down, don't allow new flights
+                    router_error!("(get_vertipad_timeslot_pairs) Could not determine path.");
+
+                    return Err(VertiportError::ClientError);
+                }
+            };
+
+            // For now only get the first path
+            let (path, distance_meters) = paths.remove(0);
+            //  else {
+            //     // no path found, perhaps temporary no-fly zone
+            //     //  is blocking journeys from this depart timeslot
+            //     // Break out and try the next depart timeslot
+            //     router_debug!(
+            //         "(get_vertipad_timeslot_pairs) No path found from vertiport {}
+            //         to vertiport {} (from {} to {}).",
+            //         origin_vertiport_id,
+            //         target_vertiport_id,
+            //         ots.time_start,
+            //         tts.time_end
+            //     );
+
+            //     break 'target;
+            // };
+
+            let estimated_duration_s =
+                estimate_flight_time_seconds(&distance_meters).map_err(|e| {
+                    router_error!(
+                        "(get_vertipad_timeslot_pairs) Could not estimate flight time: {e}"
+                    );
+                    VertiportError::Internal
+                })?;
+
+            // Since both schedules are sorted, we can break early once
+            //  origin end time + flight time is less than the target timeslot's start time
+            //  and not look at the other timeslots for that pad
+            // | origin timeslot |
+            //                      ---->x
+            //                                | target timeslot 1 | target timeslot 2 |
+            // (the next target timeslot start to be checked would be even further away)
+            if ots.time_end + estimated_duration_s < tts.time_start {
+                break;
+            }
+
+            //
+            // |     ots              |          (depart timeslot)
+            //       ----->        ----->        (flight time)
+            //            |      tts     |       (target timeslot)
+            //       | actual ots  |             (actual depart timeslot)
+            //
+            // The actual origin_timeslot is the timeslot within which origin
+            //  will result in landing in the target timeslot.
+            let origin_timeslot = Timeslot {
+                time_start: max(ots.time_start, tts.time_start - estimated_duration_s),
+                time_end: min(ots.time_end, tts.time_end - estimated_duration_s),
+            };
+
+            //
+            //  |     ots     |             (depart timeslot)
+            //   ----->       ----->        (flight time)
+            //      |    tts            |   (target timeslot)
+            //         | actual tts |
+            // The actual target_timeslot is the timeslot within which target is possible
+            //  given a origin from the actual depart timeslot.
+            let target_timeslot = Timeslot {
+                time_start: max(
+                    tts.time_start,
+                    origin_timeslot.time_start + estimated_duration_s,
+                ),
+                time_end: min(
+                    tts.time_end,
+                    origin_timeslot.time_end + estimated_duration_s,
+                ),
+            };
+
+            pairs.push(TimeslotPair {
+                origin_vertiport_id: origin_vertiport_id.to_string(),
+                origin_vertipad_id: origin_vertipad_id.clone(),
+                origin_timeslot,
+                target_vertiport_id: target_vertiport_id.to_string(),
+                target_vertipad_id: target_vertipad_id.clone(),
+                target_timeslot,
+                path,
+                distance_meters,
+            });
         }
     }
 

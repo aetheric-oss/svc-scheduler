@@ -172,13 +172,11 @@ pub async fn query_flight(
     // Get all flight plans from this time to latest departure time (including partially fitting flight plans)
     // - this assumes that all landed flights have updated vehicle.last_vertiport_id (otherwise we would need to look in to the past)
     let existing_flight_plans: Vec<FlightPlanSchedule> =
-        get_sorted_flight_plans(clients, &request.latest_arrival_time)
-            .await
-            .map_err(|e| {
-                grpc_error!("(query_flight) {}", e);
-                let error_str = "Could not get existing flight plans.";
-                Status::internal(error_str)
-            })?;
+        get_sorted_flight_plans(clients).await.map_err(|e| {
+            grpc_error!("(query_flight) {}", e);
+            let error_str = "Could not get existing flight plans.";
+            Status::internal(error_str)
+        })?;
 
     grpc_debug!(
         "(query_flight) found existing flight plans: {:?}",
@@ -238,6 +236,8 @@ pub async fn query_flight(
         Status::internal(error_str)
     })?;
 
+    grpc_debug!("(query_flight) aircraft gaps: {:#?}", aircraft_gaps);
+
     //
     // See which aircraft are available to fly the route,
     //  including deadhead flights
@@ -289,13 +289,7 @@ mod tests {
 
         // our mock setup inserts only 3 flight_plans with an arrival date before "2022-10-26 14:30:00"
         let expected_number_returned = 3;
-
-        let chrono::LocalResult::Single(date) = Utc.with_ymd_and_hms(2022, 10, 26, 14, 30, 0)
-        else {
-            panic!();
-        };
-
-        let res = get_sorted_flight_plans(&clients, &date).await;
+        let res = get_sorted_flight_plans(&clients).await;
         ut_debug!(
             "(test_get_sorted_flight_plans) flight_plans returned: {:#?}",
             res
@@ -348,7 +342,18 @@ mod tests {
         let e = FlightQuery::try_from(query.clone()).unwrap_err();
         assert_eq!(e, FlightQueryError::TimeRangeTooLarge);
 
+        // Earliest departure time must also include ADVANCE_NOTICE_MINUTES
         query.earliest_departure_time = Some(Utc::now().into());
+        query.latest_arrival_time = Some(
+            (Utc::now() + Duration::try_minutes(MAX_FLIGHT_QUERY_WINDOW_MINUTES - 1).unwrap())
+                .into(),
+        );
+        let e = FlightQuery::try_from(query.clone()).unwrap_err();
+        assert_eq!(e, FlightQueryError::InvalidTime);
+
+        // Valid
+        query.earliest_departure_time =
+            Some((Utc::now() + Duration::try_minutes(ADVANCE_NOTICE_MINUTES + 1).unwrap()).into());
         query.latest_arrival_time = Some(
             (Utc::now() + Duration::try_minutes(MAX_FLIGHT_QUERY_WINDOW_MINUTES - 1).unwrap())
                 .into(),
