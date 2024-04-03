@@ -276,7 +276,7 @@ pub async fn query_flight(
 mod tests {
     use super::*;
     use crate::test_util::{ensure_storage_mock_data, get_vertiports_from_storage};
-    use chrono::{TimeZone, Utc};
+    use chrono::Utc;
     use svc_storage_client_grpc::prelude::flight_plan::FlightPriority;
 
     #[tokio::test]
@@ -287,8 +287,7 @@ mod tests {
         ensure_storage_mock_data().await;
         let clients = get_clients().await;
 
-        // our mock setup inserts only 3 flight_plans with an arrival date before "2022-10-26 14:30:00"
-        let expected_number_returned = 3;
+        let expected_number_returned = 10;
         let res = get_sorted_flight_plans(&clients).await;
         ut_debug!(
             "(test_get_sorted_flight_plans) flight_plans returned: {:#?}",

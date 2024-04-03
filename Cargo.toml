@@ -7,7 +7,7 @@ authors      = ["arrow-services <group-services@arrowair.com>"]
 edition      = "2021"
 homepage     = "https://www.arrowair.com/docs/documentation/services/intro"
 license-file = "LICENSE"
-repository   = "https://github.com/Arrow-air/svc-scheduler"
+repository   = "https://github.com/aetheric-oss/svc-scheduler"
 
 categories = [
   "aerospace::drones",
