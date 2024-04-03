@@ -2,7 +2,6 @@
 
 use crate::grpc::client::GrpcClients;
 use chrono::{DateTime, Utc};
-use prost_wkt_types::Timestamp;
 use serde::{Deserialize, Serialize};
 use svc_storage_client_grpc::prelude::*;
 use uuid::Uuid;
@@ -209,19 +208,11 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
 ///  or for all aircraft if none are specified.
 pub async fn get_sorted_flight_plans(
     clients: &GrpcClients,
-    target_timeslot_end: &DateTime<Utc>,
 ) -> Result<Vec<FlightPlanSchedule>, FlightPlanError> {
-    let target_timeslot_end: Timestamp = (*target_timeslot_end).into();
-
     // TODO(R4): Further filter by vehicle type, etc.
     //  With hundreds of vehicles in the air, this will be a lot of data
     //   on each call.
-    let mut filter = AdvancedSearchFilter::search_less_or_equal(
-        "target_timeslot_end".to_owned(),
-        target_timeslot_end.to_string(),
-    )
-    .and_is_null("deleted_at".to_owned())
-    .and_not_in(
+    let mut filter = AdvancedSearchFilter::search_is_null("deleted_at".to_owned()).and_not_in(
         "flight_status".to_owned(),
         vec![
             (flight_plan::FlightStatus::Finished as i32).to_string(),
@@ -231,33 +222,34 @@ pub async fn get_sorted_flight_plans(
 
     filter.order_by = vec![
         SortOption {
-            sort_field: "vehicle_id".to_string(),
+            sort_field: "origin_timeslot_start".to_owned(),
             sort_order: SortOrder::Asc as i32,
         },
         SortOption {
-            sort_field: "origin_timeslot_start".to_owned(),
+            sort_field: "vehicle_id".to_string(),
             sort_order: SortOrder::Asc as i32,
         },
     ];
 
-    let response = match clients.storage.flight_plan.search(filter).await {
-        Ok(response) => response.into_inner(),
-        Err(e) => {
+    let mut flight_plans = clients
+        .storage
+        .flight_plan
+        .search(filter)
+        .await
+        .map_err(|e| {
             router_error!(
                 "(get_sorted_flight_plans) Failed to get flight plans from storage: {}",
                 e
             );
-            return Err(FlightPlanError::ClientError);
-        }
-    };
-
-    let mut flight_plans = response
+            FlightPlanError::ClientError
+        })?
+        .into_inner()
         .list
         .into_iter()
         .filter_map(|fp| FlightPlanSchedule::try_from(fp).ok())
         .collect::<Vec<FlightPlanSchedule>>();
 
-    flight_plans.sort();
+    flight_plans.sort(); // should already be sorted due to the ORDER BY args to storage
     Ok(flight_plans)
 }
 

@@ -233,7 +233,7 @@ pub async fn get_aircraft(
 
 /// Estimates the time needed to travel between two locations including loading and unloading
 /// Estimate should be rather generous to block resources instead of potentially overloading them
-pub fn estimate_flight_time_seconds(distance_meters: &f32) -> Result<Duration, VehicleError> {
+pub fn estimate_flight_time_seconds(distance_meters: &f64) -> Result<Duration, VehicleError> {
     router_debug!(
         "(estimate_flight_time_seconds) distance_meters: {}",
         *distance_meters
@@ -248,7 +248,7 @@ pub fn estimate_flight_time_seconds(distance_meters: &f32) -> Result<Duration, V
             let landing_duration_s: f32 = 10.0; // TODO(R4): Calculate from altitude of corridor
 
             let cruise_duration_s: f32 =
-                *distance_meters / AVERAGE_CARGO_AIRCRAFT_CRUISE_VELOCITY_M_PER_S;
+                (*distance_meters as f32) / AVERAGE_CARGO_AIRCRAFT_CRUISE_VELOCITY_M_PER_S;
 
             let total_duration_s: f32 = liftoff_duration_s + cruise_duration_s + landing_duration_s;
             Duration::try_milliseconds((total_duration_s * 1000.0) as i64).ok_or_else(|| {
