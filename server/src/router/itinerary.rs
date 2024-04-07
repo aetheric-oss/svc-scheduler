@@ -128,25 +128,21 @@ pub fn validate_itinerary(
             return Err(ItineraryError::InvalidData);
         }
 
-        if fp_1.path.is_none() || fp_2.path.is_none() {
-            router_error!(
-                "(validate_itinerary) Flight plans should have a path: {:#?}",
-                flight_plans
-            );
+        for fp in [fp_1, fp_2] {
+            let Some(ref path) = fp.path else {
+                router_error!(
+                    "(validate_itinerary) Flight plans should have a path: {:#?}",
+                    flight_plans
+                );
 
-            return Err(ItineraryError::InvalidData);
-        }
+                return Err(ItineraryError::InvalidData);
+            };
 
-        for path in &[&fp_1.path, &fp_2.path] {
-            if let Some(ref path) = path {
-                if path.len() < 2 {
-                    router_error!(
-                        "(validate_itinerary) Flight plan path needs two or more points: {:#?}",
-                        flight_plans
-                    );
-
-                    return Err(ItineraryError::InvalidData);
-                }
+            if path.len() < 2 {
+                router_error!(
+                    "(validate_itinerary) Flight plan path needs two or more points: {:#?}",
+                    flight_plans
+                );
             }
         }
     }
@@ -172,9 +168,9 @@ pub async fn calculate_itineraries(
 ) -> Result<Vec<Vec<flight_plan::Data>>, ItineraryError> {
     let mut itineraries: Vec<Vec<flight_plan::Data>> = vec![];
     let mut ordered: Vec<(String, Availability)> = aircraft_gaps
-        .into_iter()
+        .iter()
         .flat_map(|(k, vs)| {
-            vs.into_iter()
+            vs.iter()
                 .map(|v| (k.clone(), v.to_owned()))
                 .collect::<Vec<(String, Availability)>>()
         })
