@@ -393,7 +393,7 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
 
     // If we've reached this point, the itinerary is valid
     // Register it with svc-storage
-    let itinerary_id = register_flight_plans(clients, &user_id, &proposed_flight_plans).await?;
+    let itinerary_id = register_flight_plans(clients, &user_id, proposed_flight_plans).await?;
     task.metadata.result = Some(itinerary_id);
 
     Ok(())
