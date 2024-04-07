@@ -198,19 +198,16 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
 
 impl From<FlightPlanSchedule> for flight_plan::Data {
     fn from(val: FlightPlanSchedule) -> Self {
-        let path = match val.path {
-            Some(p) => Some(GeoLineString {
-                points: p
-                    .into_iter()
-                    .map(|p| GeoPoint {
-                        latitude: p.latitude,
-                        longitude: p.longitude,
-                        altitude: p.altitude_meters as f64,
-                    })
-                    .collect(),
-            }),
-            None => None,
-        };
+        let path = val.path.map(|p| GeoLineString {
+            points: p
+                .into_iter()
+                .map(|p| GeoPoint {
+                    latitude: p.latitude,
+                    longitude: p.longitude,
+                    altitude: p.altitude_meters as f64,
+                })
+                .collect(),
+        });
 
         flight_plan::Data {
             origin_vertiport_id: Some(val.origin_vertiport_id),

@@ -218,7 +218,7 @@ pub async fn query_flight(
     //
     // Get all aircraft availabilities
     //
-    let aircraft = get_aircraft(&clients, None).await.map_err(|e| {
+    let aircraft = get_aircraft(clients, None).await.map_err(|e| {
         grpc_error!("(query_flight) {}", e);
         let error_str = "Could not get aircraft.";
         Status::internal(error_str)
