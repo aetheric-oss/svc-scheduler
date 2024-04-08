@@ -15,11 +15,11 @@ jobs:
     name: Release Checklist
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - run: |
           make release-checklist > release_checklist.md
           echo CHECKLIST_OUTPUT=$(sed -n -e '/#/,$p' release_checklist.md) >> $GITHUB_ENV
-      - uses: thollander/actions-comment-pull-request@v1
+      - uses: thollander/actions-comment-pull-request@v2
         continue-on-error: true
         with:
           message: |
