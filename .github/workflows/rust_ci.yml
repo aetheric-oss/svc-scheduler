@@ -140,4 +140,4 @@ jobs:
             ${{ env.UT_COV }}
 
             :point_right: [View in Coveralls.io](https://coveralls.io/github/${{ github.repository }}) :point_left:
-          comment_includes: ':beetle: Unit Testing Coverage :mag_right:'
+          comment_tag: unit-test-coverage
