@@ -34,4 +34,4 @@ jobs:
             </details>
 
             :warning: *Comments and test sections not checked by default. Check locally with `make release-checklist-full`*
-          comment_includes: ':clipboard: Release Checklist :white_check_mark:'
+          comment_tag: release-checklist
