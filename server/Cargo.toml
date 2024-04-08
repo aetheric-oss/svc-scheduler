@@ -2,7 +2,7 @@
 description = "Aetheric fleet routing and vertiport scheduling with gRPC API."
 keywords    = ["vtol", "server", "grpc", "rest", "scheduler"]                  # max 5
 name        = "svc-scheduler"
-version     = "0.4.1-develop.5"
+version     = "0.4.1-develop.6"
 
 authors.workspace      = true
 categories.workspace   = true
