@@ -85,4 +85,4 @@ jobs:
             ${{ steps.changelog.outputs.changelog }}
 
             </details>
-          comment_includes: 'This PR will generate the following release notes when merged'
+          comment_tag: release-notes-preview
