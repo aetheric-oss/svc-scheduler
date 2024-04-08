@@ -30,14 +30,14 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: make rust-fmt
 
   check:
     name: Checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "rust-ci"
@@ -49,14 +49,14 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "rust-ci"
           cache-directories: "${{ github.workspace }}/.cargo"
       - run: make rust-build
       - name: Cache .env file for next jobs
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         id: cache
         with:
           path: .env
@@ -67,13 +67,13 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "rust-ci"
           cache-directories: "${{ github.workspace }}/.cargo"
       - name: Get .env file from cache
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: .env
           key: dot-env-${{ github.run_id }}
@@ -85,7 +85,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "rust-ci"
@@ -98,7 +98,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "rust-ci"
@@ -112,13 +112,13 @@ jobs:
     env:
       NODE_COVERALLS_DEBUG: 1
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "rust-ci"
           cache-directories: "${{ github.workspace }}/.cargo"
       - name: Get .env file from cache
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: .env
           key: dot-env-${{ github.run_id }}
@@ -131,7 +131,7 @@ jobs:
           github-token: ${{ secrets.github_token }}
           path-to-lcov: coverage/lcov.info
           base-path: .
-      - uses: thollander/actions-comment-pull-request@v1
+      - uses: thollander/actions-comment-pull-request@v2
         continue-on-error: true
         with:
           message: |
