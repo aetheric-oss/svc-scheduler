@@ -22,28 +22,28 @@ jobs:
     name: Code Style Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - run: make editorconfig-test
 
   cspell:
     name: Spelling Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - run: make cspell-test
 
   md-test:
     name: Markdown Broken Link Checker
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - run: make md-test-links
 
   toml:
     name: TOML Format Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - run: make toml-test
 
   commit-msg:
@@ -51,7 +51,7 @@ jobs:
     name: Commit message Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - run: npx commitlint --from=${{ github.event.pull_request.base.sha }}
@@ -62,20 +62,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Generate Changelog
         id: changelog
-        uses: mrchief/universal-changelog-action@v1.3.1
+        uses: mrchief/universal-changelog-action@v1.3.2
         with:
           previousReleaseTagNameOrSha: ${{ github.event.pull_request.base.sha }}
           nextReleaseTagName: ${{ github.sha }}
           nextReleaseName: "Release ${{ steps.tag_version.outputs.new_version }}"
 
       - name: Add PR Comment with Changelog Output
-        uses: thollander/actions-comment-pull-request@v1
+        uses: thollander/actions-comment-pull-request@v2
         continue-on-error: true
         with:
           message: |
