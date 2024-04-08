@@ -28,7 +28,7 @@ jobs:
       AWS_S3_DOCS_GRPC_DEST_PATH: "/api-docs/grpc/${{ github.event.repository.name }}/"
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Gather env vars
@@ -53,22 +53,22 @@ jobs:
           make ${DOC_TARGETS}
       - name: Check for openapi json output
         id: openapi_files
-        uses: andstor/file-existence-action@v2
+        uses: andstor/file-existence-action@v3
         with:
           files: "out/${{ github.event.repository.name }}-openapi.json"
       - name: Check for grpc-api output
         id: grpc_api_files
-        uses: andstor/file-existence-action@v2
+        uses: andstor/file-existence-action@v3
         with:
           files: "out/${{ github.event.repository.name }}-grpc-api.json"
 
       # Login to AWS and Sync docs to AWS S3 bucket
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_WEBSITE }}:role/${{ secrets.AWS_S3_SERVICES_DOCS_ROLE }}"
           role-session-name: aetheric-openapi-docs
-          aws-region: "us-east-2"
+          aws-region: "${{ vars.AWS_REGION }}"
       - name: Sync OpenAPI docs to S3 for processing
         if: steps.openapi_files.outputs.files_exists == 'true'
         id: openapi_sync_s3
@@ -93,17 +93,17 @@ jobs:
       DOCKER_IMAGE: ghcr.io/${{ github.repository }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
         with:
           platforms: 'amd64,arm64'
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v2
@@ -114,7 +114,7 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.DOCKER_IMAGE }}
           tags: |
@@ -126,7 +126,7 @@ jobs:
             type=semver,pattern=v{{major}},value=${{ github.ref_name }}
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -148,7 +148,7 @@ jobs:
       AWS_S3_DOCS_RUST_DEST_PATH: "/rust-docs/${{ github.event.repository.name }}/"
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Gather env vars
@@ -165,11 +165,11 @@ jobs:
           make rust-doc
       # Login to AWS and Sync docs to AWS S3 bucket
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_WEBSITE }}:role/${{ secrets.AWS_S3_SERVICES_DOCS_ROLE }}"
           role-session-name: aetheric-rust-docs
-          aws-region: "us-east-2"
+          aws-region: "${{ vars.AWS_REGION }}"
       - name: Sync rust docs to S3 for processing
         run: |
           aws s3 sync ./target/doc/ "s3://${{ secrets.AWS_S3_SERVICES_DOCS_BUCKET }}${{ env.AWS_S3_DOCS_RUST_DEST_PATH }}${BRANCHPATH}/"  --delete --size-only
@@ -190,7 +190,7 @@ jobs:
             echo "PUBLISH_DRY_RUN=0" >> $GITHUB_ENV
           fi
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Build and publish client
