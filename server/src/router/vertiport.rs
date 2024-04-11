@@ -60,8 +60,8 @@ pub async fn get_vertipads(
     clients: &GrpcClients,
     arg: GetVertipadsArg,
 ) -> Result<Vec<String>, VertiportError> {
-    let mut filter = AdvancedSearchFilter::search_is_null("deleted_at".to_owned())
-        .and_equals("enabled".to_string(), "1".to_string());
+    let mut filter = AdvancedSearchFilter::search_is_null("deleted_at".to_owned());
+    // TODO(R5): factor in enabled vs disabled
 
     match arg {
         GetVertipadsArg::VertiportId(vertiport_id) => {
@@ -74,7 +74,6 @@ pub async fn get_vertipads(
 
     router_info!("(get_vertipads) proposed filter: {:?}", filter.clone());
 
-    let filter = AdvancedSearchFilter::default();
     let Ok(response) = clients.storage.vertipad.search(filter).await else {
         router_error!("(get_vertipads) Failed to get vertipads.");
         return Err(VertiportError::NoVertipads);
