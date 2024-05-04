@@ -142,7 +142,7 @@ rust-tidy: check-cargo-registry rust-docker-pull
 
 rust-doc: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo doc...$(SGR0)"
-	@$(call cargo_run,doc,--no-deps)
+	@$(call cargo_run,doc,--all-features --no-deps)
 
 rust-openapi: check-cargo-registry rust-docker-pull rust-build
 	@echo "$(CYAN)Generating openapi documentation...$(SGR0)"
