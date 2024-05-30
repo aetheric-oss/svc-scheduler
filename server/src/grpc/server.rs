@@ -35,13 +35,13 @@ impl RpcService for ServerImpl {
         &self,
         request: Request<QueryFlightRequest>,
     ) -> Result<Response<QueryFlightResponse>, Status> {
-        grpc_info!("(query_flight) scheduler server.");
-        grpc_debug!("(query_flight) request: {:?}", request);
+        grpc_info!("scheduler server.");
+        grpc_debug!("request: {:?}", request);
 
         let request = request.into_inner();
         let res = super::api::query_flight::query_flight(request).await;
         if let Err(e) = res {
-            grpc_error!("(query_flight) error: {}", e);
+            grpc_error!("error: {}", e);
             return Err(e);
         }
 
@@ -56,15 +56,15 @@ impl RpcService for ServerImpl {
     where
         Self: Send,
     {
-        grpc_info!("(create_itinerary) scheduler server.");
-        grpc_debug!("(create_itinerary) request: {:?}", request);
+        grpc_info!("scheduler server.");
+        grpc_debug!("request: {:?}", request);
 
         let request = request.into_inner();
         let response = super::api::create::create_itinerary(request).await;
         match response {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => {
-                grpc_error!("(create_itinerary) error: {}", e);
+                grpc_error!("error: {}", e);
                 Err(Status::internal("Could not create itinerary."))
             }
         }
@@ -78,8 +78,8 @@ impl RpcService for ServerImpl {
     where
         Self: Send,
     {
-        grpc_info!("(cancel_itinerary) scheduler server.");
-        grpc_debug!("(cancel_itinerary) request: {:?}", request);
+        grpc_info!("scheduler server.");
+        grpc_debug!("request: {:?}", request);
 
         let request = request.into_inner();
         let response = super::api::cancel::cancel_itinerary(request).await;
@@ -87,7 +87,7 @@ impl RpcService for ServerImpl {
         match response {
             Ok(response) => Ok(Response::new(response)),
             Err(e) => {
-                grpc_error!("(cancel_itinerary) error: {}", e);
+                grpc_error!("error: {}", e);
                 Err(Status::internal("Could not cancel itinerary."))
             }
         }
@@ -101,8 +101,8 @@ impl RpcService for ServerImpl {
     where
         Self: Send,
     {
-        grpc_info!("(cancel_task) scheduler server.");
-        grpc_debug!("(cancel_task) request: {:?}", request);
+        grpc_info!("scheduler server.");
+        grpc_debug!("request: {:?}", request);
         let request = request.into_inner();
 
         match crate::tasks::cancel_task(request.task_id).await {
@@ -115,7 +115,7 @@ impl RpcService for ServerImpl {
                 Ok(Response::new(response))
             }
             Err(e) => {
-                grpc_error!("(cancel_task) error: {}", e);
+                grpc_error!("error: {}", e);
                 Err(Status::internal("Could not cancel task."))
             }
         }
@@ -129,8 +129,8 @@ impl RpcService for ServerImpl {
     where
         Self: Send,
     {
-        grpc_info!("(get_task_status) scheduler server.");
-        grpc_debug!("(get_task_status) request: {:?}", request);
+        grpc_info!("scheduler server.");
+        grpc_debug!("request: {:?}", request);
         let request = request.into_inner();
         match crate::tasks::get_task_status(request.task_id).await {
             Ok(task_metadata) => {
@@ -142,7 +142,7 @@ impl RpcService for ServerImpl {
                 Ok(Response::new(response))
             }
             Err(e) => {
-                grpc_error!("(get_task_status) error: {}", e);
+                grpc_error!("error: {}", e);
                 Err(Status::internal("Could not get task status."))
             }
         }
@@ -153,8 +153,8 @@ impl RpcService for ServerImpl {
         &self,
         request: Request<ReadyRequest>,
     ) -> Result<Response<ReadyResponse>, Status> {
-        grpc_info!("(is_ready) scheduler server.");
-        grpc_debug!("(is_ready) request: {:?}", request);
+        grpc_info!("scheduler server.");
+        grpc_debug!("request: {:?}", request);
         let response = ReadyResponse { ready: true };
         Ok(Response::new(response))
     }
@@ -173,14 +173,14 @@ impl RpcService for ServerImpl {
 /// }
 /// ```
 pub async fn grpc_server(config: Config, shutdown_rx: Option<tokio::sync::oneshot::Receiver<()>>) {
-    grpc_debug!("(grpc_server) entry.");
+    grpc_debug!("entry.");
 
     // Grpc Server
     let grpc_port = config.docker_port_grpc;
     let full_grpc_addr: SocketAddr = match format!("[::]:{}", grpc_port).parse() {
         Ok(addr) => addr,
         Err(e) => {
-            grpc_error!("(grpc_server) Failed to parse gRPC address: {}", e);
+            grpc_error!("Failed to parse gRPC address: {}", e);
             return;
         }
     };
@@ -193,19 +193,16 @@ pub async fn grpc_server(config: Config, shutdown_rx: Option<tokio::sync::onesho
         .await;
 
     //start server
-    grpc_info!(
-        "(grpc_server) Starting gRPC services on: {}.",
-        full_grpc_addr
-    );
+    grpc_info!("Starting gRPC services on: {}.", full_grpc_addr);
     match Server::builder()
         .add_service(health_service)
         .add_service(RpcServiceServer::new(imp))
         .serve_with_shutdown(full_grpc_addr, shutdown_signal("grpc", shutdown_rx))
         .await
     {
-        Ok(_) => grpc_info!("(grpc_server) gRPC server running at: {}.", full_grpc_addr),
+        Ok(_) => grpc_info!("gRPC server running at: {}.", full_grpc_addr),
         Err(e) => {
-            grpc_error!("(grpc_server) could not start gRPC server: {}", e);
+            grpc_error!("could not start gRPC server: {}", e);
         }
     };
 }
@@ -218,8 +215,8 @@ impl RpcService for ServerImpl {
         &self,
         request: Request<QueryFlightRequest>,
     ) -> Result<Response<QueryFlightResponse>, Status> {
-        grpc_warn!("(query_flight MOCK) scheduler server.");
-        grpc_debug!("(query_flight MOCK) request: {:?}", request);
+        grpc_warn!("(MOCK) scheduler server.");
+        grpc_debug!("(MOCK) request: {:?}", request);
         let flight_plan_data =
             svc_storage_client_grpc::prelude::flight_plan::mock::get_future_data_obj();
 
@@ -235,8 +232,8 @@ impl RpcService for ServerImpl {
         &self,
         request: Request<CreateItineraryRequest>,
     ) -> Result<Response<TaskResponse>, Status> {
-        grpc_warn!("(create_itinerary MOCK) scheduler server.");
-        grpc_debug!("(create_itinerary MOCK) request: {:?}", request);
+        grpc_warn!("(MOCK) scheduler server.");
+        grpc_debug!("(MOCK) request: {:?}", request);
         let mut rng = rand::thread_rng();
         Ok(tonic::Response::new(TaskResponse {
             task_id: rng.gen_range(0..1000),
@@ -254,8 +251,8 @@ impl RpcService for ServerImpl {
         &self,
         request: Request<CancelItineraryRequest>,
     ) -> Result<Response<TaskResponse>, Status> {
-        grpc_warn!("(cancel_itinerary MOCK) scheduler server.");
-        grpc_debug!("(cancel_itinerary MOCK) request: {:?}", request);
+        grpc_warn!("(MOCK) scheduler server.");
+        grpc_debug!("(MOCK) request: {:?}", request);
         let mut rng = rand::thread_rng();
         Ok(tonic::Response::new(TaskResponse {
             task_id: rng.gen_range(0..1000),
@@ -273,8 +270,8 @@ impl RpcService for ServerImpl {
         &self,
         request: Request<TaskRequest>,
     ) -> Result<Response<TaskResponse>, Status> {
-        grpc_warn!("(cancel_task MOCK) scheduler server.");
-        grpc_debug!("(cancel_task MOCK) request: {:?}", request);
+        grpc_warn!("(MOCK) scheduler server.");
+        grpc_debug!("(MOCK) request: {:?}", request);
         let response = TaskResponse {
             task_id: request.into_inner().task_id,
             task_metadata: None,
@@ -287,8 +284,8 @@ impl RpcService for ServerImpl {
         &self,
         request: Request<TaskRequest>,
     ) -> Result<Response<TaskResponse>, Status> {
-        grpc_warn!("(get_task_status MOCK) scheduler server.");
-        grpc_debug!("(get_task_status MOCK) request: {:?}", request);
+        grpc_warn!("(MOCK) scheduler server.");
+        grpc_debug!("(MOCK) request: {:?}", request);
 
         let response = TaskResponse {
             task_id: request.into_inner().task_id,
@@ -306,8 +303,8 @@ impl RpcService for ServerImpl {
         &self,
         request: Request<ReadyRequest>,
     ) -> Result<Response<ReadyResponse>, Status> {
-        grpc_warn!("(is_ready MOCK) scheduler server.");
-        grpc_debug!("(is_ready MOCK) request: {:?}", request);
+        grpc_warn!("(MOCK) scheduler server.");
+        grpc_debug!("(MOCK) request: {:?}", request);
         let response = ReadyResponse { ready: true };
         Ok(Response::new(response))
     }

@@ -1,8 +1,9 @@
 //! Example for writing an integration test.
 //! More information: https://doc.rust-lang.org/book/testing-rust.html#integration-tests
 
-use chrono::{Duration, Utc};
 use lib_common::grpc::get_endpoint_from_env;
+use lib_common::time::{Duration, Utc};
+use lib_common::uuid::Uuid;
 use svc_scheduler_client_grpc::prelude::{scheduler::*, *};
 
 #[tokio::test]
@@ -16,8 +17,8 @@ async fn test_flights_query() -> Result<(), Box<dyn std::error::Error>> {
         weight_grams: Some(5000),
         earliest_departure_time: Some(Timestamp { seconds, nanos: 0 }),
         latest_arrival_time: None,
-        origin_vertiport_id: uuid::Uuid::new_v4().to_string(),
-        target_vertiport_id: uuid::Uuid::new_v4().to_string(),
+        origin_vertiport_id: Uuid::new_v4().to_string(),
+        target_vertiport_id: Uuid::new_v4().to_string(),
         priority: FlightPriority::Low.into(),
     };
 
@@ -33,8 +34,8 @@ async fn test_cancel_itinerary() -> Result<(), Box<dyn std::error::Error>> {
     let client = SchedulerClient::new_client(&server_host, server_port, "scheduler");
     let request = CancelItineraryRequest {
         priority: FlightPriority::Low.into(),
-        itinerary_id: uuid::Uuid::new_v4().to_string(),
-        user_id: uuid::Uuid::new_v4().to_string(),
+        itinerary_id: Uuid::new_v4().to_string(),
+        user_id: Uuid::new_v4().to_string(),
     };
 
     let response = client.cancel_itinerary(request.clone()).await?.into_inner();
@@ -57,7 +58,7 @@ async fn test_create_itinerary() -> Result<(), Box<dyn std::error::Error>> {
             seconds: (Utc::now() + Duration::try_hours(1).unwrap()).timestamp(),
             nanos: 0,
         }),
-        user_id: uuid::Uuid::new_v4().to_string(),
+        user_id: Uuid::new_v4().to_string(),
     };
 
     let response = client.create_itinerary(request.clone()).await?.into_inner();

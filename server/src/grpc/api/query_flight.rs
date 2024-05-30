@@ -1,9 +1,9 @@
 //! This module contains the gRPC query_flight endpoint implementation.
 
-use chrono::{DateTime, Duration, Utc};
+use lib_common::time::{DateTime, Duration, Utc};
+use lib_common::uuid::Uuid;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use tonic::{Response, Status};
-use uuid::Uuid;
 
 use crate::grpc::client::get_clients;
 use crate::grpc::server::grpc_server::{Itinerary, QueryFlightRequest, QueryFlightResponse};
@@ -157,7 +157,7 @@ pub async fn query_flight(
     request: QueryFlightRequest,
 ) -> Result<Response<QueryFlightResponse>, Status> {
     let request = FlightQuery::try_from(request).map_err(|e| {
-        grpc_error!("(query_flight) {}", e);
+        grpc_error!("{}", e);
         let error_str = "Invalid flight query request";
         Status::invalid_argument(error_str)
     })?;
@@ -173,15 +173,12 @@ pub async fn query_flight(
     // - this assumes that all landed flights have updated vehicle.last_vertiport_id (otherwise we would need to look in to the past)
     let existing_flight_plans: Vec<FlightPlanSchedule> =
         get_sorted_flight_plans(clients).await.map_err(|e| {
-            grpc_error!("(query_flight) {}", e);
+            grpc_error!("{}", e);
             let error_str = "Could not get existing flight plans.";
             Status::internal(error_str)
         })?;
 
-    grpc_debug!(
-        "(query_flight) found existing flight plans: {:?}",
-        existing_flight_plans
-    );
+    grpc_debug!("found existing flight plans: {:?}", existing_flight_plans);
 
     //
     // TODO(R4): Determine if there's an open space for cargo on an existing flight plan
@@ -204,14 +201,14 @@ pub async fn query_flight(
     )
     .await
     .map_err(|e| {
-        grpc_error!("(query_flight) {}", e);
+        grpc_error!("{}", e);
         let error_str = "Could not get timeslot pairs.";
         Status::internal(error_str)
     })?;
 
     if timeslot_pairs.is_empty() {
         let info_str = "No routes available for the given time.";
-        grpc_info!("(query_flight) {info_str}");
+        grpc_info!("{info_str}");
         return Err(Status::not_found(info_str));
     }
 
@@ -219,7 +216,7 @@ pub async fn query_flight(
     // Get all aircraft availabilities
     //
     let aircraft = get_aircraft(clients, None).await.map_err(|e| {
-        grpc_error!("(query_flight) {}", e);
+        grpc_error!("{}", e);
         let error_str = "Could not get aircraft.";
         Status::internal(error_str)
     })?;
@@ -231,18 +228,18 @@ pub async fn query_flight(
         &timeslot,
     )
     .map_err(|e| {
-        grpc_error!("(query_flight) {}", e);
+        grpc_error!("{}", e);
         let error_str = "Could not get aircraft availabilities.";
         Status::internal(error_str)
     })?;
 
-    grpc_debug!("(query_flight) aircraft gaps: {:#?}", aircraft_gaps);
+    grpc_debug!("aircraft gaps: {:#?}", aircraft_gaps);
 
     //
     // See which aircraft are available to fly the route,
     //  including deadhead flights
     //
-    grpc_debug!("(query_flight) timeslot pairs count {:?}", timeslot_pairs);
+    grpc_debug!("timeslot pairs count {:?}", timeslot_pairs);
     let itineraries = calculate_itineraries(
         &request.required_loading_time,
         &request.required_unloading_time,
@@ -253,18 +250,18 @@ pub async fn query_flight(
     .await
     .map_err(|e| {
         let error_str = "Could not get itineraries";
-        grpc_error!("(query_flight) {error_str}: {e}");
+        grpc_error!("{error_str}: {e}");
         Status::internal(error_str)
     })?
     .into_iter()
     .map(|flight_plans| Itinerary { flight_plans })
     .collect::<Vec<Itinerary>>();
 
-    grpc_debug!("(query_flight) itineraries count {:?}", itineraries);
+    grpc_debug!("itineraries count {:?}", itineraries);
 
     let response = QueryFlightResponse { itineraries };
     grpc_info!(
-        "(query_flight) query_flight returning: {} flight plans.",
+        "query_flight returning: {} flight plans.",
         &response.itineraries.len()
     );
 
@@ -276,34 +273,31 @@ pub async fn query_flight(
 mod tests {
     use super::*;
     use crate::test_util::{ensure_storage_mock_data, get_vertiports_from_storage};
-    use chrono::Utc;
+    use lib_common::time::Utc;
     use svc_storage_client_grpc::prelude::flight_plan::FlightPriority;
 
     #[tokio::test]
     async fn test_get_sorted_flight_plans() {
-        crate::get_log_handle().await;
-        ut_info!("(test_get_sorted_flight_plans) start");
+        lib_common::logger::get_log_handle().await;
+        ut_info!("start");
 
         ensure_storage_mock_data().await;
         let clients = get_clients().await;
 
         let expected_number_returned = 10;
         let res = get_sorted_flight_plans(&clients).await;
-        ut_debug!(
-            "(test_get_sorted_flight_plans) flight_plans returned: {:#?}",
-            res
-        );
+        ut_debug!("flight_plans returned: {:#?}", res);
 
         assert!(res.is_ok());
         assert_eq!(res.unwrap().len(), expected_number_returned);
-        ut_info!("(test_get_sorted_flight_plans) success");
+        ut_info!("success");
     }
 
     #[tokio::test]
     #[cfg(feature = "stub_backends")]
     async fn test_query_invalid() {
-        crate::get_log_handle().await;
-        ut_info!("(test_query_invalid) start");
+        lib_common::logger::get_log_handle().await;
+        ut_info!("start");
 
         let vertiports = get_vertiports_from_storage().await;
         let mut query = QueryFlightRequest {
@@ -372,6 +366,6 @@ mod tests {
         query.target_vertiport_id = Uuid::new_v4().to_string();
         FlightQuery::try_from(query.clone()).unwrap();
 
-        ut_info!("(test_query_invalid) success");
+        ut_info!("success");
     }
 }

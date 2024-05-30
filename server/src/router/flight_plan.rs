@@ -1,11 +1,11 @@
 //! Helper Functions for Flight Plans
 
 use crate::grpc::client::GrpcClients;
-use chrono::{DateTime, Utc};
+use lib_common::time::{DateTime, Utc};
+use lib_common::uuid::Uuid;
 use serde::{Deserialize, Serialize};
 use svc_gis_client_grpc::client::PointZ;
 use svc_storage_client_grpc::prelude::*;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlightPlanSchedule {
@@ -81,10 +81,7 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
             .origin_timeslot_start
             .clone()
             .ok_or_else(|| {
-                router_error!(
-                    "(try_from) Flight plan has no scheduled origin start: {:?}",
-                    data
-                );
+                router_error!("Flight plan has no scheduled origin start: {:?}", data);
                 FlightPlanError::InvalidData
             })?
             .into();
@@ -93,10 +90,7 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
             .origin_timeslot_end
             .clone()
             .ok_or_else(|| {
-                router_error!(
-                    "(try_from) Flight plan has no scheduled origin end: {:?}",
-                    data
-                );
+                router_error!("Flight plan has no scheduled origin end: {:?}", data);
                 FlightPlanError::InvalidData
             })?
             .into();
@@ -105,10 +99,7 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
             .target_timeslot_start
             .clone()
             .ok_or_else(|| {
-                router_error!(
-                    "(try_from) Flight plan has no scheduled target start: {:?}",
-                    data
-                );
+                router_error!("Flight plan has no scheduled target start: {:?}", data);
                 FlightPlanError::InvalidData
             })?
             .into();
@@ -117,17 +108,14 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
             .target_timeslot_end
             .clone()
             .ok_or_else(|| {
-                router_error!(
-                    "(try_from) Flight plan has no scheduled target end: {:?}",
-                    data
-                );
+                router_error!("Flight plan has no scheduled target end: {:?}", data);
                 FlightPlanError::InvalidData
             })?
             .into();
 
         if origin_timeslot_start >= target_timeslot_end {
             router_error!(
-                "(try_from) Flight plan has invalid departure and arrival times: {:?}",
+                "Flight plan has invalid departure and arrival times: {:?}",
                 data
             );
             return Err(FlightPlanError::InvalidData);
@@ -138,7 +126,7 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
         //
         Uuid::parse_str(&data.vehicle_id).map_err(|e| {
             router_error!(
-                "(try_from) Flight plan has invalid vehicle id ({}: {e}",
+                "Flight plan has invalid vehicle id ({}: {e}",
                 data.vehicle_id
             );
 
@@ -146,16 +134,13 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
         })?;
 
         let origin_vertiport_id = data.origin_vertiport_id.clone().ok_or_else(|| {
-            router_error!(
-                "(try_from) Flight plan has no origin vertiport: [{:?}]",
-                data
-            );
+            router_error!("Flight plan has no origin vertiport: [{:?}]", data);
             FlightPlanError::InvalidData
         })?;
 
         Uuid::parse_str(&origin_vertiport_id).map_err(|e| {
             router_error!(
-                "(try_from) Flight plan has invalid origin vertiport ({}): [{:?}]; {}",
+                "Flight plan has invalid origin vertiport ({}): [{:?}]; {}",
                 origin_vertiport_id,
                 data,
                 e
@@ -164,16 +149,13 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
         })?;
 
         let target_vertiport_id = data.target_vertiport_id.clone().ok_or_else(|| {
-            router_error!(
-                "(try_from) Flight plan has no target vertiport: [{:?}]",
-                data
-            );
+            router_error!("Flight plan has no target vertiport: [{:?}]", data);
             FlightPlanError::InvalidData
         })?;
 
         Uuid::parse_str(&target_vertiport_id).map_err(|e| {
             router_error!(
-                "(try_from) Flight plan has invalid target vertiport ({}): [{:?}]; {}",
+                "Flight plan has invalid target vertiport ({}): [{:?}]; {}",
                 target_vertiport_id,
                 data,
                 e
@@ -230,7 +212,7 @@ impl TryFrom<flight_plan::Object> for FlightPlanSchedule {
 
     fn try_from(flight_plan: flight_plan::Object) -> Result<Self, Self::Error> {
         let data = flight_plan.data.ok_or_else(|| {
-            router_error!("(try_from) Flight plan [{}] has no data.", flight_plan.id);
+            router_error!("Flight plan [{}] has no data.", flight_plan.id);
             FlightPlanError::InvalidData
         })?;
 
@@ -272,10 +254,7 @@ pub async fn get_sorted_flight_plans(
         .search(filter)
         .await
         .map_err(|e| {
-            router_error!(
-                "(get_sorted_flight_plans) Failed to get flight plans from storage: {}",
-                e
-            );
+            router_error!("Failed to get flight plans from storage: {}", e);
             FlightPlanError::ClientError
         })?
         .into_inner()

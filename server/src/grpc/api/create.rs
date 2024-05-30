@@ -10,6 +10,8 @@ use crate::router::flight_plan::{FlightPlanError, FlightPlanSchedule};
 use crate::tasks::pool::RedisPool;
 use crate::tasks::{Task, TaskBody};
 
+use lib_common::uuid::Uuid;
+
 /// Creates an itinerary from a list of flight plans.
 /// The flight plans provided are expected to be the valid output from the `query_flight` endpoint.
 /// Invalid flight plans will be quickly rejected.
@@ -18,19 +20,16 @@ pub async fn create_itinerary(request: CreateItineraryRequest) -> Result<TaskRes
         Some(p) => p,
         None => {
             let error_msg = "Invalid priority provided";
-            grpc_error!("(create_itinerary) {error_msg}: {}", request.priority);
+            grpc_error!("{error_msg}: {}", request.priority);
             return Err(Status::invalid_argument(format!("{error_msg}.")));
         }
     };
 
-    let user_id = match uuid::Uuid::parse_str(&request.user_id.clone()) {
-        Ok(user_id) => user_id,
-        Err(e) => {
-            let error_msg = "Invalid user ID provided";
-            grpc_error!("(create_itinerary) {error_msg}: {e}");
-            return Err(Status::invalid_argument(format!("{error_msg}.")));
-        }
-    };
+    let user_id = Uuid::parse_str(&request.user_id.clone()).map_err(|e| {
+        let error_msg = "Invalid user ID provided";
+        grpc_error!("{error_msg}: {e}");
+        Status::invalid_argument(format!("{error_msg}."))
+    })?;
 
     let Ok(schedules): Result<Vec<FlightPlanSchedule>, FlightPlanError> = request
         .flight_plans
@@ -49,18 +48,18 @@ pub async fn create_itinerary(request: CreateItineraryRequest) -> Result<TaskRes
         }
     };
 
-    grpc_debug!("(create_itinerary) Default expiry: {expiry}.");
+    grpc_debug!("Default expiry: {expiry}.");
 
     let expiry = match request.expiry {
         // if an earlier expiry was provided in the request, use that instead
         Some(request_expiry) => {
-            grpc_debug!("(create_itinerary) Request expiry: {expiry}.");
+            grpc_debug!("Request expiry: {expiry}.");
             expiry.min(request_expiry.into())
         }
         None => expiry,
     };
 
-    grpc_debug!("(create_itinerary) Task expiry set to: {expiry}.");
+    grpc_debug!("Task expiry set to: {expiry}.");
 
     let task = Task {
         metadata: TaskMetadata {
@@ -75,13 +74,13 @@ pub async fn create_itinerary(request: CreateItineraryRequest) -> Result<TaskRes
 
     // Add the task to the scheduler:tasks table
     let Some(mut pool) = crate::tasks::pool::get_pool().await else {
-        grpc_error!("(create_itinerary) Couldn't get the redis pool.");
+        grpc_error!("Couldn't get the redis pool.");
         return Err(Status::internal("Internal error."));
     };
 
     match pool.new_task(&task, priority, expiry).await {
         Ok(task_id) => {
-            grpc_info!("(create_itinerary) Created new task with ID: {}", task_id);
+            grpc_info!("Created new task with ID: {}", task_id);
 
             Ok(TaskResponse {
                 task_id,
@@ -90,7 +89,7 @@ pub async fn create_itinerary(request: CreateItineraryRequest) -> Result<TaskRes
         }
         Err(e) => {
             let error_msg = "Could not create new task.";
-            grpc_error!("(create_itinerary) {error_msg}: {e}");
+            grpc_error!("{error_msg}: {e}");
             Err(Status::internal(format!("{error_msg}.")))
         }
     }
