@@ -48,45 +48,42 @@ mod tests {
 
     #[tokio::test]
     async fn test_grpc_clients_default() {
-        crate::get_log_handle().await;
-        ut_info!("(test_grpc_clients_default) Start.");
+        lib_common::logger::get_log_handle().await;
+        ut_info!("Start.");
 
         let clients = get_clients().await;
 
         let vehicle = &clients.storage.vehicle;
-        ut_debug!("(test_grpc_clients_default) vehicle: {:?}", vehicle);
+        ut_debug!("vehicle: {:?}", vehicle);
         assert_eq!(vehicle.get_name(), "vehicle");
 
         let vertipad = &clients.storage.vertipad;
-        ut_debug!("(test_grpc_clients_default) vertipad: {:?}", vertipad);
+        ut_debug!("vertipad: {:?}", vertipad);
         assert_eq!(vertipad.get_name(), "vertipad");
 
         let vertiport = &clients.storage.vertiport;
-        ut_debug!("(test_grpc_clients_default) vertiport: {:?}", vertiport);
+        ut_debug!("vertiport: {:?}", vertiport);
         assert_eq!(vertiport.get_name(), "vertiport");
 
         let itinerary = &clients.storage.itinerary;
-        ut_debug!("(test_grpc_clients_default) itinerary: {:?}", itinerary);
+        ut_debug!("itinerary: {:?}", itinerary);
         assert_eq!(itinerary.get_name(), "itinerary");
 
         let itinerary_flight_plan = &clients.storage.itinerary_flight_plan_link;
-        ut_debug!(
-            "(test_grpc_clients_default) itinerary_flight_plan: {:?}",
-            itinerary_flight_plan
-        );
+        ut_debug!("itinerary_flight_plan: {:?}", itinerary_flight_plan);
         assert_eq!(
             itinerary_flight_plan.get_name(),
             "itinerary_flight_plan_link"
         );
 
         let flight_plan = &clients.storage.flight_plan;
-        ut_debug!("(test_grpc_clients_default) flight_plan: {:?}", flight_plan);
+        ut_debug!("flight_plan: {:?}", flight_plan);
         assert_eq!(flight_plan.get_name(), "flight_plan");
 
         let gis = &clients.gis;
-        ut_debug!("(test_grpc_clients_default) gis: {:?}", gis);
+        ut_debug!("gis: {:?}", gis);
         assert_eq!(gis.get_name(), "gis");
 
-        ut_info!("(test_grpc_clients_default) Success.");
+        ut_info!("Success.");
     }
 }

@@ -1,11 +1,11 @@
 //! Redis connection pool implementation
 
 use crate::tasks::{Task, TaskStatus};
-use chrono::{DateTime, Utc};
 use deadpool_redis::{
     redis::{AsyncCommands, FromRedisValue, Value},
     Pool, Runtime,
 };
+use lib_common::time::{DateTime, Utc};
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::sync::Arc;
 use svc_storage_client_grpc::prelude::flight_plan::FlightPriority;
@@ -23,19 +23,19 @@ pub async fn get_pool() -> Option<TaskPool> {
     if !REDIS_POOL.initialized() {
         let config = crate::Config::try_from_env().unwrap_or_default();
         let Some(pool) = TaskPool::new(config.clone()) else {
-            tasks_error!("(get_pool) could not create Redis pool.");
+            tasks_error!("could not create Redis pool.");
             panic!("(get_pool) could not create Redis pool.");
         };
 
         let value = Arc::new(Mutex::new(pool));
         if let Err(e) = REDIS_POOL.set(value) {
-            tasks_error!("(get_pool) could not set Redis pool: {e}");
+            tasks_error!("could not set Redis pool: {e}");
             panic!("(get_pool) could not set Redis pool: {e}");
         };
     }
 
     let Some(arc) = REDIS_POOL.get() else {
-        tasks_error!("(get_pool) could not get Redis pool.");
+        tasks_error!("could not get Redis pool.");
         return None;
     };
 

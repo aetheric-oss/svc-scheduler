@@ -14,8 +14,9 @@ use create_itinerary::create_itinerary;
 use crate::grpc::server::grpc_server::{TaskAction, TaskMetadata, TaskStatus, TaskStatusRationale};
 use crate::router::flight_plan::FlightPlanSchedule;
 use crate::tasks::pool::RedisPool;
-use chrono::{Duration, Utc};
 use deadpool_redis::redis::{self, FromRedisValue, ToRedisArgs};
+use lib_common::time::{Duration, Utc};
+use lib_common::uuid::Uuid;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result as FmtResult};
@@ -29,7 +30,7 @@ const IDLE_DURATION_MS: u64 = 1000;
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TaskBody {
     /// Cancel an itinerary
-    CancelItinerary(uuid::Uuid),
+    CancelItinerary(Uuid),
 
     /// Create an itinerary
     CreateItinerary(Vec<FlightPlanSchedule>),
@@ -71,7 +72,7 @@ impl ToRedisArgs for Task {
         W: redis::RedisWrite,
     {
         let Ok(result) = serde_json::to_string(&self) else {
-            tasks_warn!("(ToRedisArgs) error serializing task");
+            tasks_warn!("error serializing task");
             return;
         };
 
@@ -121,7 +122,7 @@ impl Display for TaskError {
 /// Cancels a scheduler task
 pub async fn cancel_task(task_id: i64) -> Result<(), TaskError> {
     let Some(mut pool) = crate::tasks::pool::get_pool().await else {
-        tasks_error!("(cancel_task) Couldn't get the redis pool.");
+        tasks_error!("Couldn't get the redis pool.");
         return Err(TaskError::Internal);
     };
 
@@ -138,7 +139,7 @@ pub async fn cancel_task(task_id: i64) -> Result<(), TaskError> {
     task.metadata.status_rationale = Some(TaskStatusRationale::ClientCancelled.into());
 
     let delta = Duration::try_minutes(1).ok_or_else(|| {
-        tasks_error!("(cancel_task) error creating time delta.");
+        tasks_error!("error creating time delta.");
         TaskError::Internal
     })?;
 
@@ -146,7 +147,7 @@ pub async fn cancel_task(task_id: i64) -> Result<(), TaskError> {
     pool.update_task(task_id, &task, new_expiry)
         .await
         .map_err(|e| {
-            tasks_warn!("(cancel_task) error updating task: {}", e);
+            tasks_warn!("error updating task: {}", e);
             TaskError::Internal
         })?;
 
@@ -156,14 +157,14 @@ pub async fn cancel_task(task_id: i64) -> Result<(), TaskError> {
 /// Gets the status of a scheduler task
 pub async fn get_task_status(task_id: i64) -> Result<TaskMetadata, TaskError> {
     let Some(mut pool) = crate::tasks::pool::get_pool().await else {
-        tasks_error!("(get_task_status) Couldn't get the redis pool.");
+        tasks_error!("Couldn't get the redis pool.");
         return Err(TaskError::Internal);
     };
 
     match pool.get_task_data(task_id).await {
         Ok(task) => Ok(task.metadata),
         Err(e) => {
-            tasks_warn!("(get_task_status) error getting task: {}", e);
+            tasks_warn!("error getting task: {}", e);
             Err(TaskError::NotFound)
         }
     }
@@ -171,15 +172,15 @@ pub async fn get_task_status(task_id: i64) -> Result<TaskMetadata, TaskError> {
 
 /// Iterates through priority queues and implements tasks
 pub async fn task_loop(_config: crate::config::Config) {
-    tasks_info!("(task_loop) Start.");
+    tasks_info!("Start.");
 
     let Some(mut pool) = crate::tasks::pool::get_pool().await else {
-        tasks_error!("(task_loop) Couldn't get the redis pool.");
+        tasks_error!("Couldn't get the redis pool.");
         return;
     };
 
     let Some(keepalive_delta) = Duration::try_minutes(TASK_KEEPALIVE_DURATION_MINUTES) else {
-        tasks_warn!("(task_loop) error creating time delta.");
+        tasks_warn!("error creating time delta.");
         return;
     };
 
@@ -187,13 +188,13 @@ pub async fn task_loop(_config: crate::config::Config) {
         let (task_id, mut task) = match pool.next_task().await {
             Ok(t) => t,
             Err(_) => {
-                tasks_debug!("(task_loop) No tasks to process, sleeping {IDLE_DURATION_MS} ms.");
+                tasks_debug!("No tasks to process, sleeping {IDLE_DURATION_MS} ms.");
                 std::thread::sleep(std::time::Duration::from_millis(IDLE_DURATION_MS));
                 continue;
             }
         };
 
-        tasks_info!("(task_loop) Processing task: {}", task_id);
+        tasks_info!("Processing task: {}", task_id);
 
         if task.metadata.status != TaskStatus::Queued as i32 {
             // log task was already processed
@@ -205,7 +206,7 @@ pub async fn task_loop(_config: crate::config::Config) {
             Some(TaskAction::CreateItinerary) => create_itinerary(&mut task).await,
             Some(TaskAction::CancelItinerary) => cancel_itinerary(&mut task).await,
             None => {
-                tasks_warn!("(task_loop) Invalid task action: {}", task.metadata.action);
+                tasks_warn!("Invalid task action: {}", task.metadata.action);
                 task.metadata.status = TaskStatus::Rejected.into();
                 task.metadata.status_rationale = Some(TaskStatusRationale::InvalidAction.into());
                 Err(TaskError::InvalidMetadata)
@@ -214,11 +215,11 @@ pub async fn task_loop(_config: crate::config::Config) {
 
         match result {
             Ok(_) => {
-                tasks_info!("(task_loop) Task completed successfully.");
+                tasks_info!("Task completed successfully.");
                 task.metadata.status = TaskStatus::Complete.into();
             }
             Err(e) => {
-                tasks_warn!("(task_loop) error executing task: {}", e);
+                tasks_warn!("error executing task: {}", e);
                 task.metadata.status = TaskStatus::Rejected.into();
             }
         }

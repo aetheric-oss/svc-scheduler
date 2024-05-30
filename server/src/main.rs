@@ -1,5 +1,6 @@
 //! gRPC server implementation
 
+use lib_common::logger::load_logger_config_from_file;
 use log::info;
 use svc_scheduler::*;
 

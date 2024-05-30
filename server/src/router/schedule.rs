@@ -1,8 +1,8 @@
 //! Provides calendar/scheduling utilities
 //! Parses and serializes string RRULEs with duration and provides api to query if time slot is available.
 
-use chrono::{DateTime, Duration, NaiveDateTime, TimeZone, Utc};
 use iso8601_duration::Duration as Iso8601Duration;
+use lib_common::time::{chrono_tz, DateTime, Duration, NaiveDateTime, TimeZone, Utc};
 pub use rrule::{RRuleSet, Tz as RRuleTz};
 use std::cmp::{max, min};
 use std::fmt::{Display, Formatter, Result as FmtResult};
@@ -132,18 +132,18 @@ impl Sub for Timeslot {
             }];
         }
 
-        router_warn!("(sub) Unhandled case: {:?} {:?}", self, other);
+        router_warn!("Unhandled case: {:?} {:?}", self, other);
 
         vec![]
     }
 }
 
-// /// formats chrono::DateTime to string in format: `YYYYMMDDThhmmssZ`, e.g. 20221026T133000Z
+// /// formats DateTime to string in format: `YYYYMMDDThhmmssZ`, e.g. 20221026T133000Z
 fn datetime_to_ical_format(dt: &DateTime<RRuleTz>) -> String {
-    router_debug!("(datetime_to_ical_format) {:?}", dt);
+    router_debug!("{:?}", dt);
     let mut tz_prefix = String::new();
     let mut tz_postfix = String::new();
-    router_debug!("(datetime_to_ical_format) tz: {:?}", dt.timezone());
+    router_debug!("tz: {:?}", dt.timezone());
     let tz = dt.timezone();
     match tz {
         RRuleTz::Local(_) => {}
@@ -158,7 +158,7 @@ fn datetime_to_ical_format(dt: &DateTime<RRuleTz>) -> String {
     }
 
     let dt = dt.format("%Y%m%dT%H%M%S");
-    router_debug!("(datetime_to_ical_format) dt: {:?}", dt);
+    router_debug!("dt: {:?}", dt);
     format!("{}{}{}", tz_prefix, dt, tz_postfix)
 }
 
@@ -208,22 +208,22 @@ impl FromStr for Calendar {
     ///   "DTSTART:20221020T180000Z;DURATION:PT1H" not "DURATION:PT1H;DTSTART:20221020T180000Z"
     /// Duration is in ISO8601 format (`iso8601_duration` crate)
     fn from_str(calendar_str: &str) -> Result<Self, Self::Err> {
-        router_debug!("(from_str) Parsing calendar: {}", calendar_str);
+        router_debug!("Parsing calendar: {}", calendar_str);
         let rrule_sets: Vec<&str> = calendar_str
             .split("DTSTART:")
             .filter(|s| !s.is_empty())
             .collect();
-        router_debug!("(from_str) rrule_sets: {:?}", rrule_sets);
+        router_debug!("rrule_sets: {:?}", rrule_sets);
         let mut recurrent_events: Vec<RecurrentEvent> = Vec::new();
         for rrule_set_str in rrule_sets {
-            router_debug!("(from_str) rrule_set_str: {}", rrule_set_str);
+            router_debug!("rrule_set_str: {}", rrule_set_str);
             let rrules_with_header: Vec<&str> = rrule_set_str
                 .split('\n')
                 .filter(|s| !s.is_empty())
                 .collect();
             if rrules_with_header.len() < 2 {
                 router_error!(
-                    "(from_str) Invalid rrule {} with header length: {}",
+                    "Invalid rrule {} with header length: {}",
                     calendar_str,
                     rrules_with_header.len()
                 );
@@ -236,25 +236,19 @@ impl FromStr for Calendar {
                 .filter(|s| !s.is_empty())
                 .collect();
             if header_parts.len() != 2 {
-                router_error!(
-                    "(from_str) Invalid header parts length: {}",
-                    header_parts.len()
-                );
+                router_error!("Invalid header parts length: {}", header_parts.len());
                 return Err(CalendarError::HeaderPartsLength);
             }
 
             let dtstart = header_parts[0];
             let duration: &str = header_parts[1];
             let Ok(duration) = duration.parse::<Iso8601Duration>() else {
-                router_error!("(from_str) Invalid duration: {:?}", duration);
+                router_error!("Invalid duration: {:?}", duration);
                 return Err(CalendarError::Duration);
             };
 
             let Some(duration) = duration.to_chrono() else {
-                router_error!(
-                    "(from_str) Could not convert duration to chrono::DateTime: {:?}",
-                    duration
-                );
+                router_error!("Could not convert duration to DateTime: {:?}", duration);
                 return Err(CalendarError::Duration);
             };
 
@@ -262,7 +256,7 @@ impl FromStr for Calendar {
             let rrset_res = RRuleSet::from_str(&str);
 
             let Ok(rrule_set) = rrset_res else {
-                router_error!("(from_str) Invalid rrule set: {:?}", rrset_res.unwrap_err());
+                router_error!("Invalid rrule set: {:?}", rrset_res.unwrap_err());
                 return Err(CalendarError::RruleSet);
             };
 
@@ -271,7 +265,7 @@ impl FromStr for Calendar {
                 duration,
             });
         }
-        router_debug!("(from_str) Parsed calendar: {:?}", recurrent_events);
+        router_debug!("Parsed calendar: {:?}", recurrent_events);
         Ok(Calendar {
             events: recurrent_events,
         })
@@ -364,7 +358,7 @@ impl Calendar {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{Duration, TimeZone, Utc};
+    use lib_common::time::{Duration, LocalResult, TimeZone, Utc};
     use std::str::FromStr;
 
     const CAL_WORKDAYS_8AM_6PM: &str = "DTSTART:20221020T180000Z;DURATION:PT14H\n\
@@ -555,8 +549,7 @@ mod tests {
     /// |    |         |    |
     #[test]
     fn test_timeslot_sub_cleave() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
-        else {
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
             panic!();
         };
 
@@ -594,8 +587,7 @@ mod tests {
     /// |              |
     #[test]
     fn test_timeslot_sub_crop_end() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
-        else {
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
             panic!();
         };
 
@@ -627,8 +619,7 @@ mod tests {
     ///           |               |
     #[test]
     fn test_timeslot_sub_crop_start() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
-        else {
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
             panic!();
         };
 
@@ -655,8 +646,7 @@ mod tests {
 
     #[test]
     fn test_timeslot_sub_no_overlap() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
-        else {
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
             panic!();
         };
 

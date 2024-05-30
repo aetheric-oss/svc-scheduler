@@ -34,13 +34,13 @@ pub async fn best_path(
     let mut paths = match clients.gis.best_path(request.clone()).await {
         Ok(response) => response.into_inner().paths,
         Err(e) => {
-            router_error!("(best_path) Failed to get best path: {e}");
+            router_error!("Failed to get best path: {e}");
             return Err(BestPathError::ClientError);
         }
     };
 
     if paths.is_empty() {
-        router_error!("(best_path) No path found.");
+        router_error!("No path found.");
         return Err(BestPathError::NoPathFound);
     }
 
@@ -53,7 +53,7 @@ pub async fn best_path(
             std::cmp::Ordering::Greater
         }
     });
-    router_debug!("(best_path) svc-gis paths: {:?}", paths);
+    router_debug!("svc-gis paths: {:?}", paths);
 
     // convert segments to GeoLineString
     let mut result: Vec<(Vec<PointZ>, f64)> = vec![];
@@ -64,7 +64,7 @@ pub async fn best_path(
             .map(|node| match node.geom {
                 Some(geom) => Ok(geom),
                 None => {
-                    router_error!("(best_path) No geometry found for node: {:#?}", node);
+                    router_error!("No geometry found for node: {:#?}", node);
                     Err(BestPathError::NoPathFound)
                 }
             })

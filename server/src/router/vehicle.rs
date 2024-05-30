@@ -3,10 +3,10 @@ use crate::router::flight_plan::*;
 use crate::router::schedule::*;
 use svc_storage_client_grpc::prelude::*;
 
-use chrono::{DateTime, Duration, Utc};
+use lib_common::time::{DateTime, Duration, Utc};
+use lib_common::uuid::Uuid;
 use std::collections::HashMap;
 use std::str::FromStr;
-use uuid::Uuid;
 
 /// Enum with all Aircraft types
 #[derive(Debug, Copy, Clone)]
@@ -83,7 +83,7 @@ impl Availability {
             self.timeslot,
             flight_plan_timeslot
         );
-        router_debug!("(Availability::subtract) result: {:?}", timeslots);
+        router_debug!("result: {:?}", timeslots);
         for timeslot in timeslots {
             let (vertiport_id, vertipad_id) =
                 if timeslot.time_start < flight_plan_timeslot.time_start {
@@ -110,81 +110,61 @@ impl TryFrom<vehicle::Object> for Aircraft {
     type Error = VehicleError;
 
     fn try_from(vehicle: vehicle::Object) -> Result<Self, VehicleError> {
-        let vehicle_uuid = match Uuid::parse_str(&vehicle.id) {
-            Ok(uuid) => uuid.to_string(),
-            Err(e) => {
-                router_error!("(try_from) Vehicle {} has invalid UUID: {}", vehicle.id, e);
+        let vehicle_uuid = Uuid::parse_str(&vehicle.id)
+            .map_err(|e| {
+                router_error!("Vehicle {} has invalid UUID: {}", vehicle.id, e);
+                VehicleError::InvalidData
+            })?
+            .to_string();
 
-                return Err(VehicleError::InvalidData);
-            }
-        };
+        let data = vehicle.data.as_ref().ok_or_else(|| {
+            router_error!("Vehicle doesn't have data: {:?}", vehicle);
+            VehicleError::InvalidData
+        })?;
 
-        let Some(data) = vehicle.data else {
-            router_error!("(try_from) Vehicle doesn't have data: {:?}", vehicle);
+        let hangar_id = data.hangar_id.clone().ok_or_else(|| {
+            router_error!("Vehicle {} doesn't have hangar_id.", vehicle_uuid);
+            VehicleError::InvalidData
+        })?;
 
-            return Err(VehicleError::InvalidData);
-        };
+        let hangar_id = Uuid::parse_str(&hangar_id)
+            .map_err(|e| {
+                router_error!("Vehicle {} has invalid hangar_id: {}", vehicle_uuid, e);
 
-        let Some(hangar_id) = data.hangar_id else {
-            router_error!(
-                "(try_from) Vehicle {} doesn't have hangar_id.",
-                vehicle_uuid
-            );
+                VehicleError::InvalidData
+            })?
+            .to_string();
 
-            return Err(VehicleError::InvalidData);
-        };
+        let hangar_bay_id = data.hangar_bay_id.clone().ok_or_else(|| {
+            router_error!("Vehicle {} doesn't have hangar_bay_id.", vehicle_uuid);
+            VehicleError::InvalidData
+        })?;
 
-        let hangar_id = match Uuid::parse_str(&hangar_id) {
-            Ok(uuid) => uuid.to_string(),
-            Err(e) => {
-                router_error!(
-                    "(try_from) Vehicle {} has invalid hangar_id: {}",
-                    vehicle_uuid,
-                    e
-                );
+        let hangar_bay_id = Uuid::parse_str(&hangar_bay_id)
+            .map_err(|e| {
+                router_error!("Vehicle {} has invalid hangar_bay_id: {}", vehicle_uuid, e);
 
-                return Err(VehicleError::InvalidData);
-            }
-        };
+                VehicleError::InvalidData
+            })?
+            .to_string();
 
-        let Some(hangar_bay_id) = data.hangar_bay_id else {
-            router_error!(
-                "(try_from) Vehicle {} doesn't have hangar_bay_id.",
-                vehicle_uuid
-            );
-
-            return Err(VehicleError::InvalidData);
-        };
-
-        let hangar_bay_id = match Uuid::parse_str(&hangar_bay_id) {
-            Ok(uuid) => uuid.to_string(),
-            Err(e) => {
-                router_error!(
-                    "(try_from) Vehicle {} has invalid hangar_bay_id: {}",
-                    vehicle_uuid,
-                    e
-                );
-
-                return Err(VehicleError::InvalidData);
-            }
-        };
-
-        let Some(calendar) = data.schedule else {
+        let calendar = data.schedule.clone().ok_or_else(|| {
             // If vehicle doesn't have a schedule, it is not available
             //  MUST have a schedule to be a valid aircraft choice, even if the
             //  schedule is 24/7. Must be explicit.
-            return Err(VehicleError::NoScheduleProvided);
-        };
+            router_error!("Vehicle {} doesn't have a schedule.", vehicle_uuid);
+            VehicleError::NoScheduleProvided
+        })?;
 
-        let Ok(vehicle_calendar) = Calendar::from_str(&calendar) else {
+        let vehicle_calendar = Calendar::from_str(&calendar).map_err(|e| {
             router_debug!(
-                "(try_from) Invalid schedule for vehicle {}: {}",
+                "Invalid schedule for vehicle {} {}; {e}",
                 vehicle_uuid,
                 calendar
             );
 
-            return Err(VehicleError::InvalidSchedule);
-        };
+            VehicleError::InvalidSchedule
+        })?;
 
         Ok(Aircraft {
             vehicle_uuid,
@@ -218,10 +198,10 @@ pub async fn get_aircraft(
 
     filter.results_per_page = 1000;
 
-    let Ok(response) = clients.storage.vehicle.search(filter).await else {
-        router_error!("(get_aircraft) request to svc-storage failed.");
-        return Err(VehicleError::ClientError);
-    };
+    let response = clients.storage.vehicle.search(filter).await.map_err(|e| {
+        router_error!("request to svc-storage failed: {e}");
+        VehicleError::ClientError
+    })?;
 
     Ok(response
         .into_inner()
@@ -234,13 +214,10 @@ pub async fn get_aircraft(
 /// Estimates the time needed to travel between two locations including loading and unloading
 /// Estimate should be rather generous to block resources instead of potentially overloading them
 pub fn estimate_flight_time_seconds(distance_meters: &f64) -> Result<Duration, VehicleError> {
-    router_debug!(
-        "(estimate_flight_time_seconds) distance_meters: {}",
-        *distance_meters
-    );
+    router_debug!("distance_meters: {}", *distance_meters);
 
     let aircraft = AircraftType::Cargo; // TODO(R4): Hardcoded for demo
-    router_debug!("(estimate_flight_time_seconds) aircraft: {:?}", aircraft);
+    router_debug!("aircraft: {:?}", aircraft);
 
     match aircraft {
         AircraftType::Cargo => {
@@ -252,7 +229,7 @@ pub fn estimate_flight_time_seconds(distance_meters: &f64) -> Result<Duration, V
 
             let total_duration_s: f32 = liftoff_duration_s + cruise_duration_s + landing_duration_s;
             Duration::try_milliseconds((total_duration_s * 1000.0) as i64).ok_or_else(|| {
-                router_error!("(estimate_flight_time_seconds) error creating time delta.");
+                router_error!("error creating time delta.");
                 VehicleError::Internal
             })
         }
@@ -267,9 +244,9 @@ pub fn get_aircraft_availabilities(
     aircraft: &[Aircraft],
     timeslot: &Timeslot,
 ) -> Result<HashMap<String, Vec<Availability>>, VehicleError> {
-    router_debug!("(get_aircraft_availabilities) aircraft: {:?}", aircraft);
+    router_debug!("aircraft: {:?}", aircraft);
     let deadhead_padding: Duration = Duration::try_hours(2).ok_or_else(|| {
-        router_error!("(get_aircraft_availabilities) error creating time delta.");
+        router_error!("error creating time delta.");
         VehicleError::Internal
     })?;
 
@@ -285,10 +262,7 @@ pub fn get_aircraft_availabilities(
                 &(timeslot.time_end + deadhead_padding),
             )
             .map_err(|e| {
-                router_error!(
-                    "(get_aircraft_availabilities) error creating timeslots: {}",
-                    e
-                );
+                router_error!("error creating timeslots: {}", e);
                 VehicleError::Internal
             })?
             .into_iter()
@@ -313,7 +287,7 @@ pub fn get_aircraft_availabilities(
     }
 
     router_debug!(
-        "(get_aircraft_availabilities) aircraft base availabilities: {:?}",
+        "aircraft base availabilities: {:?}",
         aircraft_availabilities
     );
 
@@ -327,15 +301,12 @@ pub fn get_aircraft_availabilities(
                 .flat_map(|a| a.subtract(fp))
                 .collect::<Vec<Availability>>();
         } else {
-            router_warn!(
-                "(get_aircraft_availabilities) Flight plan for unknown aircraft: {}",
-                fp.vehicle_id
-            );
+            router_warn!("Flight plan for unknown aircraft: {}", fp.vehicle_id);
         }
     });
 
     router_debug!(
-        "(get_aircraft_availabilities) aircraft availabilities after flight plans: {:?}",
+        "aircraft availabilities after flight plans: {:?}",
         aircraft_availabilities
     );
 
@@ -345,7 +316,7 @@ pub fn get_aircraft_availabilities(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{Datelike, TimeZone, Utc};
+    use lib_common::time::{Datelike, LocalResult, TimeZone, Utc};
 
     #[test]
     fn test_subtract_flight_plan() {
@@ -356,8 +327,7 @@ mod tests {
         let aircraft_id = Uuid::new_v4().to_string();
 
         let year = Utc::now().year() + 1;
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(year, 10, 20, 0, 0, 0)
-        else {
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(year, 10, 20, 0, 0, 0) else {
             panic!();
         };
 
@@ -504,8 +474,7 @@ mod tests {
         .unwrap();
 
         let year = Utc::now().year() + 1;
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(year, 10, 20, 0, 0, 0)
-        else {
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(year, 10, 20, 0, 0, 0) else {
             panic!();
         };
 

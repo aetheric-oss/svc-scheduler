@@ -33,8 +33,6 @@ stub_client = ["stub_backends"]
 anyhow           = "1.0"
 cargo-husky      = "1"
 cfg-if           = "1.0"
-chrono           = { version = "0.4", features = ["serde"] }
-chrono-tz        = "0.8"
 clap             = { version = "4.4", features = ["derive"] }
 config           = "0.13"
 deadpool-redis   = { version = "0.13", features = ["serde"] }
@@ -61,12 +59,12 @@ tokio            = { version = "1.33", features = ["full"] }
 tokio-util       = "0.7"
 tonic            = "0.10"
 tonic-health     = "0.10"
-uuid             = { version = "1.5", features = ["serde", "v4"] }
 vecmath          = "1.0"
 
 [dependencies.lib-common]
 git = "https://github.com/aetheric-oss/lib-common.git"
-tag = "latest-develop"
+# tag = "latest-develop"
+branch = "am-smith/more-deps"
 
 [dependencies.svc-storage-client-grpc]
 features = [

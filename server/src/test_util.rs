@@ -1,7 +1,8 @@
 /// test utilities. Provides functions to inject mock data.
 use crate::grpc::client::get_clients;
-use chrono::DateTime;
 use lib_common::log_macros;
+use lib_common::time::{DateTime, Utc};
+use lib_common::uuid::Uuid;
 use svc_storage_client_grpc::prelude::*;
 use tokio::sync::OnceCell;
 
@@ -50,10 +51,7 @@ pub async fn get_vertiports_from_storage() -> Vec<vertiport::Object> {
     {
         Ok(vertiports) => vertiports.into_inner().list,
         Err(e) => {
-            ut_error!(
-                "(get_vertiports_from_storage) Could not find vertiports in MOCK service: {}",
-                e
-            );
+            ut_error!("Could not find vertiports in MOCK service: {}", e);
             vec![]
         }
     }
@@ -75,10 +73,7 @@ pub async fn get_vehicles_from_storage() -> Vec<vehicle::Object> {
     {
         Ok(vehicles) => vehicles.into_inner().list,
         Err(e) => {
-            ut_error!(
-                "(get_vehicles_from_storage) Could not find vehicles in MOCK service: {}",
-                e
-            );
+            ut_error!("Could not find vehicles in MOCK service: {}", e);
             vec![]
         }
     }
@@ -401,7 +396,7 @@ async fn create_flight_plan(
             "%Y-%m-%d %H:%M:%S %z",
         )
         .unwrap()
-        .with_timezone(&chrono::Utc)
+        .with_timezone(&Utc)
         .into(),
     );
     flight_plan.origin_timeslot_end = Some(
@@ -410,7 +405,7 @@ async fn create_flight_plan(
             "%Y-%m-%d %H:%M:%S %z",
         )
         .unwrap()
-        .with_timezone(&chrono::Utc)
+        .with_timezone(&Utc)
         .into(),
     );
 
@@ -420,7 +415,7 @@ async fn create_flight_plan(
             "%Y-%m-%d %H:%M:%S %z",
         )
         .unwrap()
-        .with_timezone(&chrono::Utc)
+        .with_timezone(&Utc)
         .into(),
     );
     flight_plan.target_timeslot_end = Some(
@@ -429,7 +424,7 @@ async fn create_flight_plan(
             "%Y-%m-%d %H:%M:%S %z",
         )
         .unwrap()
-        .with_timezone(&chrono::Utc)
+        .with_timezone(&Utc)
         .into(),
     );
 
@@ -454,7 +449,7 @@ async fn generate_itinerary(
     let mut itineraries: Vec<itinerary::Object> = vec![];
 
     let itinerary = itinerary::Data {
-        user_id: uuid::Uuid::new_v4().to_string(),
+        user_id: Uuid::new_v4().to_string(),
         status: itinerary::ItineraryStatus::Active as i32,
     };
 

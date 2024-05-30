@@ -1,4 +1,4 @@
-![Arrow Banner](https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png)
+![Aetheric Banner](https://github.com/aetheric-oss/.github/raw/main/assets/doc-banner.png)
 
 # Software Design Document (SDD) - `svc-scheduler`
 
@@ -8,7 +8,7 @@ This document details the software implementation of `svc-scheduler` (scheduler 
 
 The scheduler module is responsible for calculating possible itineraries (including deadhead flights) for a journey between a departure and destination vertipad. It does so with the schedules of all resources (vertiports/pads, aircrafts, pilots) in mind to avoid double-booking.
 
-Created itineraries are saved to storage and can be cancelled. Flight queries, confirmations, and cancellation requests are made by other microservices in the Arrow network (such as `svc-cargo`).
+Created itineraries are saved to storage and can be cancelled. Flight queries, confirmations, and cancellation requests are made by other microservices in the Aetheric network (such as `svc-cargo`).
 
 *Note: This module is intended to be used by other Arrow micro-services via gRPC.*
 
@@ -18,7 +18,7 @@ Created itineraries are saved to storage and can be cancelled. Flight queries, c
 
 | Attribute     | Description                                                       |
 | ------------- |-------------------------------------------------------------------|
-| Maintainer(s) | [Services Team](https://github.com/orgs/Arrow-air/teams/services) |
+| Maintainer(s) | [Aetheric Realm Team](https://github.com/orgs/aetheric-oss/teams/dev-realm) |
 | Stuckee       | [Alex M. Smith](https://github.com/servicedog)                   |
 | Status        | Development                                                       |
 
@@ -26,8 +26,8 @@ Created itineraries are saved to storage and can be cancelled. Flight queries, c
 
 Document | Description
 --- | ----
-[High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md) | Overview of Arrow microservices.
-[High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Arrow microservices.
+[High-Level Concept of Operations (CONOPS)](https://github.com/aetheric-oss/se-services/blob/develop/docs/conops.md) | Overview of Aetheric microservices.
+[High-Level Interface Control Document (ICD)](https://github.com/aetheric-oss/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Aetheric microservices.
 [Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
 [Concept of Operations - `svc-scheduler`](./conops.md) | Defines the motivation and duties of this microservice.
 [Interface Control Document - `svc-scheduler`](./icd.md)| Defines the inputs and outputs of this microservice.

@@ -1,19 +1,19 @@
-![Arrow Banner](https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png)
+![Aetheric Banner](https://github.com/aetheric-oss/.github/raw/main/assets/readme-banner.png)
 
 # svc-scheduler Service
 
-![GitHub stable release (latest by date)](https://img.shields.io/github/v/release/Arrow-air/svc-scheduler?sort=semver&color=green) ![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/Arrow-air/svc-scheduler?include_prereleases) [![Coverage Status](https://coveralls.io/repos/github/Arrow-air/svc-scheduler/badge.svg?branch=develop)](https://coveralls.io/github/Arrow-air/svc-scheduler)
-![Sanity Checks](https://github.com/arrow-air/svc-scheduler/actions/workflows/sanity_checks.yml/badge.svg?branch=develop) ![Python PEP8](https://github.com/arrow-air/svc-scheduler/actions/workflows/python_ci.yml/badge.svg?branch=develop) ![Rust Checks](https://github.com/arrow-air/svc-scheduler/actions/workflows/rust_ci.yml/badge.svg?branch=develop) 
+![GitHub stable release (latest by date)](https://img.shields.io/github/v/release/aetheric-oss/svc-scheduler?sort=semver&color=green) ![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/aetheric-oss/svc-scheduler?include_prereleases) [![Coverage Status](https://coveralls.io/repos/github/aetheric-oss/svc-scheduler/badge.svg?branch=develop)](https://coveralls.io/github/aetheric-oss/svc-scheduler)
+![Sanity Checks](https://github.com/aetheric-oss/svc-scheduler/actions/workflows/sanity_checks.yml/badge.svg?branch=develop) ![Python PEP8](https://github.com/aetheric-oss/svc-scheduler/actions/workflows/python_ci.yml/badge.svg?branch=develop) ![Rust Checks](https://github.com/aetheric-oss/svc-scheduler/actions/workflows/rust_ci.yml/badge.svg?branch=develop) 
 ![Arrow DAO
 Discord](https://img.shields.io/discord/853833144037277726?style=plastic)
 
 :rotating_light: **Note**: As per
 [R3](https://docs.google.com/presentation/d/1KYa-a9F-RBgj4sVITcBiJZp7bz4BVqNMEdfdER8O0Hw/edit#slide=id.g16d7f2e36fd_0_7)
-objective, the [lib-router](https://github.com/Arrow-air/lib-router) repository is decommissioned and
+objective, the [lib-router](https://github.com/aetheric-oss/lib-router) repository is decommissioned and
 recombined with this repository. The core components of the `lib-router`
 repository can be found in the `server/src` directory.
 
-The documentation of the `lib-router` can be found [here](https://github.com/Arrow-air/lib-router/tree/develop/docs).
+The documentation of the `lib-router` can be found [here](https://github.com/aetheric-oss/lib-router/tree/develop/docs).
 
 ## :telescope: Overview
 
