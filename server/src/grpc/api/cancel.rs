@@ -5,26 +5,18 @@ use crate::grpc::server::grpc_server::{
 };
 use crate::tasks::pool::RedisPool;
 use crate::tasks::{Task, TaskBody};
-use chrono::{Duration, Utc};
+use lib_common::time::{Duration, Utc};
+use lib_common::uuid::{to_uuid, Uuid};
 use num_traits::FromPrimitive;
 use tonic::Status;
-use uuid::Uuid;
 
 /// Cancels an itinerary
 pub async fn cancel_itinerary(request: CancelItineraryRequest) -> Result<TaskResponse, Status> {
-    let itinerary_id = match Uuid::parse_str(&request.itinerary_id) {
-        Ok(id) => id,
-        Err(_) => {
-            return Err(Status::invalid_argument("Invalid itinerary ID."));
-        }
-    };
+    let itinerary_id = to_uuid(&request.itinerary_id)
+        .ok_or_else(|| Status::invalid_argument("Invalid itinerary ID."))?;
 
-    let user_id = match Uuid::parse_str(&request.user_id) {
-        Ok(id) => id,
-        Err(_) => {
-            return Err(Status::invalid_argument("Invalid user ID."));
-        }
-    };
+    let user_id =
+        to_uuid(&request.user_id).ok_or_else(|| Status::invalid_argument("Invalid user ID."))?;
 
     let Some(priority) = FromPrimitive::from_i32(request.priority) else {
         return Err(Status::invalid_argument("Invalid priority provided."));
@@ -33,7 +25,7 @@ pub async fn cancel_itinerary(request: CancelItineraryRequest) -> Result<TaskRes
     // TODO(R4): Get the itinerary start time from storage
     // For now hardcode next hour
     let delta = Duration::try_hours(1).ok_or_else(|| {
-        grpc_error!("(cancel_itinerary) error creating time delta.");
+        grpc_error!("error creating time delta.");
         Status::internal("Could not create new task.")
     })?;
 
@@ -50,14 +42,14 @@ pub async fn cancel_itinerary(request: CancelItineraryRequest) -> Result<TaskRes
     };
 
     let Some(mut pool) = crate::tasks::pool::get_pool().await else {
-        grpc_error!("(cancel_itinerary) Couldn't get the redis pool.");
+        grpc_error!("Couldn't get the redis pool.");
         return Err(Status::internal("Internal error."));
     };
 
     // Add the task to the scheduler:tasks table
     match pool.new_task(&task, priority, expiry).await {
         Ok(task_id) => {
-            grpc_info!("(cancel_itinerary) Created new task with ID: {}", task_id);
+            grpc_info!("Created new task with ID: {}", task_id);
 
             Ok(TaskResponse {
                 task_id,
@@ -66,7 +58,7 @@ pub async fn cancel_itinerary(request: CancelItineraryRequest) -> Result<TaskRes
         }
         Err(e) => {
             let error_msg = "Could not create new task.";
-            grpc_error!("(cancel_itinerary) {error_msg}: {e}");
+            grpc_error!("{error_msg}: {e}");
             Err(Status::internal(format!("{error_msg}.")))
         }
     }

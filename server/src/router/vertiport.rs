@@ -5,7 +5,7 @@ use super::schedule::*;
 use super::vehicle::*;
 use super::{best_path, BestPathError, BestPathRequest};
 use crate::grpc::client::GrpcClients;
-use chrono::Duration;
+use lib_common::time::Duration;
 use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -72,14 +72,14 @@ pub async fn get_vertipads(
         }
     }
 
-    router_info!("(get_vertipads) proposed filter: {:?}", filter.clone());
+    router_info!("proposed filter: {:?}", filter.clone());
 
     let Ok(response) = clients.storage.vertipad.search(filter).await else {
-        router_error!("(get_vertipads) Failed to get vertipads.");
+        router_error!("Failed to get vertipads.");
         return Err(VertiportError::NoVertipads);
     };
 
-    router_info!("(get_vertipads) response: {:?}", response);
+    router_info!("response: {:?}", response);
 
     Ok(response
         .into_inner()
@@ -164,19 +164,16 @@ pub async fn get_available_timeslots(
     let base_timeslots = calendar
         .to_timeslots(&timeslot.time_start, &timeslot.time_end)
         .map_err(|e| {
-            router_error!("(get_available_timeslots) Could not convert calendar to timeslots: {e}");
+            router_error!("Could not convert calendar to timeslots: {e}");
             VertiportError::Internal
         })?;
 
-    router_debug!(
-        "(get_available_timeslots) base_timeslots: {:?}",
-        base_timeslots
-    );
+    router_debug!("base_timeslots: {:?}", base_timeslots);
 
     // TODO(R4): This is currently hardcoded, get the duration of the timeslot
     // try min and max both the necessary landing time
     let max_duration = Duration::try_minutes(MAX_DURATION_TIMESLOT_MINUTES).ok_or_else(|| {
-        router_error!("(get_available_timeslots) error creating time delta.");
+        router_error!("error creating time delta.");
         VertiportError::Internal
     })?;
 
@@ -212,7 +209,10 @@ pub async fn get_available_timeslots(
     // For each occupied slot, remove it from the list of available slots
     for (vertipad_id, occupied_slot) in occupied_slots.iter() {
         let Some(vertipad_slots) = timeslots.get_mut(vertipad_id) else {
-            router_error!("(get_available_timeslots) Vertipad {} (from a flight plan) not found in list of vertipads from storage.", vertipad_id);
+            router_error!(
+                "Vertipad {} (from a flight plan) not found in list of vertipads from storage.",
+                vertipad_id
+            );
             continue;
         };
 
@@ -247,7 +247,7 @@ async fn get_vertiport_calendar(
         Err(e) => {
             let error_str = format!("Could not retrieve data for vertiport {vertiport_id}.");
 
-            router_error!("(get_vertiport_calendar) {}: {e}", error_str);
+            router_error!("{}: {e}", error_str);
             return Err(VertiportError::ClientError);
         }
     };
@@ -256,14 +256,14 @@ async fn get_vertiport_calendar(
         Some(d) => d,
         None => {
             let error_str = format!("Date invalid for vertiport {}.", vertiport_id);
-            router_error!("(get_vertiport_calendar) {}", error_str);
+            router_error!("{}", error_str);
             return Err(VertiportError::InvalidData);
         }
     };
 
     let Some(vertiport_schedule) = vertiport_data.schedule else {
         let error_str = format!("No schedule for vertiport {}.", vertiport_id);
-        router_error!("(get_vertiport_calendar) {}", error_str);
+        router_error!("{}", error_str);
         return Err(VertiportError::NoSchedule);
     };
 
@@ -271,7 +271,7 @@ async fn get_vertiport_calendar(
         Ok(calendar) => Ok(calendar),
         Err(e) => {
             let error_str = format!("Schedule invalid for vertiport {}.", vertiport_id);
-            router_error!("(get_vertiport_calendar) {}: {}", error_str, e);
+            router_error!("{}: {}", error_str, e);
             Err(VertiportError::InvalidSchedule)
         }
     }
@@ -291,14 +291,14 @@ fn build_timeslots_from_flight_plans(
     let required_loading_time =
         Duration::try_seconds(crate::grpc::api::query_flight::LOADING_AND_TAKEOFF_TIME_SECONDS)
             .ok_or_else(|| {
-                router_error!("(build_timeslots_from_flight_plans) error creating time delta.");
+                router_error!("error creating time delta.");
                 VertiportError::Internal
             })?;
 
     let required_unloading_time =
         Duration::try_seconds(crate::grpc::api::query_flight::LANDING_AND_UNLOADING_TIME_SECONDS)
             .ok_or_else(|| {
-            router_error!("(build_timeslots_from_flight_plans) error creating time delta.");
+            router_error!("error creating time delta.");
             VertiportError::Internal
         })?;
 
@@ -427,7 +427,7 @@ pub async fn get_vertipad_timeslot_pairs(
                     //  is blocking journeys from this depart timeslot
                     // Break out and try the next depart timeslot
                     router_debug!(
-                        "(get_vertipad_timeslot_pairs) No path found from vertiport {}
+                        "No path found from vertiport {}
                             to vertiport {} (from {} to {}).",
                         origin_vertiport_id,
                         target_vertiport_id,
@@ -439,9 +439,7 @@ pub async fn get_vertipad_timeslot_pairs(
                 }
                 Err(BestPathError::ClientError) => {
                     // exit immediately if svc-gis is down, don't allow new flights
-                    router_error!(
-                        "(get_vertipad_timeslot_pairs) Could not determine path - client error."
-                    );
+                    router_error!("Could not determine path - client error.");
 
                     return Err(VertiportError::ClientError);
                 }
@@ -454,7 +452,7 @@ pub async fn get_vertipad_timeslot_pairs(
             //     //  is blocking journeys from this depart timeslot
             //     // Break out and try the next depart timeslot
             //     router_debug!(
-            //         "(get_vertipad_timeslot_pairs) No path found from vertiport {}
+            //         "No path found from vertiport {}
             //         to vertiport {} (from {} to {}).",
             //         origin_vertiport_id,
             //         target_vertiport_id,
@@ -467,9 +465,7 @@ pub async fn get_vertipad_timeslot_pairs(
 
             let estimated_duration_s =
                 estimate_flight_time_seconds(&distance_meters).map_err(|e| {
-                    router_error!(
-                        "(get_vertipad_timeslot_pairs) Could not estimate flight time: {e}"
-                    );
+                    router_error!("Could not estimate flight time: {e}");
                     VertiportError::Internal
                 })?;
 
@@ -534,7 +530,7 @@ pub async fn get_vertipad_timeslot_pairs(
             Some(ord) => ord,
             None => {
                 router_error!(
-                    "(get_vertipad_timeslot_pairs) Could not compare distances: {}, {}",
+                    "Could not compare distances: {}, {}",
                     a.distance_meters,
                     b.distance_meters
                 );
@@ -551,8 +547,8 @@ mod tests {
     use super::*;
     use crate::grpc::client::get_clients;
     use crate::router::vehicle::estimate_flight_time_seconds;
-    use chrono::DateTime;
-    use uuid::Uuid;
+    use lib_common::time::DateTime;
+    use lib_common::uuid::Uuid;
 
     #[tokio::test]
     #[cfg(feature = "stub_backends")]

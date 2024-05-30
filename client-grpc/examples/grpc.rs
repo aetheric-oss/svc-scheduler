@@ -1,8 +1,8 @@
 //! gRPC client implementation
 
-use chrono::Duration;
-use chrono::Utc;
 use lib_common::grpc::{get_endpoint_from_env, GrpcClient};
+use lib_common::time::{Duration, Utc};
+use lib_common::uuid::Uuid;
 use svc_scheduler_client_grpc::{
     client::rpc_service_client::RpcServiceClient,
     prelude::{scheduler::*, *},
@@ -20,8 +20,8 @@ async fn query_itinerary_example(
     let itinerary_date = (Utc::now() + delta).date_naive();
     let departure_time = itinerary_date.and_hms_opt(8, 0, 0).unwrap().and_utc();
     let arrival_time = itinerary_date.and_hms_opt(9, 0, 0).unwrap().and_utc();
-    let origin_vertiport_id = uuid::Uuid::new_v4().to_string();
-    let target_vertiport_id = uuid::Uuid::new_v4().to_string();
+    let origin_vertiport_id = Uuid::new_v4().to_string();
+    let target_vertiport_id = Uuid::new_v4().to_string();
 
     let request = QueryFlightRequest {
         is_cargo: true,
@@ -56,7 +56,7 @@ async fn create_itinerary_example(
         priority: FlightPriority::Low.into(),
         flight_plans: itinerary.flight_plans.clone(),
         expiry: None,
-        user_id: uuid::Uuid::new_v4().to_string(), // arbitrary
+        user_id: Uuid::new_v4().to_string(), // arbitrary
     };
 
     match client.create_itinerary(request).await {
@@ -100,7 +100,7 @@ async fn cancel_itinerary_example(
     let request = CancelItineraryRequest {
         priority: FlightPriority::Low.into(),
         itinerary_id: itinerary_id.to_string(),
-        user_id: uuid::Uuid::new_v4().to_string(), // arbitrary
+        user_id: Uuid::new_v4().to_string(), // arbitrary
     };
 
     match client.cancel_itinerary(request).await {
@@ -166,15 +166,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     let itinerary = Itinerary {
         flight_plans: vec![scheduler_storage::flight_plan::Data {
-            origin_vertiport_id: Some(uuid::Uuid::new_v4().to_string()),
-            origin_vertipad_id: uuid::Uuid::new_v4().to_string(),
+            origin_vertiport_id: Some(Uuid::new_v4().to_string()),
+            origin_vertipad_id: Uuid::new_v4().to_string(),
             origin_timeslot_start: Some((Utc::now() + Duration::try_minutes(10).unwrap()).into()),
             origin_timeslot_end: Some((Utc::now() + Duration::try_minutes(11).unwrap()).into()),
-            target_vertiport_id: Some(uuid::Uuid::new_v4().to_string()),
-            target_vertipad_id: uuid::Uuid::new_v4().to_string(),
+            target_vertiport_id: Some(Uuid::new_v4().to_string()),
+            target_vertipad_id: Uuid::new_v4().to_string(),
             target_timeslot_start: Some((Utc::now() + Duration::try_minutes(30).unwrap()).into()),
             target_timeslot_end: Some((Utc::now() + Duration::try_minutes(31).unwrap()).into()),
-            vehicle_id: uuid::Uuid::new_v4().to_string(),
+            vehicle_id: Uuid::new_v4().to_string(),
             session_id: "AETH1234".to_string(),
             ..Default::default()
         }],
@@ -194,7 +194,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // Cancel Itinerary endpoint
     //
-    let itinerary_id = uuid::Uuid::new_v4().to_string();
+    let itinerary_id = Uuid::new_v4().to_string();
     let Some(task_id) = cancel_itinerary_example(&client, &itinerary_id).await else {
         panic!("(main) Example failed; cancel itinerary failed.");
     };
