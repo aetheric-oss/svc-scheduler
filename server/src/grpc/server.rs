@@ -39,13 +39,12 @@ impl RpcService for ServerImpl {
         grpc_debug!("request: {:?}", request);
 
         let request = request.into_inner();
-        let res = super::api::query_flight::query_flight(request).await;
-        if let Err(e) = res {
-            grpc_error!("error: {}", e);
-            return Err(e);
-        }
-
-        res
+        super::api::query_flight::query_flight(request)
+            .await
+            .map_err(|e| {
+                grpc_error!("error: {}", e);
+                Status::internal("Could not query flight.")
+            })
     }
 
     /// Creates an itinerary given a list of flight plans, if possible.
@@ -60,14 +59,14 @@ impl RpcService for ServerImpl {
         grpc_debug!("request: {:?}", request);
 
         let request = request.into_inner();
-        let response = super::api::create::create_itinerary(request).await;
-        match response {
-            Ok(response) => Ok(Response::new(response)),
-            Err(e) => {
+        let response = super::api::create::create_itinerary(request)
+            .await
+            .map_err(|e| {
                 grpc_error!("error: {}", e);
-                Err(Status::internal("Could not create itinerary."))
-            }
-        }
+                Status::internal("Could not create itinerary.")
+            })?;
+
+        Ok(Response::new(response))
     }
 
     /// Cancels the itinerary by id.
@@ -82,15 +81,14 @@ impl RpcService for ServerImpl {
         grpc_debug!("request: {:?}", request);
 
         let request = request.into_inner();
-        let response = super::api::cancel::cancel_itinerary(request).await;
-
-        match response {
-            Ok(response) => Ok(Response::new(response)),
-            Err(e) => {
+        let response = super::api::cancel::cancel_itinerary(request)
+            .await
+            .map_err(|e| {
                 grpc_error!("error: {}", e);
-                Err(Status::internal("Could not cancel itinerary."))
-            }
-        }
+                Status::internal("Could not cancel itinerary.")
+            })?;
+
+        Ok(Response::new(response))
     }
 
     /// Cancels a scheduler task before it can be processed
@@ -105,20 +103,19 @@ impl RpcService for ServerImpl {
         grpc_debug!("request: {:?}", request);
         let request = request.into_inner();
 
-        match crate::tasks::cancel_task(request.task_id).await {
-            Ok(()) => {
-                let response = TaskResponse {
-                    task_id: request.task_id,
-                    task_metadata: None,
-                };
-
-                Ok(Response::new(response))
-            }
-            Err(e) => {
+        crate::tasks::cancel_task(request.task_id)
+            .await
+            .map_err(|e| {
                 grpc_error!("error: {}", e);
-                Err(Status::internal("Could not cancel task."))
-            }
-        }
+                Status::internal("Could not cancel task.")
+            })?;
+
+        let response = TaskResponse {
+            task_id: request.task_id,
+            task_metadata: None,
+        };
+
+        Ok(Response::new(response))
     }
 
     /// Returns the status of a scheduler task
@@ -132,20 +129,20 @@ impl RpcService for ServerImpl {
         grpc_info!("scheduler server.");
         grpc_debug!("request: {:?}", request);
         let request = request.into_inner();
-        match crate::tasks::get_task_status(request.task_id).await {
-            Ok(task_metadata) => {
-                let response = TaskResponse {
-                    task_id: request.task_id,
-                    task_metadata: Some(task_metadata),
-                };
 
-                Ok(Response::new(response))
-            }
-            Err(e) => {
+        let task_metadata = crate::tasks::get_task_status(request.task_id)
+            .await
+            .map_err(|e| {
                 grpc_error!("error: {}", e);
-                Err(Status::internal("Could not get task status."))
-            }
-        }
+                Status::internal("Could not get task status.")
+            })?;
+
+        let response = TaskResponse {
+            task_id: request.task_id,
+            task_metadata: Some(task_metadata),
+        };
+
+        Ok(Response::new(response))
     }
 
     /// Returns ready:true when service is available

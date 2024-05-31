@@ -28,7 +28,7 @@ Document | Description
 --- | ----
 [High-Level Concept of Operations (CONOPS)](https://github.com/aetheric-oss/se-services/blob/develop/docs/conops.md) | Overview of Aetheric microservices.
 [High-Level Interface Control Document (ICD)](https://github.com/aetheric-oss/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Aetheric microservices.
-[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
+[Requirements - `svc-scheduler`](https://nocodb.aetheric.nl/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
 [Concept of Operations - `svc-scheduler`](./conops.md) | Defines the motivation and duties of this microservice.
 [Interface Control Document - `svc-scheduler`](./icd.md)| Defines the inputs and outputs of this microservice.
 [Routing Scenarios](https://docs.google.com/presentation/d/1Nt91KVIczhxngurfyeIJtG8J0m_38jGU1Cnqm1_BfPc/edit#slide=id.g1454d6dfbcf_0_731) | Graphical representation of various routing scenarios
@@ -195,7 +195,7 @@ sequenceDiagram
         scheduler-->>scheduler: task.status = REJECTED<br>task.status_rationale = ID_NOT_FOUND
     end
 
-    Note over scheduler: TODO(R4): Seal the gap created by the removed flight<br>plans. For now, just mark itinerary as cancelled.
+    Note over scheduler: TODO(R5): Seal the gap created by the removed flight<br>plans. For now, just mark itinerary as cancelled.
     scheduler->>+storage: itinerary::update(...)<br>itinerary.status = CANCELLED
     storage-->>-scheduler: Ok or Error
 

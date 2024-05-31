@@ -159,19 +159,8 @@ dependencies = [
 
 [[package]]
 name = "arrow-macros-core"
-version = "0.2.1-develop.3"
-source = "git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop#d592782a933037b98f9ec784e5ecbd9d694744b2"
-dependencies = [
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn 2.0.66",
-]
-
-[[package]]
-name = "arrow-macros-core"
-version = "0.2.1-develop.3"
-source = "git+https://github.com/aetheric-oss/lib-common.git?branch=am-smith/more-deps#b515c975a3e4d77cfa15980e715249f902849892"
+version = "0.2.1-develop.4"
+source = "git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop#c325691ec5ba51fa340f873a8ccd5a5bed19b7e2"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",
@@ -191,20 +180,10 @@ dependencies = [
 
 [[package]]
 name = "arrow-macros-derive"
-version = "0.2.1-develop.3"
-source = "git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop#d592782a933037b98f9ec784e5ecbd9d694744b2"
+version = "0.2.1-develop.4"
+source = "git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop#c325691ec5ba51fa340f873a8ccd5a5bed19b7e2"
 dependencies = [
- "arrow-macros-core 0.2.1-develop.3 (git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop)",
- "proc-macro-error",
- "proc-macro2",
-]
-
-[[package]]
-name = "arrow-macros-derive"
-version = "0.2.1-develop.3"
-source = "git+https://github.com/aetheric-oss/lib-common.git?branch=am-smith/more-deps#b515c975a3e4d77cfa15980e715249f902849892"
-dependencies = [
- "arrow-macros-core 0.2.1-develop.3 (git+https://github.com/aetheric-oss/lib-common.git?branch=am-smith/more-deps)",
+ "arrow-macros-core 0.2.1-develop.4",
  "proc-macro-error",
  "proc-macro2",
 ]
@@ -1275,12 +1254,13 @@ dependencies = [
 
 [[package]]
 name = "lib-common"
-version = "0.2.1-develop.3"
-source = "git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop#d592782a933037b98f9ec784e5ecbd9d694744b2"
+version = "0.2.1-develop.4"
+source = "git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop#c325691ec5ba51fa340f873a8ccd5a5bed19b7e2"
 dependencies = [
- "arrow-macros-derive 0.2.1-develop.3 (git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop)",
+ "arrow-macros-derive 0.2.1-develop.4",
  "cargo-husky",
  "chrono",
+ "chrono-tz",
  "futures",
  "http",
  "hyper",
@@ -1291,23 +1271,6 @@ dependencies = [
  "tokio",
  "tonic",
  "tower",
- "trybuild",
- "uuid",
-]
-
-[[package]]
-name = "lib-common"
-version = "0.2.1-develop.3"
-source = "git+https://github.com/aetheric-oss/lib-common.git?branch=am-smith/more-deps#b515c975a3e4d77cfa15980e715249f902849892"
-dependencies = [
- "arrow-macros-derive 0.2.1-develop.3 (git+https://github.com/aetheric-oss/lib-common.git?branch=am-smith/more-deps)",
- "cargo-husky",
- "chrono",
- "chrono-tz",
- "log",
- "log4rs",
- "prost-wkt-types",
- "tokio",
  "trybuild",
  "uuid",
 ]
@@ -2651,7 +2614,7 @@ dependencies = [
  "futures",
  "geo 0.27.0",
  "hyper",
- "lib-common 0.2.1-develop.3 (git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop)",
+ "lib-common 0.2.1-develop.4",
  "log",
  "log4rs",
  "native-tls",
@@ -2719,7 +2682,7 @@ dependencies = [
  "geo 0.26.0",
  "iso8601-duration",
  "lazy_static",
- "lib-common 0.2.1-develop.3 (git+https://github.com/aetheric-oss/lib-common.git?branch=am-smith/more-deps)",
+ "lib-common 0.2.1-develop.4",
  "log",
  "log4rs",
  "logtest",
@@ -2754,7 +2717,7 @@ version = "0.4.1-develop.8"
 dependencies = [
  "cfg-if",
  "futures",
- "lib-common 0.2.1-develop.3 (git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop)",
+ "lib-common 0.2.1-develop.4",
  "log",
  "logtest",
  "num-derive",
@@ -2792,7 +2755,7 @@ dependencies = [
  "geo 0.26.0",
  "hyper",
  "lazy_static",
- "lib-common 0.2.1-develop.3 (git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop)",
+ "lib-common 0.2.1-develop.4",
  "log",
  "log4rs",
  "native-tls",
@@ -2832,7 +2795,7 @@ dependencies = [
  "futures",
  "geo 0.26.0",
  "lazy_static",
- "lib-common 0.2.1-develop.3 (git+https://github.com/aetheric-oss/lib-common.git?tag=latest-develop)",
+ "lib-common 0.2.1-develop.4",
  "log",
  "num-derive",
  "num-traits",
