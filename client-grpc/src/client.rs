@@ -3,7 +3,6 @@
 include!("grpc.rs");
 
 use super::*;
-use lib_common::uuid::Uuid;
 
 #[cfg(not(feature = "stub_client"))]
 use lib_common::grpc::ClientConnect;
@@ -23,6 +22,8 @@ cfg_if::cfg_if! {
     }
 }
 
+#[cfg(feature = "stub_client")]
+use lib_common::uuid::Uuid;
 #[cfg(feature = "stub_client")]
 use rand::Rng;
 
@@ -231,5 +232,112 @@ mod tests {
         println!("{:?}", result);
         assert!(result.is_ok());
         assert_eq!(result.unwrap().into_inner().ready, true);
+    }
+
+    #[test]
+    fn test_task_status_display() {
+        assert_eq!(TaskStatus::Queued.as_str_name(), "QUEUED");
+        assert_eq!(TaskStatus::Complete.as_str_name(), "COMPLETE");
+        assert_eq!(TaskStatus::Rejected.as_str_name(), "REJECTED");
+        assert_eq!(TaskStatus::NotFound.as_str_name(), "NOT_FOUND");
+
+        assert_eq!(
+            TaskStatus::from_str_name("QUEUED"),
+            Some(TaskStatus::Queued)
+        );
+        assert_eq!(
+            TaskStatus::from_str_name("COMPLETE"),
+            Some(TaskStatus::Complete)
+        );
+        assert_eq!(
+            TaskStatus::from_str_name("REJECTED"),
+            Some(TaskStatus::Rejected)
+        );
+        assert_eq!(
+            TaskStatus::from_str_name("NOT_FOUND"),
+            Some(TaskStatus::NotFound)
+        );
+        assert_eq!(TaskStatus::from_str_name("INVALID_STATUS"), None);
+    }
+
+    #[test]
+    fn test_task_status_rationale_display() {
+        assert_eq!(
+            TaskStatusRationale::InvalidAction.as_str_name(),
+            "INVALID_ACTION"
+        );
+        assert_eq!(
+            TaskStatusRationale::ClientCancelled.as_str_name(),
+            "CLIENT_CANCELLED"
+        );
+        assert_eq!(TaskStatusRationale::Internal.as_str_name(), "INTERNAL");
+        assert_eq!(
+            TaskStatusRationale::PriorityChange.as_str_name(),
+            "PRIORITY_CHANGE"
+        );
+        assert_eq!(
+            TaskStatusRationale::ScheduleConflict.as_str_name(),
+            "SCHEDULE_CONFLICT"
+        );
+        assert_eq!(
+            TaskStatusRationale::ItineraryIdNotFound.as_str_name(),
+            "ITINERARY_ID_NOT_FOUND"
+        );
+        assert_eq!(TaskStatusRationale::Expired.as_str_name(), "EXPIRED");
+
+        assert_eq!(
+            TaskStatusRationale::from_str_name("INVALID_ACTION"),
+            Some(TaskStatusRationale::InvalidAction)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("CLIENT_CANCELLED"),
+            Some(TaskStatusRationale::ClientCancelled)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("INTERNAL"),
+            Some(TaskStatusRationale::Internal)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("PRIORITY_CHANGE"),
+            Some(TaskStatusRationale::PriorityChange)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("SCHEDULE_CONFLICT"),
+            Some(TaskStatusRationale::ScheduleConflict)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("ITINERARY_ID_NOT_FOUND"),
+            Some(TaskStatusRationale::ItineraryIdNotFound)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("EXPIRED"),
+            Some(TaskStatusRationale::Expired)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("INVALID_RATIONALE"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_task_action_display() {
+        assert_eq!(
+            TaskAction::CreateItinerary.as_str_name(),
+            "CREATE_ITINERARY"
+        );
+        assert_eq!(
+            TaskAction::CancelItinerary.as_str_name(),
+            "CANCEL_ITINERARY"
+        );
+
+        assert_eq!(
+            TaskAction::from_str_name("CREATE_ITINERARY"),
+            Some(TaskAction::CreateItinerary)
+        );
+        assert_eq!(
+            TaskAction::from_str_name("CANCEL_ITINERARY"),
+            Some(TaskAction::CancelItinerary)
+        );
+        assert_eq!(TaskAction::from_str_name("INVALID_ACTION"), None);
     }
 }

@@ -35,9 +35,10 @@ pub async fn ensure_storage_mock_data() {
     INIT_MOCK_DATA.get_or_init(init_mock_data).await;
 }
 
-pub async fn get_vertiports_from_storage() -> Vec<vertiport::Object> {
+pub async fn get_vertiports_from_storage() -> Result<Vec<vertiport::Object>, ()> {
     ensure_storage_mock_data().await;
-    match get_clients()
+
+    get_clients()
         .await
         .storage
         .vertiport
@@ -48,35 +49,10 @@ pub async fn get_vertiports_from_storage() -> Vec<vertiport::Object> {
             order_by: vec![],
         })
         .await
-    {
-        Ok(vertiports) => vertiports.into_inner().list,
-        Err(e) => {
+        .map(|response| response.into_inner().list)
+        .map_err(|e| {
             ut_error!("Could not find vertiports in MOCK service: {}", e);
-            vec![]
-        }
-    }
-}
-
-pub async fn get_vehicles_from_storage() -> Vec<vehicle::Object> {
-    ensure_storage_mock_data().await;
-    match get_clients()
-        .await
-        .storage
-        .vehicle
-        .search(AdvancedSearchFilter {
-            filters: vec![],
-            page_number: 0,
-            results_per_page: 100,
-            order_by: vec![],
         })
-        .await
-    {
-        Ok(vehicles) => vehicles.into_inner().list,
-        Err(e) => {
-            ut_error!("Could not find vehicles in MOCK service: {}", e);
-            vec![]
-        }
-    }
 }
 
 /// generate mock vertipads for the given vertiports
