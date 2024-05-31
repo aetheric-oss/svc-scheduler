@@ -16,14 +16,11 @@ use lib_common::uuid::Uuid;
 /// The flight plans provided are expected to be the valid output from the `query_flight` endpoint.
 /// Invalid flight plans will be quickly rejected.
 pub async fn create_itinerary(request: CreateItineraryRequest) -> Result<TaskResponse, Status> {
-    let priority = match FromPrimitive::from_i32(request.priority) {
-        Some(p) => p,
-        None => {
-            let error_msg = "Invalid priority provided";
-            grpc_error!("{error_msg}: {}", request.priority);
-            return Err(Status::invalid_argument(format!("{error_msg}.")));
-        }
-    };
+    let priority = FromPrimitive::from_i32(request.priority).ok_or_else(|| {
+        let error_msg = "Invalid priority provided";
+        grpc_error!("{error_msg}: {}", request.priority);
+        Status::invalid_argument(format!("{error_msg}."))
+    })?;
 
     let user_id = Uuid::parse_str(&request.user_id.clone()).map_err(|e| {
         let error_msg = "Invalid user ID provided";
@@ -31,22 +28,23 @@ pub async fn create_itinerary(request: CreateItineraryRequest) -> Result<TaskRes
         Status::invalid_argument(format!("{error_msg}."))
     })?;
 
-    let Ok(schedules): Result<Vec<FlightPlanSchedule>, FlightPlanError> = request
+    let schedules = request
         .flight_plans
         .into_iter()
         .map(FlightPlanSchedule::try_from)
-        .collect()
-    else {
-        return Err(Status::invalid_argument("Invalid flight plans provided."));
-    };
+        .collect::<Result<Vec<FlightPlanSchedule>, FlightPlanError>>()
+        .map_err(|e| {
+            let error_msg = "Invalid flight plans provided";
+            grpc_error!("{error_msg}: {e}");
+            Status::invalid_argument(format!("{error_msg}."))
+        })?;
 
     // Set to expire if it hasn't been acted on by the start of the first flight plan
-    let expiry = match schedules.iter().min() {
-        Some(fp) => fp.origin_timeslot_start,
-        None => {
-            return Err(Status::invalid_argument("No flight plans provided."));
-        }
-    };
+    let expiry = schedules
+        .iter()
+        .min()
+        .ok_or(Status::invalid_argument("No flight plans provided."))?
+        .origin_timeslot_start;
 
     grpc_debug!("Default expiry: {expiry}.");
 
@@ -73,24 +71,20 @@ pub async fn create_itinerary(request: CreateItineraryRequest) -> Result<TaskRes
     };
 
     // Add the task to the scheduler:tasks table
-    let Some(mut pool) = crate::tasks::pool::get_pool().await else {
+    let mut pool = crate::tasks::pool::get_pool().await.ok_or_else(|| {
         grpc_error!("Couldn't get the redis pool.");
-        return Err(Status::internal("Internal error."));
-    };
+        Status::internal("Internal error.")
+    })?;
 
-    match pool.new_task(&task, priority, expiry).await {
-        Ok(task_id) => {
-            grpc_info!("Created new task with ID: {}", task_id);
+    let task_id = pool.new_task(&task, priority, expiry).await.map_err(|e| {
+        let error_msg = "Could not create new task.";
+        grpc_error!("{error_msg}: {e}");
+        Status::internal(format!("{error_msg}."))
+    })?;
 
-            Ok(TaskResponse {
-                task_id,
-                task_metadata: Some(task.metadata),
-            })
-        }
-        Err(e) => {
-            let error_msg = "Could not create new task.";
-            grpc_error!("{error_msg}: {e}");
-            Err(Status::internal(format!("{error_msg}.")))
-        }
-    }
+    grpc_info!("Created new task with ID: {}", task_id);
+    Ok(TaskResponse {
+        task_id,
+        task_metadata: Some(task.metadata),
+    })
 }

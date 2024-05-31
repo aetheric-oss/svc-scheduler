@@ -20,6 +20,8 @@ pub const LOADING_AND_TAKEOFF_TIME_SECONDS: i64 = 60;
 pub const LANDING_AND_UNLOADING_TIME_SECONDS: i64 = 60;
 /// Maximum time between departure and arrival times for flight queries
 pub const MAX_FLIGHT_QUERY_WINDOW_MINUTES: i64 = 720; // +/- 3 hours (6 total)
+/// Cannot schedule flight leaving within the next N minutes
+pub const ADVANCE_NOTICE_MINUTES: i64 = 3;
 
 /// Sanitized version of the gRPC query
 #[derive(Debug)]
@@ -35,8 +37,8 @@ struct FlightQuery {
 /// Error type for FlightQuery
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum FlightQueryError {
-    InvalidVertiportId,
-    InvalidTime,
+    VertiportId,
+    Time,
     TimeRangeTooLarge,
     Internal,
 }
@@ -44,8 +46,8 @@ enum FlightQueryError {
 impl Display for FlightQueryError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            FlightQueryError::InvalidVertiportId => write!(f, "Invalid vertiport ID"),
-            FlightQueryError::InvalidTime => write!(f, "Invalid time"),
+            FlightQueryError::VertiportId => write!(f, "Invalid vertiport ID"),
+            FlightQueryError::Time => write!(f, "Invalid time"),
             FlightQueryError::TimeRangeTooLarge => write!(f, "Time range too large"),
             FlightQueryError::Internal => write!(f, "Internal error"),
         }
@@ -65,7 +67,7 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
                     ERROR_PREFIX,
                     request.origin_vertiport_id
                 );
-                FlightQueryError::InvalidVertiportId
+                FlightQueryError::VertiportId
             })?
             .to_string();
 
@@ -76,7 +78,7 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
                     ERROR_PREFIX,
                     request.target_vertiport_id
                 );
-                FlightQueryError::InvalidVertiportId
+                FlightQueryError::VertiportId
             })?
             .to_string();
 
@@ -84,7 +86,7 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
             .latest_arrival_time
             .ok_or_else(|| {
                 grpc_warn!("{} latest arrival time not provided.", ERROR_PREFIX);
-                FlightQueryError::InvalidTime
+                FlightQueryError::Time
             })?
             .into();
 
@@ -92,7 +94,7 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
             .earliest_departure_time
             .ok_or_else(|| {
                 grpc_warn!("{} earliest departure time not provided.", ERROR_PREFIX);
-                FlightQueryError::InvalidTime
+                FlightQueryError::Time
             })?
             .into();
 
@@ -102,11 +104,13 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
                 ERROR_PREFIX
             );
 
-            return Err(FlightQueryError::InvalidTime);
+            return Err(FlightQueryError::Time);
         }
 
         // Prevent attacks where a user requests a wide flight window, resulting in a large number of
         //  calls to svc-gis for routing
+        #[cfg(not(tarpaulin_include))]
+        // no_coverage: (R5) this will never fail. see unit test for coverage
         let delta = Duration::try_minutes(MAX_FLIGHT_QUERY_WINDOW_MINUTES).ok_or_else(|| {
             grpc_error!("{} error creating time delta.", ERROR_PREFIX);
             FlightQueryError::Internal
@@ -117,6 +121,8 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
             return Err(FlightQueryError::TimeRangeTooLarge);
         }
 
+        #[cfg(not(tarpaulin_include))]
+        // no_coverage: (R5) this will never fail. see unit test for coverage
         let delta = Duration::try_minutes(ADVANCE_NOTICE_MINUTES).ok_or_else(|| {
             grpc_error!("{} error creating time delta.", ERROR_PREFIX);
             FlightQueryError::Internal
@@ -124,19 +130,23 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
 
         if earliest_departure_time < (Utc::now() + delta) {
             grpc_warn!("{} earliest departure time is in the past, or within the next {ADVANCE_NOTICE_MINUTES} minutes.", ERROR_PREFIX);
-            return Err(FlightQueryError::InvalidTime);
+            return Err(FlightQueryError::Time);
         }
 
+        #[cfg(not(tarpaulin_include))]
+        // no_coverage: (R5) this will never fail. see unit test for coverage
         let required_loading_time = Duration::try_seconds(LOADING_AND_TAKEOFF_TIME_SECONDS)
             .ok_or_else(|| {
                 grpc_error!("{} error creating loading time duration.", ERROR_PREFIX);
-                FlightQueryError::InvalidTime
+                FlightQueryError::Time
             })?;
 
+        #[cfg(not(tarpaulin_include))]
+        // no_coverage: (R5) this will never fail. see unit test for coverage
         let required_unloading_time = Duration::try_seconds(LANDING_AND_UNLOADING_TIME_SECONDS)
             .ok_or_else(|| {
                 grpc_error!("{} error creating unloading time duration.", ERROR_PREFIX);
-                FlightQueryError::InvalidTime
+                FlightQueryError::Time
             })?;
 
         Ok(FlightQuery {
@@ -144,7 +154,7 @@ impl TryFrom<QueryFlightRequest> for FlightQuery {
             arrival_vertiport_id,
             latest_arrival_time,
             earliest_departure_time,
-            // TODO(R4): Get needed loading/unloading times from request
+            // TODO(R5): Get needed loading/unloading times from request
             required_loading_time,
             required_unloading_time,
         })
@@ -162,10 +172,11 @@ pub async fn query_flight(
         Status::invalid_argument(error_str)
     })?;
 
-    let timeslot = Timeslot {
-        time_start: request.earliest_departure_time,
-        time_end: request.latest_arrival_time,
-    };
+    let timeslot = Timeslot::new(request.earliest_departure_time, request.latest_arrival_time)
+        .map_err(|e| {
+            grpc_error!("Invalid timeslot: {e}");
+            Status::internal("Invalid timeslot")
+        })?;
 
     let clients = get_clients().await;
 
@@ -181,7 +192,7 @@ pub async fn query_flight(
     grpc_debug!("found existing flight plans: {:?}", existing_flight_plans);
 
     //
-    // TODO(R4): Determine if there's an open space for cargo on an existing flight plan
+    // TODO(R5): Determine if there's an open space for cargo on an existing flight plan
     //
 
     //
@@ -223,7 +234,7 @@ pub async fn query_flight(
 
     let aircraft_gaps = get_aircraft_availabilities(
         &existing_flight_plans,
-        &timeslot.time_start,
+        &timeslot.time_start(),
         &aircraft,
         &timeslot,
     )
@@ -276,6 +287,14 @@ mod tests {
     use lib_common::time::Utc;
     use svc_storage_client_grpc::prelude::flight_plan::FlightPriority;
 
+    #[test]
+    fn test_duration_consts() {
+        Duration::try_minutes(MAX_FLIGHT_QUERY_WINDOW_MINUTES).unwrap();
+        Duration::try_minutes(ADVANCE_NOTICE_MINUTES).unwrap();
+        Duration::try_seconds(LOADING_AND_TAKEOFF_TIME_SECONDS).unwrap();
+        Duration::try_seconds(LANDING_AND_UNLOADING_TIME_SECONDS).unwrap();
+    }
+
     #[tokio::test]
     async fn test_get_sorted_flight_plans() {
         lib_common::logger::get_log_handle().await;
@@ -299,7 +318,7 @@ mod tests {
         lib_common::logger::get_log_handle().await;
         ut_info!("start");
 
-        let vertiports = get_vertiports_from_storage().await;
+        let vertiports = get_vertiports_from_storage().await.unwrap();
         let mut query = QueryFlightRequest {
             is_cargo: true,
             persons: None,
@@ -311,20 +330,29 @@ mod tests {
             target_vertiport_id: vertiports[1].id.clone(),
         };
 
+        // no latest arrival time
+        query.latest_arrival_time = None;
+        query.earliest_departure_time = Some(Utc::now().into());
         let e = FlightQuery::try_from(query.clone()).unwrap_err();
-        assert_eq!(e, FlightQueryError::InvalidTime);
+        assert_eq!(e, FlightQueryError::Time);
+
+        // no earliest departure time
+        query.latest_arrival_time = Some(Utc::now().into());
+        query.earliest_departure_time = None;
+        let e = FlightQuery::try_from(query.clone()).unwrap_err();
+        assert_eq!(e, FlightQueryError::Time);
 
         // latest arrival time is less than earliest departure time
         query.earliest_departure_time = Some((Utc::now() + Duration::try_hours(4).unwrap()).into());
         query.latest_arrival_time = Some((Utc::now() + Duration::try_hours(1).unwrap()).into());
 
         let e = FlightQuery::try_from(query.clone()).unwrap_err();
-        assert_eq!(e, FlightQueryError::InvalidTime);
+        assert_eq!(e, FlightQueryError::Time);
 
         // latest arrival time is in the past
         query.latest_arrival_time = Some((Utc::now() - Duration::try_seconds(1).unwrap()).into());
         let e = FlightQuery::try_from(query.clone()).unwrap_err();
-        assert_eq!(e, FlightQueryError::InvalidTime);
+        assert_eq!(e, FlightQueryError::Time);
 
         // Too large of a time range
         query.earliest_departure_time = Some(Utc::now().into());
@@ -342,7 +370,7 @@ mod tests {
                 .into(),
         );
         let e = FlightQuery::try_from(query.clone()).unwrap_err();
-        assert_eq!(e, FlightQueryError::InvalidTime);
+        assert_eq!(e, FlightQueryError::Time);
 
         // Valid
         query.earliest_departure_time =
@@ -356,16 +384,30 @@ mod tests {
         // Invalid vertiport IDs
         query.origin_vertiport_id = "invalid".to_string();
         let e = FlightQuery::try_from(query.clone()).unwrap_err();
-        assert_eq!(e, FlightQueryError::InvalidVertiportId);
+        assert_eq!(e, FlightQueryError::VertiportId);
 
         query.origin_vertiport_id = Uuid::new_v4().to_string();
         query.target_vertiport_id = "invalid".to_string();
         let e = FlightQuery::try_from(query.clone()).unwrap_err();
-        assert_eq!(e, FlightQueryError::InvalidVertiportId);
+        assert_eq!(e, FlightQueryError::VertiportId);
 
         query.target_vertiport_id = Uuid::new_v4().to_string();
         FlightQuery::try_from(query.clone()).unwrap();
 
         ut_info!("success");
+    }
+
+    #[test]
+    fn test_flight_query_error_display() {
+        assert_eq!(
+            format!("{}", FlightQueryError::VertiportId),
+            "Invalid vertiport ID"
+        );
+        assert_eq!(format!("{}", FlightQueryError::Time), "Invalid time");
+        assert_eq!(
+            format!("{}", FlightQueryError::TimeRangeTooLarge),
+            "Time range too large"
+        );
+        assert_eq!(format!("{}", FlightQueryError::Internal), "Internal error");
     }
 }

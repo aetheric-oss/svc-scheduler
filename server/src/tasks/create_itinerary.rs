@@ -17,6 +17,8 @@ use svc_storage_client_grpc::simple_service::Client as SimpleClient;
 const SESSION_ID_PREFIX: &str = "AETH";
 
 /// Register flight plans with svc-storage and return the itinerary ID
+#[cfg(not(tarpaulin_include))]
+// no_coverage: (R5) needs running backend, integration tests
 async fn register_flight_plans(
     clients: &GrpcClients,
     user_id: &Uuid,
@@ -155,21 +157,23 @@ async fn register_flight_plans(
 }
 
 /// Creates an itinerary given a list of flight plans, if valid
+#[cfg(not(tarpaulin_include))]
+// no_coverage: (R5) needs running backend, integration tests
 pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     let Some(TaskAction::CreateItinerary) = FromPrimitive::from_i32(task.metadata.action) else {
         tasks_error!("Invalid task action: {}", task.metadata.action);
 
-        return Err(TaskError::InvalidMetadata);
+        return Err(TaskError::Metadata);
     };
 
     let user_id = Uuid::parse_str(&task.metadata.user_id.clone()).map_err(|e| {
         tasks_error!("Invalid user_id: {}", e);
-        TaskError::InvalidUserId
+        TaskError::UserId
     })?;
 
     let TaskBody::CreateItinerary(ref proposed_flight_plans) = task.body else {
         tasks_error!("Invalid task body: {:?}", task.body);
-        return Err(TaskError::InvalidData);
+        return Err(TaskError::Data);
     };
 
     // For retrieving asset information in one go
@@ -184,7 +188,7 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     )
     .map_err(|e| {
         tasks_error!("Invalid itinerary provided: {}", e);
-        TaskError::InvalidData
+        TaskError::Data
     })?;
 
     //
@@ -192,18 +196,22 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     //
     let itinerary_start = proposed_flight_plans.first().ok_or_else(|| {
         tasks_error!("No flight plans provided.");
-        TaskError::InvalidData
+        TaskError::Data
     })?;
 
     let itinerary_end = proposed_flight_plans.last().ok_or_else(|| {
         tasks_error!("No flight plans provided.");
-        TaskError::InvalidData
+        TaskError::Data
     })?;
 
-    let aircraft_time_window = Timeslot {
-        time_start: itinerary_start.origin_timeslot_start,
-        time_end: itinerary_end.target_timeslot_end,
-    };
+    let aircraft_time_window = Timeslot::new(
+        itinerary_start.origin_timeslot_start,
+        itinerary_end.target_timeslot_end,
+    )
+    .map_err(|e| {
+        tasks_error!("Invalid aircraft time window: {}", e);
+        TaskError::Internal
+    })?;
 
     //
     // Fast intersection check before collecting all sorts of data
@@ -212,7 +220,7 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     for flight_plan in proposed_flight_plans {
         let path = flight_plan.path.clone().ok_or_else(|| {
             tasks_error!("Flight plan has no path.");
-            TaskError::InvalidData
+            TaskError::Data
         })?;
 
         let request = CheckIntersectionRequest {
@@ -223,7 +231,7 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
             target_identifier: flight_plan.target_vertiport_id.clone(),
         };
 
-        let intersects = clients
+        clients
             .gis
             .check_intersection(request)
             .await
@@ -232,12 +240,12 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
                 TaskError::Internal
             })?
             .into_inner()
-            .intersects;
-
-        if intersects {
-            tasks_error!("Flight plan intersects with another flight plan");
-            return Err(TaskError::ScheduleConflict);
-        }
+            .intersects
+            .then_some(())
+            .ok_or_else(|| {
+                tasks_error!("Flight plan intersects with another flight plan");
+                TaskError::ScheduleConflict
+            })?;
     }
 
     // Get all flight plans from this time to latest departure time (including partially fitting flight plans)
@@ -277,7 +285,7 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     //
     let aircraft_gaps = get_aircraft_availabilities(
         &existing_flight_plans,
-        &aircraft_time_window.time_start,
+        &aircraft_time_window.time_start(),
         &aircraft,
         &aircraft_time_window,
     )
@@ -294,8 +302,8 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     if !aircraft_gaps.into_iter().any(|gap| {
         gap.vertiport_id == itinerary_start.origin_vertiport_id
             && gap.vertiport_id == itinerary_end.target_vertiport_id
-            && gap.timeslot.time_start <= aircraft_time_window.time_start
-            && gap.timeslot.time_end >= aircraft_time_window.time_end
+            && gap.timeslot.time_start() <= aircraft_time_window.time_start()
+            && gap.timeslot.time_end() >= aircraft_time_window.time_end()
     }) {
         tasks_error!("The requested aircraft is not available.");
         return Err(TaskError::ScheduleConflict);
@@ -304,10 +312,14 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     //
     // Get timeslots for each vertipad mentioned in the plan
     //
-    let timeslot = Timeslot {
-        time_start: aircraft_time_window.time_start,
-        time_end: aircraft_time_window.time_end,
-    };
+    let timeslot = Timeslot::new(
+        aircraft_time_window.time_start(),
+        aircraft_time_window.time_end(),
+    )
+    .map_err(|e| {
+        tasks_error!("invalid aircraft time window: {}", e);
+        TaskError::Internal
+    })?;
 
     for flight_plan in proposed_flight_plans {
         let origin_duration = flight_plan.origin_timeslot_end - flight_plan.origin_timeslot_start;
@@ -331,8 +343,8 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
         })?;
 
         if !origin_timeslots.into_iter().any(|gap| {
-            gap.time_start <= flight_plan.origin_timeslot_start
-                && gap.time_end >= flight_plan.origin_timeslot_end
+            gap.time_start() <= flight_plan.origin_timeslot_start
+                && gap.time_end() >= flight_plan.origin_timeslot_end
         }) {
             tasks_error!("This requested timeslot is not available.");
             return Err(TaskError::ScheduleConflict);
@@ -359,8 +371,8 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
         })?;
 
         if !target_timeslots.into_iter().any(|gap| {
-            gap.time_start <= flight_plan.target_timeslot_start
-                && gap.time_end >= flight_plan.target_timeslot_end
+            gap.time_start() <= flight_plan.target_timeslot_start
+                && gap.time_end() >= flight_plan.target_timeslot_end
         }) {
             tasks_error!("This requested timeslot is not available.");
             return Err(TaskError::ScheduleConflict);
@@ -403,7 +415,7 @@ mod tests {
         };
 
         let e = create_itinerary(&mut task).await.unwrap_err();
-        assert_eq!(e, TaskError::InvalidData);
+        assert_eq!(e, TaskError::Data);
 
         Ok(())
     }
@@ -420,7 +432,7 @@ mod tests {
         };
 
         let e = create_itinerary(&mut task).await.unwrap_err();
-        assert_eq!(e, TaskError::InvalidMetadata);
+        assert_eq!(e, TaskError::Metadata);
 
         let mut task = Task {
             metadata: TaskMetadata {
@@ -432,7 +444,7 @@ mod tests {
         };
 
         let e = create_itinerary(&mut task).await.unwrap_err();
-        assert_eq!(e, TaskError::InvalidUserId);
+        assert_eq!(e, TaskError::UserId);
 
         Ok(())
     }

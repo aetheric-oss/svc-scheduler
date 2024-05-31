@@ -27,7 +27,7 @@ const TASK_KEEPALIVE_DURATION_MINUTES: i64 = 60;
 const IDLE_DURATION_MS: u64 = 1000;
 
 /// The required information to complete a task
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TaskBody {
     /// Cancel an itinerary
     CancelItinerary(Uuid),
@@ -37,7 +37,7 @@ pub enum TaskBody {
 }
 
 /// Complete information about a task
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Task {
     /// Metadata about the task
     pub metadata: TaskMetadata,
@@ -93,13 +93,13 @@ pub enum TaskError {
     AlreadyProcessed,
 
     /// Invalid metadata provided,
-    InvalidMetadata,
+    Metadata,
 
     /// Invalid User ID provided
-    InvalidUserId,
+    UserId,
 
     /// Invalid data provided
-    InvalidData,
+    Data,
 
     /// Schedule Conflict
     ScheduleConflict,
@@ -111,24 +111,25 @@ impl Display for TaskError {
             TaskError::NotFound => write!(f, "Task not found."),
             TaskError::Internal => write!(f, "Internal error."),
             TaskError::AlreadyProcessed => write!(f, "Task already processed."),
-            TaskError::InvalidMetadata => write!(f, "Invalid metadata."),
-            TaskError::InvalidData => write!(f, "Invalid data."),
+            TaskError::Metadata => write!(f, "Invalid metadata."),
+            TaskError::Data => write!(f, "Invalid data."),
             TaskError::ScheduleConflict => write!(f, "Schedule conflict."),
-            TaskError::InvalidUserId => write!(f, "Invalid user ID."),
+            TaskError::UserId => write!(f, "Invalid user ID."),
         }
     }
 }
 
 /// Cancels a scheduler task
 pub async fn cancel_task(task_id: i64) -> Result<(), TaskError> {
-    let Some(mut pool) = crate::tasks::pool::get_pool().await else {
+    let mut pool = crate::tasks::pool::get_pool().await.ok_or_else(|| {
         tasks_error!("Couldn't get the redis pool.");
-        return Err(TaskError::Internal);
-    };
+        TaskError::Internal
+    })?;
 
-    let Ok(mut task) = pool.get_task_data(task_id).await else {
-        return Err(TaskError::NotFound);
-    };
+    let mut task = pool.get_task_data(task_id).await.map_err(|e| {
+        tasks_error!("error getting task: {}", e);
+        TaskError::NotFound
+    })?;
 
     // Can't cancel something that's already been queued
     if task.metadata.status != TaskStatus::Queued as i32 {
@@ -156,33 +157,35 @@ pub async fn cancel_task(task_id: i64) -> Result<(), TaskError> {
 
 /// Gets the status of a scheduler task
 pub async fn get_task_status(task_id: i64) -> Result<TaskMetadata, TaskError> {
-    let Some(mut pool) = crate::tasks::pool::get_pool().await else {
-        tasks_error!("Couldn't get the redis pool.");
-        return Err(TaskError::Internal);
-    };
-
-    match pool.get_task_data(task_id).await {
-        Ok(task) => Ok(task.metadata),
-        Err(e) => {
+    crate::tasks::pool::get_pool()
+        .await
+        .ok_or_else(|| {
+            tasks_error!("Couldn't get the redis pool.");
+            TaskError::Internal
+        })?
+        .get_task_data(task_id)
+        .await
+        .map(|task| task.metadata)
+        .map_err(|e| {
             tasks_warn!("error getting task: {}", e);
-            Err(TaskError::NotFound)
-        }
-    }
+            TaskError::NotFound
+        })
 }
 
 /// Iterates through priority queues and implements tasks
-pub async fn task_loop(_config: crate::config::Config) {
+#[cfg(not(tarpaulin_include))]
+// no_coverage: (R5) loops indefinitely
+pub async fn task_loop(_config: crate::config::Config) -> Result<(), ()> {
     tasks_info!("Start.");
 
-    let Some(mut pool) = crate::tasks::pool::get_pool().await else {
+    let mut pool = crate::tasks::pool::get_pool().await.ok_or_else(|| {
         tasks_error!("Couldn't get the redis pool.");
-        return;
-    };
+    })?;
 
-    let Some(keepalive_delta) = Duration::try_minutes(TASK_KEEPALIVE_DURATION_MINUTES) else {
-        tasks_warn!("error creating time delta.");
-        return;
-    };
+    let keepalive_delta =
+        Duration::try_minutes(TASK_KEEPALIVE_DURATION_MINUTES).ok_or_else(|| {
+            tasks_warn!("error creating time delta.");
+        })?;
 
     loop {
         let (task_id, mut task) = match pool.next_task().await {
@@ -209,7 +212,7 @@ pub async fn task_loop(_config: crate::config::Config) {
                 tasks_warn!("Invalid task action: {}", task.metadata.action);
                 task.metadata.status = TaskStatus::Rejected.into();
                 task.metadata.status_rationale = Some(TaskStatusRationale::InvalidAction.into());
-                Err(TaskError::InvalidMetadata)
+                Err(TaskError::Metadata)
             }
         };
 
@@ -226,5 +229,30 @@ pub async fn task_loop(_config: crate::config::Config) {
 
         let new_expiry = Utc::now() + keepalive_delta;
         let _ = pool.update_task(task_id, &task, new_expiry).await;
+    }
+
+    #[allow(unreachable_code)]
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_task_error_display() {
+        assert_eq!(TaskError::NotFound.to_string(), "Task not found.");
+        assert_eq!(TaskError::Internal.to_string(), "Internal error.");
+        assert_eq!(
+            TaskError::AlreadyProcessed.to_string(),
+            "Task already processed."
+        );
+        assert_eq!(TaskError::Metadata.to_string(), "Invalid metadata.");
+        assert_eq!(TaskError::Data.to_string(), "Invalid data.");
+        assert_eq!(
+            TaskError::ScheduleConflict.to_string(),
+            "Schedule conflict."
+        );
+        assert_eq!(TaskError::UserId.to_string(), "Invalid user ID.");
     }
 }
