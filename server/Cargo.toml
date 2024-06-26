@@ -63,7 +63,7 @@ vecmath          = "1.0"
 
 [dependencies.lib-common]
 git = "https://github.com/aetheric-oss/lib-common.git"
-tag = "latest-develop"
+tag = "v1.0.0"
 
 [dependencies.svc-storage-client-grpc]
 features = [

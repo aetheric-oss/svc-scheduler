@@ -19,7 +19,7 @@ Created itineraries are saved to storage and can be cancelled. Flight queries, c
 | Attribute     | Description                                                       |
 | ------------- |-------------------------------------------------------------------|
 | Maintainer(s) | [Aetheric Realm Team](https://github.com/orgs/aetheric-oss/teams/dev-realm) |
-| Stuckee       | [Alex M. Smith](https://github.com/servicedog)                   |
+| Stuckee       | [Alex M. Smith](https://github.com/amsmith-pro)                   |
 | Status        | Development                                                       |
 
 ## :books: Related Documents

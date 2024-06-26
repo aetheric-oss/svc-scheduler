@@ -81,9 +81,9 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
                 p.points
                     .into_iter()
                     .map(|p| PointZ {
-                        latitude: p.latitude,
-                        longitude: p.longitude,
-                        altitude_meters: p.altitude as f32,
+                        latitude: p.y,
+                        longitude: p.x,
+                        altitude_meters: p.z as f32,
                     })
                     .collect(),
             ),
@@ -196,13 +196,13 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
 
 impl From<FlightPlanSchedule> for flight_plan::Data {
     fn from(val: FlightPlanSchedule) -> Self {
-        let path = val.path.map(|p| GeoLineString {
+        let path = val.path.map(|p| GeoLineStringZ {
             points: p
                 .into_iter()
-                .map(|p| GeoPoint {
-                    latitude: p.latitude,
-                    longitude: p.longitude,
-                    altitude: p.altitude_meters as f64,
+                .map(|p| GeoPointZ {
+                    y: p.latitude,
+                    x: p.longitude,
+                    z: p.altitude_meters as f64,
                 })
                 .collect(),
         });
@@ -331,17 +331,17 @@ mod tests {
         assert_eq!(data.vehicle_id, flight_plan.vehicle_id);
         assert_eq!(
             data.path,
-            Some(GeoLineString {
+            Some(GeoLineStringZ {
                 points: vec![
-                    GeoPoint {
-                        latitude: 0.0,
-                        longitude: 0.0,
-                        altitude: 0.0,
+                    GeoPointZ {
+                        y: 0.0,
+                        x: 0.0,
+                        z: 0.0,
                     },
-                    GeoPoint {
-                        latitude: 1.0,
-                        longitude: 1.0,
-                        altitude: 1.0,
+                    GeoPointZ {
+                        y: 1.0,
+                        x: 1.0,
+                        z: 1.0,
                     },
                 ],
             })
@@ -376,17 +376,17 @@ mod tests {
                 nanos: 0,
             }),
             vehicle_id: Uuid::new_v4().to_string(),
-            path: Some(GeoLineString {
+            path: Some(GeoLineStringZ {
                 points: vec![
-                    GeoPoint {
-                        latitude: 0.0,
-                        longitude: 0.0,
-                        altitude: 0.0,
+                    GeoPointZ {
+                        y: 0.0,
+                        x: 0.0,
+                        z: 0.0,
                     },
-                    GeoPoint {
-                        latitude: 1.0,
-                        longitude: 1.0,
-                        altitude: 1.0,
+                    GeoPointZ {
+                        y: 1.0,
+                        x: 1.0,
+                        z: 1.0,
                     },
                 ],
             }),

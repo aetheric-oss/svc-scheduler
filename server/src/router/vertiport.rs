@@ -348,14 +348,14 @@ impl From<TimeslotPair> for flight_plan::Data {
         let points = val
             .path
             .iter()
-            .map(|p| GeoPoint {
-                latitude: p.latitude,
-                longitude: p.longitude,
-                altitude: p.altitude_meters as f64,
+            .map(|p| GeoPointZ {
+                y: p.latitude,
+                x: p.longitude,
+                z: p.altitude_meters as f64,
             })
             .collect();
 
-        let path = Some(GeoLineString { points });
+        let path = Some(GeoLineStringZ { points });
         flight_plan::Data {
             origin_vertiport_id: Some(val.origin_vertiport_id),
             origin_vertipad_id: val.origin_vertipad_id,
@@ -999,11 +999,11 @@ mod tests {
 
         let path = data.path.unwrap();
         assert_eq!(path.points.len(), 2);
-        assert_eq!(path.points[0].latitude, 1.0);
-        assert_eq!(path.points[0].longitude, 2.0);
-        assert_eq!(path.points[0].altitude, 3.0);
-        assert_eq!(path.points[1].latitude, 4.0);
-        assert_eq!(path.points[1].longitude, 5.0);
-        assert_eq!(path.points[1].altitude, 6.0);
+        assert_eq!(path.points[0].y, 1.0);
+        assert_eq!(path.points[0].x, 2.0);
+        assert_eq!(path.points[0].z, 3.0);
+        assert_eq!(path.points[1].y, 4.0);
+        assert_eq!(path.points[1].x, 5.0);
+        assert_eq!(path.points[1].z, 6.0);
     }
 }

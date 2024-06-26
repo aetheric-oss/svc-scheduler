@@ -210,15 +210,15 @@ pub async fn calculate_itineraries(
             continue;
         };
 
-        let path = Some(GeoLineString {
+        let path = Some(GeoLineStringZ {
             points: pair
                 .path
                 .clone()
                 .into_iter()
-                .map(|point| GeoPoint {
-                    latitude: point.latitude,
-                    longitude: point.longitude,
-                    altitude: point.altitude_meters as f64,
+                .map(|point| GeoPointZ {
+                    y: point.latitude,
+                    x: point.longitude,
+                    z: point.altitude_meters as f64,
                 })
                 .collect(),
         });
@@ -333,14 +333,14 @@ async fn deadhead_helper(
     let (path, distance_meters) = paths.remove(0);
     let points = path
         .into_iter()
-        .map(|point| GeoPoint {
-            latitude: point.latitude,
-            longitude: point.longitude,
-            altitude: point.altitude_meters as f64,
+        .map(|point| GeoPointZ {
+            y: point.latitude,
+            x: point.longitude,
+            z: point.altitude_meters as f64,
         })
         .collect();
 
-    let path = Some(GeoLineString { points });
+    let path = Some(GeoLineStringZ { points });
 
     let flight_duration = estimate_flight_time_seconds(&distance_meters).map_err(|e| {
         router_error!("Could not estimate flight time: {e}");
@@ -580,7 +580,7 @@ mod tests {
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineString { points: vec![] }),
+            path: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -697,7 +697,7 @@ mod tests {
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineString { points: vec![] }),
+            path: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -791,7 +791,7 @@ mod tests {
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineString { points: vec![] }),
+            path: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -892,7 +892,7 @@ mod tests {
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineString { points: vec![] }),
+            path: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -987,7 +987,7 @@ mod tests {
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineString { points: vec![] }),
+            path: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 

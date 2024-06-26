@@ -92,3 +92,4 @@ linestring
 rotorcraft
 AETH
 datelike
+amsmith

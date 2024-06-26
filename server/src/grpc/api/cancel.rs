@@ -111,7 +111,7 @@ pub async fn cancel_itinerary(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tonic::Status;
+    // use tonic::Status;
 
     #[test]
     fn test_cancellation_expiry_minutes() {

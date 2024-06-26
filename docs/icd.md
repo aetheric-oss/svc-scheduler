@@ -11,7 +11,7 @@ This document defines the gRPC interface unique to the `svc-scheduler` microserv
 | Attribute     | Description                                                       |
 | ------------- |-------------------------------------------------------------------|
 | Maintainer(s) | [Aetheric Realm Team](https://github.com/orgs/aetheric-oss/teams/dev-realm) |
-| Stuckee       | A.M. Smith ([@ServiceDog](https://github.com/servicedog))         |
+| Stuckee       | A.M. Smith ([@amsmith-pro](https://github.com/amsmith-pro))         |
 | Status        | Development                                                       |
 
 ## :books: Related Documents

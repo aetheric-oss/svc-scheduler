@@ -49,7 +49,7 @@ tag      = "latest-develop"
 [dependencies.lib-common]
 features = ["grpc"]
 git      = "https://github.com/aetheric-oss/lib-common.git"
-tag      = "latest-develop"
+tag      = "v1.0.0"
 
 [dependencies.tokio]
 features = ["macros", "rt-multi-thread"]

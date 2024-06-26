@@ -106,45 +106,41 @@ async fn generate_vertiports(client: &VertiportClient) -> Vec<vertiport::Object>
         "DTSTART:20221020T180000Z;DURATION:PT24H\nRRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA,SU";
 
     let geo_locations = vec![
-        GeoPolygon {
-            exterior: Some(GeoLineString {
-                points: vec![GeoPoint {
-                    latitude: 37.7931,
-                    longitude: -122.46283,
-                    altitude: 0.0,
+        GeoPolygonZ {
+            rings: vec![GeoLineStringZ {
+                points: vec![GeoPointZ {
+                    y: 37.7931,
+                    x: -122.46283,
+                    z: 0.0,
                 }],
-            }),
-            interiors: vec![],
+            }],
         },
-        GeoPolygon {
-            exterior: Some(GeoLineString {
-                points: vec![GeoPoint {
-                    latitude: 37.70278,
-                    longitude: -122.42883,
-                    altitude: 0.0,
+        GeoPolygonZ {
+            rings: vec![GeoLineStringZ {
+                points: vec![GeoPointZ {
+                    y: 37.70278,
+                    x: -122.42883,
+                    z: 0.0,
                 }],
-            }),
-            interiors: vec![],
+            }],
         },
-        GeoPolygon {
-            exterior: Some(GeoLineString {
-                points: vec![GeoPoint {
-                    latitude: 37.73278,
-                    longitude: -122.45883,
-                    altitude: 0.0,
+        GeoPolygonZ {
+            rings: vec![GeoLineStringZ {
+                points: vec![GeoPointZ {
+                    y: 37.73278,
+                    x: -122.45883,
+                    z: 0.0,
                 }],
-            }),
-            interiors: vec![],
+            }],
         },
-        GeoPolygon {
-            exterior: Some(GeoLineString {
-                points: vec![GeoPoint {
-                    latitude: 37.93278,
-                    longitude: -122.25883,
-                    altitude: 0.0,
+        GeoPolygonZ {
+            rings: vec![GeoLineStringZ {
+                points: vec![GeoPointZ {
+                    y: 37.93278,
+                    x: -122.25883,
+                    z: 0.0,
                 }],
-            }),
-            interiors: vec![],
+            }],
         },
     ];
     for index in 0..geo_locations.len() {
