@@ -44,12 +44,12 @@ tower           = { version = "0.4", optional = true }
 [dependencies.svc-storage-client-grpc]
 features = ["flight_plan", "itinerary"]
 git      = "https://github.com/aetheric-oss/svc-storage.git"
-tag      = "latest-develop"
+tag      = "main"
 
 [dependencies.lib-common]
 features = ["grpc"]
 git      = "https://github.com/aetheric-oss/lib-common.git"
-tag      = "latest-develop"
+tag      = "main"
 
 [dependencies.tokio]
 features = ["macros", "rt-multi-thread"]
