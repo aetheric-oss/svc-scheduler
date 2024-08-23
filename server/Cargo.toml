@@ -66,6 +66,7 @@ git = "https://github.com/aetheric-oss/lib-common.git"
 tag = "v2.0.0"
 
 [dependencies.svc-storage-client-grpc]
+branch = "am-smith/sim-changes"
 features = [
   "flight_plan",
   "itinerary",
@@ -75,11 +76,10 @@ features = [
   "group",
 ]
 git = "https://github.com/aetheric-oss/svc-storage.git"
-tag = "v0.12.0"
 
 [dependencies.svc-gis-client-grpc]
-git = "https://github.com/aetheric-oss/svc-gis.git"
-tag = "v0.2.0"
+branch = "am-smith/sim-changes"
+git    = "https://github.com/aetheric-oss/svc-gis.git"
 
 [dependencies.log4rs]
 features = [

@@ -166,11 +166,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     let itinerary = Itinerary {
         flight_plans: vec![scheduler_storage::flight_plan::Data {
-            origin_vertiport_id: Some(Uuid::new_v4().to_string()),
+            origin_vertiport_id: Uuid::new_v4().to_string(),
             origin_vertipad_id: Uuid::new_v4().to_string(),
             origin_timeslot_start: Some((Utc::now() + Duration::try_minutes(10).unwrap()).into()),
             origin_timeslot_end: Some((Utc::now() + Duration::try_minutes(11).unwrap()).into()),
-            target_vertiport_id: Some(Uuid::new_v4().to_string()),
+            target_vertiport_id: Uuid::new_v4().to_string(),
             target_vertipad_id: Uuid::new_v4().to_string(),
             target_timeslot_start: Some((Utc::now() + Duration::try_minutes(30).unwrap()).into()),
             target_timeslot_end: Some((Utc::now() + Duration::try_minutes(31).unwrap()).into()),

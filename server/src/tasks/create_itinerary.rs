@@ -40,7 +40,7 @@ async fn register_flight_plans(
         let mut tmp: flight_plan::Data = flight_plan.clone().into();
         tmp.session_id = session_id.clone();
         tmp.pilot_id = Uuid::new_v4().to_string(); // TODO(R5): Pilots not currently supported
-        let path = flight_plan.path.clone().ok_or_else(|| {
+        let waypoints = flight_plan.waypoints.clone().ok_or_else(|| {
             tasks_error!("Flight plan has no path.");
             TaskError::Internal
         })?;
@@ -93,7 +93,7 @@ async fn register_flight_plans(
             flight_identifier: Some(session_id.clone()),
             aircraft_identifier: Some(registration_id.to_string()),
             simulated: false,
-            path,
+            path: waypoints,
             aircraft_type: AircraftType::Rotorcraft as i32, // TODO(R5): Get from storage
             timestamp_start: Some(flight_plan.origin_timeslot_end.into()),
             timestamp_end: Some(flight_plan.target_timeslot_start.into()),
@@ -218,7 +218,7 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
     //
     let clients = get_clients().await;
     for flight_plan in proposed_flight_plans {
-        let path = flight_plan.path.clone().ok_or_else(|| {
+        let path = flight_plan.waypoints.clone().ok_or_else(|| {
             tasks_error!("Flight plan has no path.");
             TaskError::Data
         })?;
@@ -468,7 +468,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: Uuid::new_v4().to_string(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             }]),
         };
 
