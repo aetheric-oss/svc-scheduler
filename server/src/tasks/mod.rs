@@ -72,7 +72,7 @@ impl ToRedisArgs for Task {
         W: redis::RedisWrite,
     {
         let Ok(result) = serde_json::to_string(&self) else {
-            tasks_warn!("error serializing task");
+            tasks_warn!("error serializing task.");
             return;
         };
 

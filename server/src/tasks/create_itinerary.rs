@@ -243,7 +243,7 @@ pub async fn create_itinerary(task: &mut Task) -> Result<(), TaskError> {
             .intersects
             .then_some(())
             .ok_or_else(|| {
-                tasks_error!("Flight plan intersects with another flight plan");
+                tasks_error!("Flight plan intersects with another flight plan.");
                 TaskError::ScheduleConflict
             })?;
     }

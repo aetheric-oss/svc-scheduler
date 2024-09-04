@@ -9,6 +9,7 @@ use svc_storage_client_grpc::prelude::*;
 
 /// Cancels an itinerary
 #[cfg(not(tarpaulin_include))]
+// no_coverage: (Rnever) not unit testable, only integration tests
 pub async fn cancel_itinerary(task: &mut Task) -> Result<(), TaskError> {
     let Some(TaskAction::CancelItinerary) = FromPrimitive::from_i32(task.metadata.action) else {
         tasks_error!("Invalid task action: {}", task.metadata.action);

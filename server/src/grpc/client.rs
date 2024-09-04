@@ -44,7 +44,6 @@ impl GrpcClients {
 mod tests {
     use super::*;
     use svc_gis_client_grpc::prelude::Client as GisClient;
-    use svc_storage_client_grpc::prelude::Client as StorageClient;
 
     #[tokio::test]
     async fn test_grpc_clients_default() {

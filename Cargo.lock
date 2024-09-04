@@ -154,30 +154,8 @@ checksum = "3d62b7694a562cdf5a74227903507c56ab2cc8bdd1f781ed5cb4cf9c9f810bfc"
 
 [[package]]
 name = "arrow-macros-core"
-version = "0.2.1-develop.0"
-source = "git+https://github.com/aetheric-oss/lib-common.git?tag=v0.2.1-develop.0#ab297fda939b316ad4778dba2711e626246e048b"
-dependencies = [
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn 2.0.76",
-]
-
-[[package]]
-name = "arrow-macros-core"
-version = "0.2.1-develop.4"
-source = "git+https://github.com/aetheric-oss/lib-common?tag=latest-develop#c325691ec5ba51fa340f873a8ccd5a5bed19b7e2"
-dependencies = [
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn 2.0.76",
-]
-
-[[package]]
-name = "arrow-macros-core"
-version = "1.0.0"
-source = "git+https://github.com/aetheric-oss/lib-common.git?tag=v1.0.0#1b6ccdc95fbc9d51feae181292906af516014b47"
+version = "2.0.0"
+source = "git+https://github.com/aetheric-oss/lib-common.git?tag=v2.0.0#4457c15d899697762dbaa46c142a78559df8144b"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",
@@ -187,30 +165,10 @@ dependencies = [
 
 [[package]]
 name = "arrow-macros-derive"
-version = "0.2.1-develop.0"
-source = "git+https://github.com/aetheric-oss/lib-common.git?tag=v0.2.1-develop.0#ab297fda939b316ad4778dba2711e626246e048b"
+version = "2.0.0"
+source = "git+https://github.com/aetheric-oss/lib-common.git?tag=v2.0.0#4457c15d899697762dbaa46c142a78559df8144b"
 dependencies = [
- "arrow-macros-core 0.2.1-develop.0",
- "proc-macro-error",
- "proc-macro2",
-]
-
-[[package]]
-name = "arrow-macros-derive"
-version = "0.2.1-develop.4"
-source = "git+https://github.com/aetheric-oss/lib-common?tag=latest-develop#c325691ec5ba51fa340f873a8ccd5a5bed19b7e2"
-dependencies = [
- "arrow-macros-core 0.2.1-develop.4",
- "proc-macro-error",
- "proc-macro2",
-]
-
-[[package]]
-name = "arrow-macros-derive"
-version = "1.0.0"
-source = "git+https://github.com/aetheric-oss/lib-common.git?tag=v1.0.0#1b6ccdc95fbc9d51feae181292906af516014b47"
-dependencies = [
- "arrow-macros-core 1.0.0",
+ "arrow-macros-core",
  "proc-macro-error",
  "proc-macro2",
 ]
@@ -1274,49 +1232,10 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "lib-common"
-version = "0.2.1-develop.0"
-source = "git+https://github.com/aetheric-oss/lib-common.git?tag=v0.2.1-develop.0#ab297fda939b316ad4778dba2711e626246e048b"
+version = "2.0.0"
+source = "git+https://github.com/aetheric-oss/lib-common.git?tag=v2.0.0#4457c15d899697762dbaa46c142a78559df8144b"
 dependencies = [
- "arrow-macros-derive 0.2.1-develop.0",
- "cargo-husky",
- "chrono",
- "futures",
- "log",
- "prost",
- "prost-wkt-types",
- "tonic",
- "trybuild",
-]
-
-[[package]]
-name = "lib-common"
-version = "0.2.1-develop.4"
-source = "git+https://github.com/aetheric-oss/lib-common?tag=latest-develop#c325691ec5ba51fa340f873a8ccd5a5bed19b7e2"
-dependencies = [
- "arrow-macros-derive 0.2.1-develop.4",
- "cargo-husky",
- "chrono",
- "chrono-tz",
- "futures",
- "http",
- "hyper",
- "log",
- "log4rs",
- "prost",
- "prost-wkt-types",
- "tokio",
- "tonic",
- "tower",
- "trybuild",
- "uuid",
-]
-
-[[package]]
-name = "lib-common"
-version = "1.0.0"
-source = "git+https://github.com/aetheric-oss/lib-common.git?tag=v1.0.0#1b6ccdc95fbc9d51feae181292906af516014b47"
-dependencies = [
- "arrow-macros-derive 1.0.0",
+ "arrow-macros-derive",
  "cargo-husky",
  "chrono",
  "chrono-tz",
@@ -2677,13 +2596,12 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "svc-gis"
-version = "0.1.1-develop.12"
-source = "git+https://github.com/aetheric-oss/svc-gis.git?tag=latest-develop#82d5c54b8a5365144b64f9bba33a91e7de02cfda"
+version = "0.2.0"
+source = "git+https://github.com/aetheric-oss/svc-gis.git?tag=v0.2.0#fbded26bb4f7222a6a5c090e394380b72f560312"
 dependencies = [
  "anyhow",
  "axum",
  "cargo-husky",
- "chrono",
  "clap",
  "config",
  "const_format",
@@ -2693,7 +2611,7 @@ dependencies = [
  "futures",
  "geo 0.27.0",
  "hyper",
- "lib-common 0.2.1-develop.4",
+ "lib-common",
  "log",
  "log4rs",
  "native-tls",
@@ -2720,17 +2638,15 @@ dependencies = [
  "tonic-build",
  "tonic-health",
  "utoipa",
- "uuid",
 ]
 
 [[package]]
 name = "svc-gis-client-grpc"
-version = "0.1.1-develop.12"
-source = "git+https://github.com/aetheric-oss/svc-gis.git?tag=latest-develop#82d5c54b8a5365144b64f9bba33a91e7de02cfda"
+version = "0.2.0"
+source = "git+https://github.com/aetheric-oss/svc-gis.git?tag=v0.2.0#fbded26bb4f7222a6a5c090e394380b72f560312"
 dependencies = [
  "cfg-if",
- "chrono",
- "lib-common 0.2.1-develop.0",
+ "lib-common",
  "log",
  "num-derive",
  "num-traits",
@@ -2743,7 +2659,6 @@ dependencies = [
  "strum",
  "svc-gis",
  "tonic",
- "uuid",
 ]
 
 [[package]]
@@ -2761,7 +2676,7 @@ dependencies = [
  "geo 0.26.0",
  "iso8601-duration",
  "lazy_static",
- "lib-common 1.0.0",
+ "lib-common",
  "log",
  "log4rs",
  "logtest",
@@ -2796,7 +2711,7 @@ version = "0.4.1-develop.9"
 dependencies = [
  "cfg-if",
  "futures",
- "lib-common 1.0.0",
+ "lib-common",
  "log",
  "logtest",
  "num-derive",
@@ -2816,8 +2731,8 @@ dependencies = [
 
 [[package]]
 name = "svc-storage"
-version = "0.11.1-develop.16"
-source = "git+https://github.com/aetheric-oss/svc-storage.git?tag=latest-develop#0e303020dd295690242f4f176447a99de3fac8ff"
+version = "0.12.0"
+source = "git+https://github.com/aetheric-oss/svc-storage.git?tag=v0.12.0#257ca688d6ff6de4763c3188695ee7800c2d9e4d"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -2833,7 +2748,7 @@ dependencies = [
  "geo 0.26.0",
  "hyper",
  "lazy_static",
- "lib-common 0.2.1-develop.4",
+ "lib-common",
  "log",
  "log4rs",
  "native-tls",
@@ -2863,15 +2778,15 @@ dependencies = [
 
 [[package]]
 name = "svc-storage-client-grpc"
-version = "0.11.1-develop.16"
-source = "git+https://github.com/aetheric-oss/svc-storage.git?tag=latest-develop#0e303020dd295690242f4f176447a99de3fac8ff"
+version = "0.12.0"
+source = "git+https://github.com/aetheric-oss/svc-storage.git?tag=v0.12.0#257ca688d6ff6de4763c3188695ee7800c2d9e4d"
 dependencies = [
  "anyhow",
  "cfg-if",
  "futures",
  "geo 0.26.0",
  "lazy_static",
- "lib-common 0.2.1-develop.4",
+ "lib-common",
  "log",
  "num-derive",
  "num-traits",

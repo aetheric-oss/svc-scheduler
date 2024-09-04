@@ -239,7 +239,7 @@ sequenceDiagram
     scheduler->>scheduler: main control loop<br>create_itinerary_impl(&task)
     scheduler->>+storage: search(...)<br>1 Aircraft, 2 Vertipads Information
     storage->>scheduler: Records for the aircraft and<br>vertipads in proposed itinerary
-    scheduler->>scheduler: Confirm that itinerary is possible
+    scheduler->>scheduler: Confirm that itinerary is possible;<br>check intersections with existing zones<br>and flight paths
 
     break invalid itinerary
         scheduler->>scheduler: task.status = REJECTED<br>task.status_rationale = SCHEDULE_CONFLICT
@@ -557,7 +557,7 @@ sequenceDiagram
     scheduler->>scheduler: Build vertipads' availabilities<br>given existing flight plans<br>and the vertipad's operating hours.
     
     loop (possible departure timeslot, possible arrival timeslot)
-        scheduler->>scheduler: Calculate flight duration <br>between the two vertiports at<br>this time (considering temporary<br>no-fly zones and waypoints).
+        scheduler->>scheduler: Calculate flight duration <br>between the two vertiports at<br>this time (considering temporary<br>no-fly zones, existing flight paths, and waypoints).
         scheduler->>scheduler: If an aircraft can depart, travel,<br>and land within available<br>timeslots, append to results.
     end
 

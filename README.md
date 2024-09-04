@@ -136,15 +136,14 @@ The following documents are relevant to this service:
 - [Interface Control Document (ICD)](./docs/icd.md)
 - [Requirements](https://nocodb.aetheric.nl/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c)
 
-## :busts_in_silhouette: Arrow DAO
-Learn more about us:
-- [Website](https://www.arrowair.com/)
-- [Arrow Docs](https://www.arrowair.com/docs/intro)
-- [Discord](https://discord.com/invite/arrow)
+
+## :busts_in_silhouette: About Us
+Learn more about us: [Aetheric website](https://www.aetheric.nl)
 
 ## LICENSE Notice
 
-Please note that svc-scheduler is under BUSL license until the Change Date, currently the earlier of two years from the release date. Exceptions to the license may be specified by Arrow Governance via Additional Use Grants, which can, for example, allow svc-scheduler to be deployed for certain production uses. Please reach out to Arrow DAO to request a DAO vote for exceptions to the license, or to move up the Change Date.
+Please note that svc-scheduler is under BUSL license until the Change Date, currently the earlier of two years from the release date. Exceptions to the license may be specified by Aetheric Governance via Additional Use Grants, which can, for example, allow svc-scheduler to be deployed for certain production uses. Please reach out to Aetheric to request a vote for exceptions to the license, or to move up the Change Date.
+
 
 ## :exclamation: Treatment of `Cargo.lock`
 If you are building a non-end product like a library, include `Cargo.lock` in `.gitignore`.
