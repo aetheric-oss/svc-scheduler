@@ -1,3 +1,38 @@
+## [Release 0.5.0](https://github.com/aetheric-oss/svc-scheduler/releases/tag/v0.5.0)
+
+### ✨ Features
+
+- priority queues ([`a7e9c62`](https://github.com/aetheric-oss/svc-scheduler/commit/a7e9c62aeee7565f265a6e7e054ed0dcba446444))
+- add expiry argument to create itinerary ([`90d5cbe`](https://github.com/aetheric-oss/svc-scheduler/commit/90d5cbeedf4e944a83a86144791e098d48daf08d))
+- add user ID to request to create or cancel itinerary ([`8d9d711`](https://github.com/aetheric-oss/svc-scheduler/commit/8d9d7113b223a6285d5d3a56309fa4fc9d0aca2c))
+- add flight path to svc-gis ([`d01a9c3`](https://github.com/aetheric-oss/svc-scheduler/commit/d01a9c38b93dac9589716f679938ceda9002e9fb))
+- update deprecated chrono Duration calls ([`a9b2686`](https://github.com/aetheric-oss/svc-scheduler/commit/a9b26866403cf82c1ebe4c4fa3659a433ff65a47))
+- added session id to flight plan ([`3247ab5`](https://github.com/aetheric-oss/svc-scheduler/commit/3247ab52714e0bbecbc5a58a9cd9d4f258e6e589))
+- order by timeslot instead of aircraft ([`f926b47`](https://github.com/aetheric-oss/svc-scheduler/commit/f926b47ae57ee56dcea57bd08be12323ca3dbc2c))
+- added altitude information to flight plans ([`7a14add`](https://github.com/aetheric-oss/svc-scheduler/commit/7a14addbb8ca7865f134dcd3bb8ccee05d6103a2))
+- update lib-common references ([`73d4fbc`](https://github.com/aetheric-oss/svc-scheduler/commit/73d4fbc2baf403952fabe20d5998bc1a25182cd0))
+- update unit tests ([`2064d61`](https://github.com/aetheric-oss/svc-scheduler/commit/2064d6189189ebf68bf29ad2f46841c239bc86e1))
+
+### 🐛 Fixes
+
+- remove unused files ([`64d8c57`](https://github.com/aetheric-oss/svc-scheduler/commit/64d8c57c1c6b49b90c8305f1943a9775ef006c10))
+- fix task success bug, add result field to task response ([`44d1dd5`](https://github.com/aetheric-oss/svc-scheduler/commit/44d1dd5f57bcb3255f6bd3198ff898c8cdd4f39f))
+- prevent origin timeslots prior to current time ([`8177299`](https://github.com/aetheric-oss/svc-scheduler/commit/81772996ba20afa9ab0f58d9246a288c5a349547))
+- clippy errors ([`f1c8efb`](https://github.com/aetheric-oss/svc-scheduler/commit/f1c8efb30e5a593c4146b7dd20e19693f4d15c03))
+- eliminate default filter call ([`73f379e`](https://github.com/aetheric-oss/svc-scheduler/commit/73f379e7e9f7d42930ab58390005988dad586173))
+- add error log to config unwrap fail ([`7659f59`](https://github.com/aetheric-oss/svc-scheduler/commit/7659f595f2ae907dca99b2a394c2db6e230040c1))
+
+### 🛠 Maintenance
+
+- terraform provisioned file changes ([`27b2ab1`](https://github.com/aetheric-oss/svc-scheduler/commit/27b2ab12c3573389bada96fd31e3559eb2e4e2ef))
+- upgrade cargo dependencies ([`7a72669`](https://github.com/aetheric-oss/svc-scheduler/commit/7a72669c014582fbb54f604a4bc196ef2cbe7fad))
+- update spellcheck ([`895cf7f`](https://github.com/aetheric-oss/svc-scheduler/commit/895cf7f3cd2ca23614c9373a50198e26f77f2c7a))
+- tofu provisioned file changes ([`7a75e4d`](https://github.com/aetheric-oss/svc-scheduler/commit/7a75e4d041b28459db46cba78d80a2a36c2e812a))
+- update dependencies ([`87b0369`](https://github.com/aetheric-oss/svc-scheduler/commit/87b036939ab17e6b6d37f9d81a346494ec245f7a))
+- final r4 updates ([`4e63c13`](https://github.com/aetheric-oss/svc-scheduler/commit/4e63c1308e29b30191f57f1afe860793f9d0ec4f))
+- reviewer comments 1 ([`93970d3`](https://github.com/aetheric-oss/svc-scheduler/commit/93970d3b02af41cf876545dacdd41137586a4742))
+- reviewer comments 2 ([`7e4a76a`](https://github.com/aetheric-oss/svc-scheduler/commit/7e4a76a936020898737fdd37d68a2768f6ddde4c))
+
 ## [Release 0.4.0](https://github.com/Arrow-air/svc-scheduler/releases/tag/v0.4.0)
 
 ### ✨ Features
