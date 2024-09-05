@@ -1,7 +1,8 @@
 /// test utilities. Provides functions to inject mock data.
 use crate::grpc::client::get_clients;
-use chrono::DateTime;
 use lib_common::log_macros;
+use lib_common::time::{DateTime, Utc};
+use lib_common::uuid::Uuid;
 use svc_storage_client_grpc::prelude::*;
 use tokio::sync::OnceCell;
 
@@ -34,9 +35,10 @@ pub async fn ensure_storage_mock_data() {
     INIT_MOCK_DATA.get_or_init(init_mock_data).await;
 }
 
-pub async fn get_vertiports_from_storage() -> Vec<vertiport::Object> {
+pub async fn get_vertiports_from_storage() -> Result<Vec<vertiport::Object>, ()> {
     ensure_storage_mock_data().await;
-    match get_clients()
+
+    get_clients()
         .await
         .storage
         .vertiport
@@ -47,41 +49,10 @@ pub async fn get_vertiports_from_storage() -> Vec<vertiport::Object> {
             order_by: vec![],
         })
         .await
-    {
-        Ok(vertiports) => vertiports.into_inner().list,
-        Err(e) => {
-            ut_error!(
-                "(get_vertiports_from_storage) Could not find vertiports in MOCK service: {}",
-                e
-            );
-            vec![]
-        }
-    }
-}
-
-pub async fn get_vehicles_from_storage() -> Vec<vehicle::Object> {
-    ensure_storage_mock_data().await;
-    match get_clients()
-        .await
-        .storage
-        .vehicle
-        .search(AdvancedSearchFilter {
-            filters: vec![],
-            page_number: 0,
-            results_per_page: 100,
-            order_by: vec![],
+        .map(|response| response.into_inner().list)
+        .map_err(|e| {
+            ut_error!("Could not find vertiports in MOCK service: {}", e);
         })
-        .await
-    {
-        Ok(vehicles) => vehicles.into_inner().list,
-        Err(e) => {
-            ut_error!(
-                "(get_vehicles_from_storage) Could not find vehicles in MOCK service: {}",
-                e
-            );
-            vec![]
-        }
-    }
 }
 
 /// generate mock vertipads for the given vertiports
@@ -135,41 +106,41 @@ async fn generate_vertiports(client: &VertiportClient) -> Vec<vertiport::Object>
         "DTSTART:20221020T180000Z;DURATION:PT24H\nRRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR,SA,SU";
 
     let geo_locations = vec![
-        GeoPolygon {
-            exterior: Some(GeoLineString {
-                points: vec![GeoPoint {
-                    latitude: 37.7931,
-                    longitude: -122.46283,
+        GeoPolygonZ {
+            rings: vec![GeoLineStringZ {
+                points: vec![GeoPointZ {
+                    y: 37.7931,
+                    x: -122.46283,
+                    z: 0.0,
                 }],
-            }),
-            interiors: vec![],
+            }],
         },
-        GeoPolygon {
-            exterior: Some(GeoLineString {
-                points: vec![GeoPoint {
-                    latitude: 37.70278,
-                    longitude: -122.42883,
+        GeoPolygonZ {
+            rings: vec![GeoLineStringZ {
+                points: vec![GeoPointZ {
+                    y: 37.70278,
+                    x: -122.42883,
+                    z: 0.0,
                 }],
-            }),
-            interiors: vec![],
+            }],
         },
-        GeoPolygon {
-            exterior: Some(GeoLineString {
-                points: vec![GeoPoint {
-                    latitude: 37.73278,
-                    longitude: -122.45883,
+        GeoPolygonZ {
+            rings: vec![GeoLineStringZ {
+                points: vec![GeoPointZ {
+                    y: 37.73278,
+                    x: -122.45883,
+                    z: 0.0,
                 }],
-            }),
-            interiors: vec![],
+            }],
         },
-        GeoPolygon {
-            exterior: Some(GeoLineString {
-                points: vec![GeoPoint {
-                    latitude: 37.93278,
-                    longitude: -122.25883,
+        GeoPolygonZ {
+            rings: vec![GeoLineStringZ {
+                points: vec![GeoPointZ {
+                    y: 37.93278,
+                    x: -122.25883,
+                    z: 0.0,
                 }],
-            }),
-            interiors: vec![],
+            }],
         },
     ];
     for index in 0..geo_locations.len() {
@@ -397,7 +368,7 @@ async fn create_flight_plan(
             "%Y-%m-%d %H:%M:%S %z",
         )
         .unwrap()
-        .with_timezone(&chrono::Utc)
+        .with_timezone(&Utc)
         .into(),
     );
     flight_plan.origin_timeslot_end = Some(
@@ -406,7 +377,7 @@ async fn create_flight_plan(
             "%Y-%m-%d %H:%M:%S %z",
         )
         .unwrap()
-        .with_timezone(&chrono::Utc)
+        .with_timezone(&Utc)
         .into(),
     );
 
@@ -416,7 +387,7 @@ async fn create_flight_plan(
             "%Y-%m-%d %H:%M:%S %z",
         )
         .unwrap()
-        .with_timezone(&chrono::Utc)
+        .with_timezone(&Utc)
         .into(),
     );
     flight_plan.target_timeslot_end = Some(
@@ -425,11 +396,12 @@ async fn create_flight_plan(
             "%Y-%m-%d %H:%M:%S %z",
         )
         .unwrap()
-        .with_timezone(&chrono::Utc)
+        .with_timezone(&Utc)
         .into(),
     );
 
     flight_plan.flight_status = flight_plan::FlightStatus::Ready as i32;
+    flight_plan.session_id = format!("AETH{}", rand::random::<u16>());
 
     client
         .insert(flight_plan)
@@ -449,7 +421,7 @@ async fn generate_itinerary(
     let mut itineraries: Vec<itinerary::Object> = vec![];
 
     let itinerary = itinerary::Data {
-        user_id: uuid::Uuid::new_v4().to_string(),
+        user_id: Uuid::new_v4().to_string(),
         status: itinerary::ItineraryStatus::Active as i32,
     };
 

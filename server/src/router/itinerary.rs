@@ -9,10 +9,12 @@ use crate::grpc::client::GrpcClients;
 use svc_gis_client_grpc::prelude::gis::*;
 use svc_storage_client_grpc::prelude::*;
 
-use chrono::{DateTime, Duration, Utc};
+use lib_common::time::{DateTime, Duration, Utc};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter, Result as FmtResult};
+
+const MAX_ITINERARIES: usize = 2;
 
 /// Errors that may occur while processing an itinerary
 #[derive(Debug, Clone, PartialEq)]
@@ -21,7 +23,22 @@ pub enum ItineraryError {
     ClientError,
 
     /// The provided data was invalid
-    InvalidData,
+    Data,
+
+    /// The vehicle id was inconsistent
+    VehicleId,
+
+    /// Inconsistent vertipads
+    Vertipads,
+
+    /// Invalid time windows
+    TimeWindow,
+
+    /// No path provided
+    NoPath,
+
+    /// Path is too short
+    PathTooShort,
 
     /// No path could be found between the origin and target vertipads
     NoPathFound,
@@ -37,7 +54,12 @@ impl Display for ItineraryError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             ItineraryError::ClientError => write!(f, "Could not contact dependency."),
-            ItineraryError::InvalidData => write!(f, "Invalid data."),
+            ItineraryError::Data => write!(f, "Invalid data."),
+            ItineraryError::VehicleId => write!(f, "Inconsistent vehicle ID."),
+            ItineraryError::Vertipads => write!(f, "Inconsistent vertipads."),
+            ItineraryError::TimeWindow => write!(f, "Invalid time window."),
+            ItineraryError::NoPath => write!(f, "No path provided."),
+            ItineraryError::PathTooShort => write!(f, "Path is too short."),
             ItineraryError::NoPathFound => write!(f, "No path found."),
             ItineraryError::ScheduleConflict => write!(f, "Schedule conflict."),
             ItineraryError::Internal => write!(f, "Internal error."),
@@ -55,12 +77,12 @@ pub fn validate_itinerary(
     aircraft_id: &mut String,
 ) -> Result<(), ItineraryError> {
     if flight_plans.is_empty() {
-        router_error!("(validate_itinerary) No flight plans provided.");
-        return Err(ItineraryError::InvalidData);
+        router_error!("No flight plans provided.");
+        return Err(ItineraryError::Data);
     }
 
     if flight_plans.len() == 1 {
-        router_debug!("(validate_itinerary) Only one flight plan provided.");
+        router_debug!("Only one flight plan provided.");
         *aircraft_id = flight_plans[0].vehicle_id.clone();
         vertipad_ids.insert(flight_plans[0].origin_vertipad_id.clone());
         vertipad_ids.insert(flight_plans[0].target_vertipad_id.clone());
@@ -73,57 +95,74 @@ pub fn validate_itinerary(
         if fp_1.target_vertipad_id != fp_2.origin_vertipad_id {
             let error_msg = "Flight plan arrivals and departures don't match";
             router_error!(
-                "(validate_itinerary) {error_msg}: {} -> {}",
+                "{error_msg}: {} -> {}",
                 fp_1.target_vertipad_id,
                 fp_2.origin_vertipad_id
             );
 
-            return Err(ItineraryError::InvalidData);
+            return Err(ItineraryError::Vertipads);
         }
 
         vertipad_ids.insert(fp_1.origin_vertipad_id.clone());
         vertipad_ids.insert(fp_1.target_vertipad_id.clone());
+        vertipad_ids.insert(fp_2.origin_vertipad_id.clone());
         vertipad_ids.insert(fp_2.target_vertipad_id.clone());
 
         if aircraft_id.is_empty() {
             *aircraft_id = fp_1.vehicle_id.clone();
         }
 
-        if fp_1.vehicle_id != fp_2.vehicle_id {
-            router_error!(
-                "(validate_itinerary) Flight plans should use the same aircraft: {:#?}",
-                flight_plans
-            );
-
-            return Err(ItineraryError::InvalidData);
-        }
-
         if *aircraft_id != fp_2.vehicle_id {
             router_error!(
-                "(validate_itinerary) Flight plans should use the same aircraft: {:#?}",
+                "Flight plans should use the same aircraft: {:#?}",
                 flight_plans
             );
 
-            return Err(ItineraryError::InvalidData);
+            return Err(ItineraryError::VehicleId);
         }
 
         if fp_1.origin_timeslot_start >= fp_1.target_timeslot_start {
             router_error!(
-                "(validate_itinerary) Flight plans should be in order of departure time: {:#?}",
+                "Flight plans should be in order of departure time: {:#?}",
                 flight_plans
             );
 
-            return Err(ItineraryError::InvalidData);
+            return Err(ItineraryError::TimeWindow);
         }
 
-        if fp_1.target_timeslot_end >= fp_2.origin_timeslot_start {
+        if fp_1.target_timeslot_end > fp_2.origin_timeslot_start {
             router_error!(
-                "(validate_itinerary) Flight plans should be in order of departure time: {:#?}",
+                "Flight plans should be in order of departure time: {:#?}",
                 flight_plans
             );
 
-            return Err(ItineraryError::InvalidData);
+            return Err(ItineraryError::TimeWindow);
         }
+
+        for fp in [fp_1, fp_2] {
+            let length = fp
+                .path
+                .as_ref()
+                .ok_or_else(|| {
+                    router_error!("Flight plan should have a path: {:#?}", flight_plans);
+                    ItineraryError::NoPath
+                })?
+                .len();
+
+            if length < 2 {
+                router_error!(
+                    "Flight plan path needs two or more points: {:#?}",
+                    flight_plans
+                );
+
+                return Err(ItineraryError::PathTooShort);
+            }
+        }
+    }
+
+    if aircraft_id.is_empty() {
+        router_error!("No aircraft id found.");
+        return Err(ItineraryError::Data);
     }
 
     Ok(())
@@ -133,6 +172,8 @@ pub fn validate_itinerary(
 ///  availabilities of the aircraft, get possible itineraries for each
 ///  aircraft.
 /// Returns a maximum of 1 itinerary per aircraft.
+#[cfg(not(tarpaulin_include))]
+// no_coverage: (R5) need running backend, integration tests
 pub async fn calculate_itineraries(
     required_loading_time: &Duration,
     required_unloading_time: &Duration,
@@ -141,60 +182,61 @@ pub async fn calculate_itineraries(
     clients: &GrpcClients,
 ) -> Result<Vec<Vec<flight_plan::Data>>, ItineraryError> {
     let mut itineraries: Vec<Vec<flight_plan::Data>> = vec![];
+    let mut ordered: Vec<(String, Availability)> = aircraft_gaps
+        .iter()
+        .flat_map(|(k, vs)| {
+            vs.iter()
+                .map(|v| (k.clone(), v.to_owned()))
+                .collect::<Vec<(String, Availability)>>()
+        })
+        .collect();
 
-    // router_debug!(
-    //     "(calculate_itineraries) aircraft_gaps: {:#?}",
-    //     aircraft_gaps
-    // );
-    // router_debug!(
-    //     "(calculate_itineraries) timeslot_pairs: {:#?}",
-    //     timeslot_pairs
-    // );
+    ordered.sort_by(|a, b| a.1.timeslot.time_start().cmp(&b.1.timeslot.time_start()));
 
     // For each available aircraft, see if it can do the flight
-    for (aircraft_id, aircraft_availability) in aircraft_gaps {
-        // Try different timeslots for the aircraft
-        for pair in timeslot_pairs {
-            // TODO(R4): Include vehicle model to improve estimate
-            let Ok(flight_duration) = estimate_flight_time_seconds(&pair.distance_meters) else {
-                router_error!(
-                    "(calculate_itineraries) Could not estimate flight time for aircraft {}.",
-                    aircraft_id
-                );
+    'outer: for pair in timeslot_pairs {
+        // TODO(R5): Include vehicle model to improve estimate
+        let flight_duration = estimate_flight_time_seconds(&pair.distance_meters).map_err(|e| {
+            router_error!("Could not estimate flight time: {e}.",);
 
-                continue;
-            };
+            ItineraryError::Internal
+        })?;
 
-            let flight_window = Timeslot {
-                time_start: pair.origin_timeslot.time_start,
-                time_end: pair.target_timeslot.time_end,
-            };
+        let Ok(flight_window) = Timeslot::new(
+            pair.origin_timeslot.time_start(),
+            pair.target_timeslot.time_end(),
+        ) else {
+            router_error!("Could not create flight window.");
+            continue;
+        };
 
-            let points = pair
+        let path = Some(GeoLineStringZ {
+            points: pair
                 .path
                 .clone()
                 .into_iter()
-                .map(|point| GeoPoint {
-                    latitude: point.latitude,
-                    longitude: point.longitude,
-                    // z: 0.0, // TODO(R5): add altitude to svc-storage
+                .map(|point| GeoPointZ {
+                    y: point.latitude,
+                    x: point.longitude,
+                    z: point.altitude_meters as f64,
                 })
-                .collect();
+                .collect(),
+        });
 
-            let path = Some(GeoLineString { points });
+        for (aircraft_id, availability) in &ordered {
             let flight_plan = svc_storage_client_grpc::prelude::flight_plan::Data {
                 origin_vertiport_id: Some(pair.origin_vertiport_id.clone()),
                 target_vertiport_id: Some(pair.target_vertiport_id.clone()),
                 origin_vertipad_id: pair.origin_vertipad_id.clone(),
                 target_vertipad_id: pair.target_vertipad_id.clone(),
-                path,
+                path: path.clone(),
                 vehicle_id: aircraft_id.clone(),
                 ..Default::default()
             };
 
-            match aircraft_selection(
-                flight_plan,
-                aircraft_availability,
+            let itinerary = match get_itinerary(
+                flight_plan.clone(),
+                availability,
                 &flight_duration,
                 required_loading_time,
                 required_unloading_time,
@@ -203,79 +245,31 @@ pub async fn calculate_itineraries(
             )
             .await
             {
-                Ok(itinerary) => itineraries.push(itinerary),
+                Ok(itinerary) => itinerary,
                 Err(ItineraryError::ClientError) => {
                     // exit immediately if svc-gis is down, don't allow new flights
-                    router_error!(
-                        "(calculate_itineraries) Could not determine path; client error."
-                    );
+                    router_error!("Could not determine path; client error.");
+
                     return Err(ItineraryError::ClientError);
                 }
                 _ => {
-                    router_debug!(
-                        "(calculate_itineraries) No itinerary found for aircraft {}.",
-                        aircraft_id
-                    );
+                    router_debug!("No itinerary found for aircraft {}.", aircraft_id);
                     continue;
                 }
+            };
+
+            itineraries.push(itinerary);
+            if itineraries.len() >= MAX_ITINERARIES {
+                router_info!("max itineraries reached {}.", itineraries.len());
+
+                break 'outer;
             }
         }
     }
 
-    router_info!(
-        "(calculate_itineraries) found {} itineraries.",
-        itineraries.len()
-    );
+    router_info!("found {} itineraries.", itineraries.len());
 
     Ok(itineraries)
-}
-
-/// Iterate through an aircraft's available timeslots
-///  and see if it can do the requested flight.
-/// TODO(R4): Return more than one itinerary per aircraft
-async fn aircraft_selection(
-    flight_plan: flight_plan::Data,
-    availability: &[Availability],
-    flight_duration: &Duration,
-    required_loading_time: &Duration,
-    required_unloading_time: &Duration,
-    flight_window: &Timeslot,
-    clients: &GrpcClients,
-) -> Result<Vec<flight_plan::Data>, ItineraryError> {
-    router_debug!("(aircraft_selection) availabilities: {:#?}", availability);
-
-    for gap in availability.iter() {
-        match get_itinerary(
-            flight_plan.clone(),
-            gap,
-            flight_duration,
-            required_loading_time,
-            required_unloading_time,
-            flight_window,
-            clients,
-        )
-        .await
-        {
-            Ok(itinerary) => {
-                // only return the first valid itinerary for an aircraft
-                return Ok(itinerary);
-            }
-            Err(ItineraryError::ClientError) => {
-                // exit immediately if svc-gis is down, don't allow new flights
-                router_error!("(aircraft_selection) Could not determine path; client error.");
-                return Err(ItineraryError::ClientError);
-            }
-            _ => {
-                router_debug!(
-                    "(aircraft_selection) No itinerary found for aircraft {}.",
-                    flight_plan.vehicle_id
-                );
-                continue;
-            }
-        }
-    }
-
-    Err(ItineraryError::ScheduleConflict)
 }
 
 /// Struct to hold flight plan metadata
@@ -293,11 +287,13 @@ struct DeadheadHelperArgs<'a> {
 }
 
 /// Helper function to create a flight plan for a deadhead flight
+#[cfg(not(tarpaulin_include))]
+// no_coverage: (R5) need running backend, integration tests
 async fn deadhead_helper(
     clients: &GrpcClients,
     args: DeadheadHelperArgs<'_>,
 ) -> Result<flight_plan::Data, ItineraryError> {
-    router_debug!("(deadhead_helper) Deadhead to departure vertiport.");
+    router_debug!("Deadhead to departure vertiport.");
     // See what the path and cost would be for a flight between the starting
     // available timeslot and the ending flight time
     let best_path_request = BestPathRequest {
@@ -310,14 +306,14 @@ async fn deadhead_helper(
         limit: 1,
     };
 
-    let paths = match best_path(&best_path_request, clients).await {
+    let mut paths = match best_path(&best_path_request, clients).await {
         Ok(paths) => paths,
         Err(BestPathError::NoPathFound) => {
             // no path found, perhaps temporary no-fly zone
             //  is blocking journeys from this depart timeslot
             // Break out and try the next depart timeslot
             router_debug!(
-                "(deadhead_helper) No path found from vertiport {}
+                "No path found from vertiport {}
             to vertiport {} (from {} to {}).",
                 best_path_request.origin_identifier,
                 best_path_request.target_identifier,
@@ -329,31 +325,25 @@ async fn deadhead_helper(
         }
         Err(BestPathError::ClientError) => {
             // exit immediately if svc-gis is down, don't allow new flights
-            router_error!("(deadhead_helper) Could not determine path.");
+            router_error!("Could not determine path.");
             return Err(ItineraryError::ClientError);
         }
     };
 
-    let Some(path) = paths.first() else {
-        router_error!("(deadhead_helper) No path found.");
-        return Err(ItineraryError::NoPathFound);
-    };
-
-    let distance_meters = path.1 as f32;
-    let path = path.0.clone();
+    let (path, distance_meters) = paths.remove(0);
     let points = path
         .into_iter()
-        .map(|point| GeoPoint {
-            latitude: point.latitude,
-            longitude: point.longitude,
-            // z: 0.0, // TODO(R5): add altitude to svc-storage
+        .map(|point| GeoPointZ {
+            y: point.latitude,
+            x: point.longitude,
+            z: point.altitude_meters as f64,
         })
         .collect();
 
-    let path = Some(GeoLineString { points });
+    let path = Some(GeoLineStringZ { points });
 
     let flight_duration = estimate_flight_time_seconds(&distance_meters).map_err(|e| {
-        router_error!("(deadhead_helper) Could not estimate flight time: {e}");
+        router_error!("Could not estimate flight time: {e}");
         ItineraryError::Internal
     })?;
 
@@ -386,7 +376,7 @@ async fn deadhead_helper(
     if target_timeslot_end > args.arrival_latest {
         // This flight plan would eat into the aircraft's next itinerary
         //  Break out and try the next available timeslot
-        router_debug!("(deadhead_helper) Flight plan would end too late.");
+        router_debug!("Flight plan would end too late.");
         println!("(deadhead_helper) Flight plan would end too late.");
         return Err(ItineraryError::ScheduleConflict);
     }
@@ -405,40 +395,37 @@ async fn get_itinerary(
     flight_window: &Timeslot,
     clients: &GrpcClients,
 ) -> Result<Vec<flight_plan::Data>, ItineraryError> {
-    router_debug!("(get_itinerary) entry.");
+    router_debug!("entry.");
 
     println!("(get_itinerary) entry.");
 
     // Must be some overlap between the flight window and the available timeslot
     let Ok(overlap) = availability.timeslot.overlap(flight_window) else {
-        router_debug!("(get_itinerary) No overlap between flight window and available timeslot.");
+        router_debug!("No overlap between flight window and available timeslot.");
         return Err(ItineraryError::ScheduleConflict);
     };
 
     println!("(get_itinerary) overlap: {:#?}", overlap);
 
     let Some(ref origin_vertiport_id) = flight_plan.origin_vertiport_id else {
-        router_error!("(get_itinerary) Flight plan doesn't have origin_vertiport_id.",);
-        return Err(ItineraryError::InvalidData);
+        router_error!("Flight plan doesn't have origin_vertiport_id.",);
+        return Err(ItineraryError::Data);
     };
 
     let Some(ref target_vertiport_id) = flight_plan.target_vertiport_id else {
-        router_error!("(get_itinerary) Flight plan doesn't have target_vertiport_id.",);
-        return Err(ItineraryError::InvalidData);
+        router_error!("Flight plan doesn't have target_vertiport_id.",);
+        return Err(ItineraryError::Data);
     };
 
     let vehicle_id = flight_plan.vehicle_id.clone();
-    let deadhead_loading_time = Duration::try_seconds(0).ok_or_else(|| {
-        router_error!("(get_itinerary) error creating loading time.");
-        ItineraryError::Internal
-    })?;
+    let deadhead_loading_time = Duration::zero();
 
     //
     // 1) Create the flight plan for the deadhead flight to the requested departure vertiport
     //
     let mut flight_plans = vec![];
     if *origin_vertiport_id != availability.vertiport_id {
-        router_debug!("(get_itinerary) plotting deadhead to origin.");
+        router_debug!("plotting deadhead to origin.");
         println!("(get_itinerary) plotting deadhead to origin.");
 
         let args = DeadheadHelperArgs {
@@ -447,9 +434,9 @@ async fn get_itinerary(
             target_vertiport_id: origin_vertiport_id,
             target_vertipad_id: &flight_plan.origin_vertipad_id,
             vehicle_id: &vehicle_id,
-            aircraft_earliest: availability.timeslot.time_start,
-            vertipad_earliest: overlap.time_start,
-            arrival_latest: overlap.time_end,
+            aircraft_earliest: availability.timeslot.time_start(),
+            vertipad_earliest: overlap.time_start(),
+            arrival_latest: overlap.time_end(),
             required_loading_time: deadhead_loading_time, // deadhead - no loading
             required_unloading_time: deadhead_loading_time, // deadhead - no unloading
         };
@@ -457,8 +444,7 @@ async fn get_itinerary(
         let deadhead = match deadhead_helper(clients, args).await {
             Ok(deadhead) => deadhead,
             Err(e) => {
-                router_error!("(get_itinerary) Couldn't schedule deadhead flight: {e}");
-                println!("(get_itinerary) Couldn't schedule deadhead flight: {e}");
+                router_error!("Couldn't schedule deadhead flight: {e}");
                 return Err(ItineraryError::ScheduleConflict);
             }
         };
@@ -469,28 +455,31 @@ async fn get_itinerary(
     //
     // 2) Create the flight plan for the requested flight
     //
-    router_debug!("(get_itinerary) plotting primary flight plan.");
+    router_debug!("plotting primary flight plan.");
     println!("(get_itinerary) plotting primary flight plan.");
     let origin_timeslot_start: DateTime<Utc> = match flight_plans.last() {
-        Some(last) => match &last.target_timeslot_end {
-            Some(s) => s.clone().into(),
-            None => {
-                router_error!("(get_itinerary) Last flight plan has no scheduled target.");
-
-                return Err(ItineraryError::InvalidData);
-            }
-        },
+        Some(last) => last
+            .target_timeslot_end
+            .clone()
+            .ok_or_else(|| {
+                router_error!("Last flight plan has no scheduled target.");
+                ItineraryError::Data
+            })?
+            .into(),
         // leave at earliest possible time
-        None => max(flight_window.time_start, availability.timeslot.time_start),
+        None => max(
+            flight_window.time_start(),
+            availability.timeslot.time_start(),
+        ),
     };
 
     let origin_timeslot_end = origin_timeslot_start + *required_loading_time;
     let target_timeslot_start = origin_timeslot_end + *flight_duration;
     let target_timeslot_end = target_timeslot_start + *required_unloading_time;
 
-    if target_timeslot_end > overlap.time_end {
+    if target_timeslot_end > overlap.time_end() {
         // This flight plan would exceed the flight window
-        router_debug!("(get_itinerary) Flight plan would end too late.");
+        router_debug!("Flight plan would end too late.");
         println!("(get_itinerary) Flight plan would end too late.");
         return Err(ItineraryError::ScheduleConflict);
     }
@@ -508,20 +497,20 @@ async fn get_itinerary(
     //  when flight is completed
     //
     if *target_vertiport_id != availability.vertiport_id {
-        router_debug!("(get_itinerary) plotting deadhead from target.");
+        router_debug!("plotting deadhead from target.");
         println!("(get_itinerary) plotting deadhead from target.");
 
-        // TODO(R4) - Get nearest open rest stop/hangar, direct to it
+        // TODO(R5) - Get nearest open rest stop/hangar, direct to it
         //  right now it boomerangs back to its original last_vertiport_id
 
         let Some(last_arrival) = &main_flight_plan.target_timeslot_end else {
-            router_error!("(get_itinerary) Last flight plan has no scheduled arrival.");
-            return Err(ItineraryError::InvalidData);
+            router_error!("Last flight plan has no scheduled arrival.");
+            return Err(ItineraryError::Data);
         };
 
         let Some(target_vertiport_id) = &main_flight_plan.target_vertiport_id else {
-            router_error!("(get_itinerary) Last flight plan has no target vertiport.");
-            return Err(ItineraryError::InvalidData);
+            router_error!("Last flight plan has no target vertiport.");
+            return Err(ItineraryError::Data);
         };
 
         let args = DeadheadHelperArgs {
@@ -532,7 +521,7 @@ async fn get_itinerary(
             vehicle_id: &vehicle_id,
             aircraft_earliest: (*last_arrival).clone().into(),
             vertipad_earliest: (*last_arrival).clone().into(), // reserved pad can be accessed any time
-            arrival_latest: availability.timeslot.time_end,
+            arrival_latest: availability.timeslot.time_end(),
             required_loading_time: deadhead_loading_time, // deadhead - no loading
             required_unloading_time: deadhead_loading_time, // deadhead - no unloading
         };
@@ -540,7 +529,7 @@ async fn get_itinerary(
         let deadhead = match deadhead_helper(clients, args).await {
             Ok(deadhead) => deadhead,
             Err(e) => {
-                router_error!("(get_itinerary) Couldn't schedule deadhead flight: {e}");
+                router_error!("Couldn't schedule deadhead flight: {e}");
                 println!("(get_itinerary) Couldn't schedule deadhead flight: {e}");
                 return Err(ItineraryError::ScheduleConflict);
             }
@@ -549,7 +538,7 @@ async fn get_itinerary(
         flight_plans.push(deadhead);
     }
 
-    router_debug!("(get_itinerary) flight_plans: {:#?}", flight_plans);
+    router_debug!("flight_plans: {:#?}", flight_plans);
     Ok(flight_plans)
 }
 
@@ -557,7 +546,7 @@ async fn get_itinerary(
 mod tests {
     use super::*;
     use crate::grpc::client::get_clients;
-    use uuid::Uuid;
+    use lib_common::uuid::Uuid;
 
     #[tokio::test]
     #[cfg(feature = "stub_backends")]
@@ -577,18 +566,13 @@ mod tests {
         let aircraft_availability = Availability {
             vertiport_id: vertiport_1.clone(),
             vertipad_id: vertipad_1.clone(),
-            timeslot: Timeslot {
-                time_start: time_start - Duration::try_seconds(1000).unwrap(),
-                time_end: time_end,
-            },
+            timeslot: Timeslot::new(time_start - Duration::try_seconds(1000).unwrap(), time_end)
+                .unwrap(),
         };
 
         let distance_meters = 50.0;
         let flight_duration = estimate_flight_time_seconds(&distance_meters).unwrap();
-        let flight_window = Timeslot {
-            time_end,
-            time_start,
-        };
+        let flight_window = Timeslot::new(time_start, time_end).unwrap();
 
         let flight_plan = flight_plan::Data {
             origin_vertiport_id: Some(vertiport_3.clone()),
@@ -596,7 +580,7 @@ mod tests {
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineString { points: vec![] }),
+            path: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -696,18 +680,16 @@ mod tests {
         let aircraft_availability = Availability {
             vertiport_id: vertiport_1.clone(),
             vertipad_id: vertipad_1.clone(),
-            timeslot: Timeslot {
-                time_start: time_start - Duration::try_seconds(1000).unwrap(),
-                time_end: time_end + Duration::try_seconds(1000).unwrap(),
-            },
+            timeslot: Timeslot::new(
+                time_start - Duration::try_seconds(1000).unwrap(),
+                time_end + Duration::try_seconds(1000).unwrap(),
+            )
+            .unwrap(),
         };
 
         let distance_meters = 50.0;
         let flight_duration = estimate_flight_time_seconds(&distance_meters).unwrap();
-        let flight_window = Timeslot {
-            time_end,
-            time_start,
-        };
+        let flight_window = Timeslot::new(time_start, time_end).unwrap();
 
         let flight_plan = flight_plan::Data {
             origin_vertiport_id: Some(vertiport_3.clone()),
@@ -715,7 +697,7 @@ mod tests {
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineString { points: vec![] }),
+            path: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -795,18 +777,13 @@ mod tests {
         let aircraft_availability = Availability {
             vertiport_id: vertiport_1.clone(),
             vertipad_id: vertipad_1.clone(),
-            timeslot: Timeslot {
-                time_start: time_start - Duration::try_seconds(1000).unwrap(),
-                time_end,
-            },
+            timeslot: Timeslot::new(time_start - Duration::try_seconds(1000).unwrap(), time_end)
+                .unwrap(),
         };
 
         let distance_meters = 50.0;
         let flight_duration = estimate_flight_time_seconds(&distance_meters).unwrap();
-        let flight_window = Timeslot {
-            time_start,
-            time_end,
-        };
+        let flight_window = Timeslot::new(time_start, time_end).unwrap();
 
         let flight_plan = flight_plan::Data {
             origin_vertiport_id: Some(vertiport_1.clone()),
@@ -814,7 +791,7 @@ mod tests {
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineString { points: vec![] }),
+            path: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -898,18 +875,16 @@ mod tests {
         let aircraft_availability = Availability {
             vertiport_id: vertiport_1.clone(),
             vertipad_id: vertipad_1.clone(),
-            timeslot: Timeslot {
-                time_start: time_start + Duration::try_minutes(10).unwrap(),
-                time_end: time_end - Duration::try_minutes(20).unwrap(),
-            },
+            timeslot: Timeslot::new(
+                time_start + Duration::try_minutes(10).unwrap(),
+                time_end - Duration::try_minutes(20).unwrap(),
+            )
+            .unwrap(),
         };
 
         let distance_meters = 50.0;
         let flight_duration = estimate_flight_time_seconds(&distance_meters).unwrap();
-        let flight_window = Timeslot {
-            time_end,
-            time_start,
-        };
+        let flight_window = Timeslot::new(time_start, time_end).unwrap();
 
         let flight_plan = flight_plan::Data {
             origin_vertiport_id: Some(vertiport_3.clone()),
@@ -917,7 +892,7 @@ mod tests {
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineString { points: vec![] }),
+            path: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -969,7 +944,7 @@ mod tests {
         // First itinerary for aircraft leaves at earliest aircraft convenience
         assert_eq!(
             itinerary[0].origin_timeslot_start.clone().unwrap(),
-            aircraft_availability.timeslot.time_start.into()
+            aircraft_availability.timeslot.time_start().into()
         );
     }
 
@@ -995,18 +970,16 @@ mod tests {
         let aircraft_availability = Availability {
             vertiport_id: vertiport_1.clone(),
             vertipad_id: vertipad_1.clone(),
-            timeslot: Timeslot {
-                time_start: time_end - Duration::try_seconds(30).unwrap(),
-                time_end: time_end + Duration::try_minutes(20).unwrap(),
-            },
+            timeslot: Timeslot::new(
+                time_end - Duration::try_seconds(30).unwrap(),
+                time_end + Duration::try_minutes(20).unwrap(),
+            )
+            .unwrap(),
         };
 
         let distance_meters = 1000.0; // too far to fly
         let flight_duration = estimate_flight_time_seconds(&distance_meters).unwrap();
-        let flight_window = Timeslot {
-            time_end,
-            time_start,
-        };
+        let flight_window = Timeslot::new(time_start, time_end).unwrap();
 
         let flight_plan = flight_plan::Data {
             origin_vertiport_id: Some(vertiport_3.clone()),
@@ -1014,7 +987,7 @@ mod tests {
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineString { points: vec![] }),
+            path: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -1054,10 +1027,11 @@ mod tests {
                 vec![Availability {
                     vertiport_id: vertiport_1.clone(),
                     vertipad_id: vertipad_1.clone(),
-                    timeslot: Timeslot {
-                        time_start: time_start - Duration::try_hours(1).unwrap(),
-                        time_end: time_end + Duration::try_hours(1).unwrap(),
-                    },
+                    timeslot: Timeslot::new(
+                        time_start - Duration::try_hours(1).unwrap(),
+                        time_end + Duration::try_hours(1).unwrap(),
+                    )
+                    .unwrap(),
                 }],
             ),
             (
@@ -1065,10 +1039,11 @@ mod tests {
                 vec![Availability {
                     vertiport_id: vertiport_3.clone(),
                     vertipad_id: vertipad_3.clone(),
-                    timeslot: Timeslot {
-                        time_start: time_end + Duration::try_hours(1).unwrap(),
-                        time_end: time_end + Duration::try_hours(2).unwrap(),
-                    },
+                    timeslot: Timeslot::new(
+                        time_end + Duration::try_hours(1).unwrap(),
+                        time_end + Duration::try_hours(2).unwrap(),
+                    )
+                    .unwrap(),
                 }],
             ),
         ]);
@@ -1079,32 +1054,32 @@ mod tests {
             TimeslotPair {
                 origin_vertiport_id: vertiport_1.clone(),
                 origin_vertipad_id: vertipad_1.clone(),
-                origin_timeslot: Timeslot {
-                    time_start: time_start.clone(),
-                    time_end: time_end.clone(),
-                },
+                origin_timeslot: Timeslot::new(time_start.clone(), time_end.clone()).unwrap(),
                 target_vertiport_id: vertiport_2.clone(),
                 target_vertipad_id: vertiport_2.clone(),
-                target_timeslot: Timeslot {
-                    time_start: time_start + flight_duration,
-                    time_end: time_end + flight_duration,
-                },
+                target_timeslot: Timeslot::new(
+                    time_start + flight_duration,
+                    time_end + flight_duration,
+                )
+                .unwrap(),
                 path: vec![],
                 distance_meters,
             },
             TimeslotPair {
                 origin_vertiport_id: vertiport_1.clone(),
                 origin_vertipad_id: vertipad_1.clone(),
-                origin_timeslot: Timeslot {
-                    time_start: time_end + Duration::try_hours(1).unwrap(),
-                    time_end: time_end + Duration::try_hours(2).unwrap(),
-                },
+                origin_timeslot: Timeslot::new(
+                    time_end + Duration::try_hours(1).unwrap(),
+                    time_end + Duration::try_hours(2).unwrap(),
+                )
+                .unwrap(),
                 target_vertiport_id: vertiport_2.clone(),
                 target_vertipad_id: vertiport_2.clone(),
-                target_timeslot: Timeslot {
-                    time_start: time_end + Duration::try_hours(1).unwrap() + flight_duration,
-                    time_end: time_end + Duration::try_hours(2).unwrap() + flight_duration,
-                },
+                target_timeslot: Timeslot::new(
+                    time_end + Duration::try_hours(1).unwrap() + flight_duration,
+                    time_end + Duration::try_hours(2).unwrap() + flight_duration,
+                )
+                .unwrap(),
                 path: vec![],
                 distance_meters,
             },
@@ -1133,11 +1108,33 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_itinerary_empty_flight_plans() {
+    fn test_validate_itinerary_not_enough_flight_plans() {
         let mut vertipad_ids = HashSet::<String>::new();
         let mut aircraft_id = String::new();
         let e = validate_itinerary(&vec![], &mut vertipad_ids, &mut aircraft_id).unwrap_err();
-        assert_eq!(e, ItineraryError::InvalidData);
+        assert_eq!(e, ItineraryError::Data);
+
+        let vehicle_id = Uuid::new_v4().to_string();
+        let _ = validate_itinerary(
+            &vec![FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: Uuid::new_v4().to_string(),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: Uuid::new_v4().to_string(),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
+                vehicle_id: vehicle_id.clone(),
+                path: Some(vec![]),
+            }],
+            &mut vertipad_ids,
+            &mut aircraft_id,
+        )
+        .unwrap();
+
+        assert_eq!(vertipad_ids.len(), 2);
+        assert_eq!(aircraft_id, vehicle_id);
     }
 
     #[test]
@@ -1145,7 +1142,7 @@ mod tests {
         let mut vertipad_ids = HashSet::<String>::new();
         let mut aircraft_id = String::new();
 
-        let vehicle_id = uuid::Uuid::new_v4();
+        let vehicle_id = Uuid::new_v4();
         let vertipad_1 = Uuid::new_v4().to_string();
         let vertipad_2 = Uuid::new_v4().to_string();
 
@@ -1160,6 +1157,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: Some(vec![]),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1170,12 +1168,67 @@ mod tests {
                 target_vertipad_id: Uuid::new_v4().to_string(),
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
-                vehicle_id: uuid::Uuid::new_v4().to_string(),
+                vehicle_id: Uuid::new_v4().to_string(),
+                path: Some(vec![]),
             },
         ];
 
         let e = validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id).unwrap_err();
-        assert_eq!(e, ItineraryError::InvalidData);
+        assert_eq!(e, ItineraryError::VehicleId);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_validate_itinerary_invalid_paths() -> Result<(), ItineraryError> {
+        let mut vertipad_ids = HashSet::<String>::new();
+        let mut aircraft_id = String::new();
+
+        let vehicle_id = Uuid::new_v4().to_string();
+        let vertipad_1 = Uuid::new_v4().to_string();
+        let vertipad_2 = Uuid::new_v4().to_string();
+
+        let mut flight_plans = vec![
+            FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: vertipad_1.clone(),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: vertipad_2.clone(),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
+                vehicle_id: vehicle_id.clone(),
+                path: None,
+            },
+            FlightPlanSchedule {
+                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertipad_id: vertipad_2.clone(),
+                origin_timeslot_start: Utc::now() + Duration::try_minutes(31).unwrap(),
+                origin_timeslot_end: Utc::now() + Duration::try_minutes(32).unwrap(),
+                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertipad_id: Uuid::new_v4().to_string(),
+                target_timeslot_start: Utc::now() + Duration::try_minutes(33).unwrap(),
+                target_timeslot_end: Utc::now() + Duration::try_minutes(34).unwrap(),
+                vehicle_id,
+                path: None,
+            },
+        ];
+
+        let e = validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id).unwrap_err();
+        assert_eq!(e, ItineraryError::NoPath);
+
+        flight_plans[0].path = Some(vec![]);
+        let e = validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id).unwrap_err();
+        assert_eq!(e, ItineraryError::PathTooShort);
+
+        flight_plans[0].path = Some(vec![PointZ {
+            latitude: 0.0,
+            longitude: 0.0,
+            altitude_meters: 0.0,
+        }]);
+        let e = validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id).unwrap_err();
+        assert_eq!(e, ItineraryError::PathTooShort);
 
         Ok(())
     }
@@ -1185,7 +1238,7 @@ mod tests {
         let mut vertipad_ids = HashSet::<String>::new();
         let mut aircraft_id = String::new();
 
-        let vehicle_id = uuid::Uuid::new_v4();
+        let vehicle_id = Uuid::new_v4();
         let flight_plans = vec![
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1197,6 +1250,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: Some(vec![]),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1208,11 +1262,12 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: Some(vec![]),
             },
         ];
 
         let e = validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id).unwrap_err();
-        assert_eq!(e, ItineraryError::InvalidData);
+        assert_eq!(e, ItineraryError::Vertipads);
 
         Ok(())
     }
@@ -1222,24 +1277,26 @@ mod tests {
         let mut vertipad_ids = HashSet::<String>::new();
         let mut aircraft_id = String::new();
 
-        let vehicle_id = uuid::Uuid::new_v4();
+        let vehicle_id = Uuid::new_v4();
         let vertipad_1 = Uuid::new_v4().to_string();
         let vertipad_2 = Uuid::new_v4().to_string();
 
+        let vertiport_2 = Uuid::new_v4().to_string();
         let flight_plans = vec![
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
                 origin_vertipad_id: vertipad_1.clone(),
                 origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
                 origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
-                target_vertiport_id: Uuid::new_v4().to_string(),
+                target_vertiport_id: vertiport_2.clone(),
                 target_vertipad_id: vertipad_2.clone(),
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: Some(vec![]),
             },
             FlightPlanSchedule {
-                origin_vertiport_id: Uuid::new_v4().to_string(),
+                origin_vertiport_id: vertiport_2,
                 origin_vertipad_id: vertipad_2.clone(),
                 origin_timeslot_start: Utc::now() + Duration::try_minutes(10).unwrap(),
                 origin_timeslot_end: Utc::now() + Duration::try_minutes(11).unwrap(),
@@ -1248,11 +1305,12 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(40).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(41).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: Some(vec![]),
             },
         ];
 
         let e = validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id).unwrap_err();
-        assert_eq!(e, ItineraryError::InvalidData);
+        assert_eq!(e, ItineraryError::TimeWindow);
         Ok(())
     }
 
@@ -1261,9 +1319,22 @@ mod tests {
         let mut vertipad_ids = HashSet::<String>::new();
         let mut aircraft_id = String::new();
 
-        let vehicle_id = uuid::Uuid::new_v4();
+        let vehicle_id = Uuid::new_v4();
         let vertipad_1 = Uuid::new_v4().to_string();
         let vertipad_2 = Uuid::new_v4().to_string();
+
+        let path = Some(vec![
+            PointZ {
+                latitude: 0.0,
+                longitude: 0.0,
+                altitude_meters: 0.0,
+            },
+            PointZ {
+                latitude: 0.0,
+                longitude: 0.0,
+                altitude_meters: 0.0,
+            },
+        ]);
 
         let flight_plans = vec![
             FlightPlanSchedule {
@@ -1276,6 +1347,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path: path.clone(),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1287,6 +1359,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(40).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(41).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
+                path,
             },
         ];
 
@@ -1299,5 +1372,37 @@ mod tests {
         assert!(vertipad_ids.contains(&flight_plans[1].target_vertipad_id));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_itinerary_error_display() {
+        assert_eq!(
+            ItineraryError::ClientError.to_string(),
+            "Could not contact dependency."
+        );
+        assert_eq!(ItineraryError::Data.to_string(), "Invalid data.");
+        assert_eq!(
+            ItineraryError::VehicleId.to_string(),
+            "Inconsistent vehicle ID."
+        );
+        assert_eq!(ItineraryError::NoPath.to_string(), "No path provided.");
+        assert_eq!(
+            ItineraryError::PathTooShort.to_string(),
+            "Path is too short."
+        );
+        assert_eq!(
+            ItineraryError::TimeWindow.to_string(),
+            "Invalid time window."
+        );
+        assert_eq!(
+            ItineraryError::Vertipads.to_string(),
+            "Inconsistent vertipads."
+        );
+        assert_eq!(
+            ItineraryError::ScheduleConflict.to_string(),
+            "Schedule conflict."
+        );
+        assert_eq!(ItineraryError::Internal.to_string(), "Internal error.");
+        assert_eq!(ItineraryError::NoPathFound.to_string(), "No path found.");
     }
 }

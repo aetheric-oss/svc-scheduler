@@ -3,11 +3,11 @@ members  = ["server", "client-grpc"]
 resolver = "2"
 
 [workspace.package]
-authors      = ["arrow-services <group-services@arrowair.com>"]
+authors      = ["A.M. Smith <alex@aetheric.nl>"]
 edition      = "2021"
-homepage     = "https://www.arrowair.com/docs/documentation/services/intro"
+homepage     = "https://www.aetheric.nl"
 license-file = "LICENSE"
-repository   = "https://github.com/Arrow-air/svc-scheduler"
+repository   = "https://github.com/aetheric-oss/svc-scheduler"
 
 categories = [
   "aerospace::drones",

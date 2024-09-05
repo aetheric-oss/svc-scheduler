@@ -1,6 +1,6 @@
 ## DO NOT EDIT!
-# This file was provisioned by Terraform
-# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/all/.make/rust.mk
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/all/.make/rust.mk
 
 RUST_IMAGE_NAME     ?= ghcr.io/arrow-air/tools/arrow-rust
 RUST_IMAGE_TAG      ?= 1.2
@@ -108,7 +108,7 @@ rust-check: check-cargo-registry rust-docker-pull
 rust-test-features: $(EXCLUSIVE_FEATURES_TEST)
 $(EXCLUSIVE_FEATURES_TEST):
 	@echo "$(CYAN)Running cargo test for feature $@...$(SGR0)"
-	@$(call cargo_run,test,--features $@ --workspace)
+	@$(call cargo_run,test,--features $@ --target-dir target/test/$@ --workspace)
 rust-test: check-cargo-registry rust-docker-pull rust-test-features
 	@echo "$(CYAN)Running cargo test with features [$(PACKAGE_UT_FEATURES)]...$(SGR0)"
 	@$(call cargo_run,test,--features $(PACKAGE_UT_FEATURES) --workspace)
@@ -142,7 +142,7 @@ rust-tidy: check-cargo-registry rust-docker-pull
 
 rust-doc: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running cargo doc...$(SGR0)"
-	@$(call cargo_run,doc,--no-deps)
+	@$(call cargo_run,doc,--all-features --no-deps)
 
 rust-openapi: check-cargo-registry rust-docker-pull rust-build
 	@echo "$(CYAN)Generating openapi documentation...$(SGR0)"

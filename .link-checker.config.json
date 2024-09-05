@@ -1,2 +1,16 @@
 {
+    "ignorePatterns": [
+        {
+        "pattern": "nocodb.aetheric.nl"
+        }
+    ],
+    "httpHeaders": [
+        {
+        "urls": ["https://docs.github.com/"],
+        "headers": {
+            "Accept-Encoding": "zstd, br, gzip, deflate"
+        }
+        }
+    ],
+    "timeout": "5s"
 }

@@ -23,6 +23,8 @@ cfg_if::cfg_if! {
 }
 
 #[cfg(feature = "stub_client")]
+use lib_common::uuid::Uuid;
+#[cfg(feature = "stub_client")]
 use rand::Rng;
 
 #[cfg(not(feature = "stub_client"))]
@@ -35,8 +37,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: Self::ReadyRequest,
     ) -> Result<tonic::Response<Self::ReadyResponse>, tonic::Status> {
-        grpc_info!("(is_ready) {} client.", self.get_name());
-        grpc_debug!("(is_ready) request: {:?}", request);
+        grpc_info!("{} client.", self.get_name());
+        grpc_debug!("request: {:?}", request);
         let mut client = self.get_client().await?;
         client.is_ready(request).await
     }
@@ -45,8 +47,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: QueryFlightRequest,
     ) -> Result<tonic::Response<QueryFlightResponse>, tonic::Status> {
-        grpc_info!("(query_flight) {} client.", self.get_name());
-        grpc_debug!("(query_flight) request: {:?}", request);
+        grpc_info!("{} client.", self.get_name());
+        grpc_debug!("request: {:?}", request);
         let mut client = self.get_client().await?;
         client.query_flight(request).await
     }
@@ -55,8 +57,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: CreateItineraryRequest,
     ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
-        grpc_info!("(create_itinerary) {} client.", self.get_name());
-        grpc_debug!("(create_itinerary) request: {:?}", request);
+        grpc_info!("{} client.", self.get_name());
+        grpc_debug!("request: {:?}", request);
         let mut client = self.get_client().await?;
         client.create_itinerary(request).await
     }
@@ -65,8 +67,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: CancelItineraryRequest,
     ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
-        grpc_info!("(cancel_itinerary) {} client.", self.get_name());
-        grpc_debug!("(cancel_itinerary) request: {:?}", request);
+        grpc_info!("{} client.", self.get_name());
+        grpc_debug!("request: {:?}", request);
         let mut client = self.get_client().await?;
         client.cancel_itinerary(request).await
     }
@@ -75,8 +77,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: TaskRequest,
     ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
-        grpc_info!("(cancel_task) {} client.", self.get_name());
-        grpc_debug!("(cancel_task) request: {:?}", request);
+        grpc_info!("{} client.", self.get_name());
+        grpc_debug!("request: {:?}", request);
         let mut client = self.get_client().await?;
         client.cancel_task(request).await
     }
@@ -85,8 +87,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: TaskRequest,
     ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
-        grpc_info!("(get_task_status) {} client.", self.get_name());
-        grpc_debug!("(get_task_status) request: {:?}", request);
+        grpc_info!("{} client.", self.get_name());
+        grpc_debug!("request: {:?}", request);
         let mut client = self.get_client().await?;
         client.get_task_status(request).await
     }
@@ -102,8 +104,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: Self::ReadyRequest,
     ) -> Result<tonic::Response<Self::ReadyResponse>, tonic::Status> {
-        grpc_warn!("(is_ready MOCK) {} client.", self.get_name());
-        grpc_debug!("(is_ready MOCK) request: {:?}", request);
+        grpc_warn!("(MOCK) {} client.", self.get_name());
+        grpc_debug!("(MOCK) request: {:?}", request);
         Ok(tonic::Response::new(ReadyResponse { ready: true }))
     }
 
@@ -111,8 +113,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: QueryFlightRequest,
     ) -> Result<tonic::Response<QueryFlightResponse>, tonic::Status> {
-        grpc_warn!("(query_flight MOCK) {} client.", self.get_name());
-        grpc_debug!("(query_flight MOCK) request: {:?}", request);
+        grpc_warn!("(MOCK) {} client.", self.get_name());
+        grpc_debug!("(MOCK) request: {:?}", request);
         let flight_plan_data = prelude::scheduler_storage::flight_plan::mock::get_future_data_obj();
         let itineraries = vec![Itinerary {
             flight_plans: vec![flight_plan_data],
@@ -125,8 +127,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: CreateItineraryRequest,
     ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
-        grpc_warn!("(create_itinerary MOCK) {} client.", self.get_name());
-        grpc_debug!("(create_itinerary MOCK) request: {:?}", request);
+        grpc_warn!("(MOCK) {} client.", self.get_name());
+        grpc_debug!("(MOCK) request: {:?}", request);
         let mut rng = rand::thread_rng();
         Ok(tonic::Response::new(TaskResponse {
             task_id: rng.gen_range(0..1000000),
@@ -135,6 +137,7 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
                 status_rationale: None,
                 action: TaskAction::CreateItinerary.into(),
                 user_id: request.user_id,
+                result: None,
             }),
         }))
     }
@@ -143,8 +146,8 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: CancelItineraryRequest,
     ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
-        grpc_info!("(cancel_itinerary MOCK) {} client.", self.get_name());
-        grpc_debug!("(cancel_itinerary MOCK) request: {:?}", request);
+        grpc_info!("(MOCK) {} client.", self.get_name());
+        grpc_debug!("(MOCK) request: {:?}", request);
         let mut rng = rand::thread_rng();
         Ok(tonic::Response::new(TaskResponse {
             task_id: rng.gen_range(0..1000000),
@@ -153,6 +156,7 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
                 status_rationale: None,
                 action: TaskAction::CancelItinerary.into(),
                 user_id: request.user_id,
+                result: None,
             }),
         }))
     }
@@ -161,15 +165,16 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: TaskRequest,
     ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
-        grpc_info!("(cancel_task MOCK) {} client.", self.get_name());
-        grpc_debug!("(cancel_task MOCK) request: {:?}", request);
+        grpc_info!("(MOCK) {} client.", self.get_name());
+        grpc_debug!("(MOCK) request: {:?}", request);
         Ok(tonic::Response::new(TaskResponse {
             task_id: request.task_id,
             task_metadata: Some(TaskMetadata {
                 status: TaskStatus::Rejected.into(),
                 status_rationale: Some(TaskStatusRationale::ClientCancelled.into()),
                 action: TaskAction::CancelItinerary.into(),
-                user_id: uuid::Uuid::new_v4().to_string(), // arbitrary
+                user_id: Uuid::new_v4().to_string(), // arbitrary
+                result: None,
             }),
         }))
     }
@@ -178,15 +183,16 @@ impl crate::service::Client<RpcServiceClient<Channel>> for SchedulerClient {
         &self,
         request: TaskRequest,
     ) -> Result<tonic::Response<TaskResponse>, tonic::Status> {
-        grpc_info!("(get_task_status MOCK) {} client.", self.get_name());
-        grpc_debug!("(get_task_status MOCK) request: {:?}", request);
+        grpc_info!("(MOCK) {} client.", self.get_name());
+        grpc_debug!("(MOCK) request: {:?}", request);
         Ok(tonic::Response::new(TaskResponse {
             task_id: request.task_id,
             task_metadata: Some(TaskMetadata {
                 status: TaskStatus::Complete.into(),
                 status_rationale: None,
                 action: TaskAction::CreateItinerary.into(),
-                user_id: uuid::Uuid::new_v4().to_string(), // arbitrary
+                user_id: Uuid::new_v4().to_string(), // arbitrary
+                result: None,
             }),
         }))
     }
@@ -226,5 +232,112 @@ mod tests {
         println!("{:?}", result);
         assert!(result.is_ok());
         assert_eq!(result.unwrap().into_inner().ready, true);
+    }
+
+    #[test]
+    fn test_task_status_display() {
+        assert_eq!(TaskStatus::Queued.as_str_name(), "QUEUED");
+        assert_eq!(TaskStatus::Complete.as_str_name(), "COMPLETE");
+        assert_eq!(TaskStatus::Rejected.as_str_name(), "REJECTED");
+        assert_eq!(TaskStatus::NotFound.as_str_name(), "NOT_FOUND");
+
+        assert_eq!(
+            TaskStatus::from_str_name("QUEUED"),
+            Some(TaskStatus::Queued)
+        );
+        assert_eq!(
+            TaskStatus::from_str_name("COMPLETE"),
+            Some(TaskStatus::Complete)
+        );
+        assert_eq!(
+            TaskStatus::from_str_name("REJECTED"),
+            Some(TaskStatus::Rejected)
+        );
+        assert_eq!(
+            TaskStatus::from_str_name("NOT_FOUND"),
+            Some(TaskStatus::NotFound)
+        );
+        assert_eq!(TaskStatus::from_str_name("INVALID_STATUS"), None);
+    }
+
+    #[test]
+    fn test_task_status_rationale_display() {
+        assert_eq!(
+            TaskStatusRationale::InvalidAction.as_str_name(),
+            "INVALID_ACTION"
+        );
+        assert_eq!(
+            TaskStatusRationale::ClientCancelled.as_str_name(),
+            "CLIENT_CANCELLED"
+        );
+        assert_eq!(TaskStatusRationale::Internal.as_str_name(), "INTERNAL");
+        assert_eq!(
+            TaskStatusRationale::PriorityChange.as_str_name(),
+            "PRIORITY_CHANGE"
+        );
+        assert_eq!(
+            TaskStatusRationale::ScheduleConflict.as_str_name(),
+            "SCHEDULE_CONFLICT"
+        );
+        assert_eq!(
+            TaskStatusRationale::ItineraryIdNotFound.as_str_name(),
+            "ITINERARY_ID_NOT_FOUND"
+        );
+        assert_eq!(TaskStatusRationale::Expired.as_str_name(), "EXPIRED");
+
+        assert_eq!(
+            TaskStatusRationale::from_str_name("INVALID_ACTION"),
+            Some(TaskStatusRationale::InvalidAction)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("CLIENT_CANCELLED"),
+            Some(TaskStatusRationale::ClientCancelled)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("INTERNAL"),
+            Some(TaskStatusRationale::Internal)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("PRIORITY_CHANGE"),
+            Some(TaskStatusRationale::PriorityChange)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("SCHEDULE_CONFLICT"),
+            Some(TaskStatusRationale::ScheduleConflict)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("ITINERARY_ID_NOT_FOUND"),
+            Some(TaskStatusRationale::ItineraryIdNotFound)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("EXPIRED"),
+            Some(TaskStatusRationale::Expired)
+        );
+        assert_eq!(
+            TaskStatusRationale::from_str_name("INVALID_RATIONALE"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_task_action_display() {
+        assert_eq!(
+            TaskAction::CreateItinerary.as_str_name(),
+            "CREATE_ITINERARY"
+        );
+        assert_eq!(
+            TaskAction::CancelItinerary.as_str_name(),
+            "CANCEL_ITINERARY"
+        );
+
+        assert_eq!(
+            TaskAction::from_str_name("CREATE_ITINERARY"),
+            Some(TaskAction::CreateItinerary)
+        );
+        assert_eq!(
+            TaskAction::from_str_name("CANCEL_ITINERARY"),
+            Some(TaskAction::CancelItinerary)
+        );
+        assert_eq!(TaskAction::from_str_name("INVALID_ACTION"), None);
     }
 }

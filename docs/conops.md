@@ -1,4 +1,4 @@
-![Arrow Banner](https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png)
+![Aetheric Banner](https://github.com/aetheric-oss/.github/raw/main/assets/doc-banner.png)
 
 # Concept of Operations - `svc-scheduler`
 
@@ -12,8 +12,8 @@
 
 | Attribute     | Description                                                       |
 | ------------- |-------------------------------------------------------------------|
-| Maintainer(s) | [Services Team](https://github.com/orgs/Arrow-air/teams/services) |
-| Stuckee       | A.M. Smith ([@ServiceDog](https://github.com/servicedog))         |
+| Maintainer(s) | [Aetheric Realm Team](https://github.com/orgs/aetheric-oss/teams/dev-realm) |
+| Stuckee       | A.M. Smith ([@amsmith-pro](https://github.com/amsmith-pro))         |
 | Status        | Development                                                       |
 
 
@@ -21,9 +21,9 @@
 
 Document | Description
 --- | ---
-[High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md) | Overview of Arrow microservices.
-[High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Arrow microservices.
-[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
+[High-Level Concept of Operations (CONOPS)](https://github.com/aetheric-oss/se-services/blob/develop/docs/conops.md) | Overview of Aetheric microservices.
+[High-Level Interface Control Document (ICD)](https://github.com/aetheric-oss/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Aetheric microservices.
+[Requirements - `svc-scheduler`](https://nocodb.aetheric.nl/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
 [Interface Control Document (ICD) - `svc-scheduler`](./icd.md) | Defines the inputs and outputs of this microservice.
 [Software Design Document (SDD) - `svc-scheduler`](./sdd.md) | Specifies the internal activity of this microservice.
 [Routing Scenarios](https://docs.google.com/presentation/d/1Nt91KVIczhxngurfyeIJtG8J0m_38jGU1Cnqm1_BfPc/edit#slide=id.g1454d6dfbcf_0_731) | Graphical representation of various routing scenarios
@@ -78,7 +78,6 @@ flowchart LR
 classDef subgraph_padding fill:none,stroke:none
 class p subgraph_padding
 ```
-</center>
 
 Explanation:
 1) `svc-scheduler` obtains current aircraft and vertiport information from `svc-storage`.
@@ -188,7 +187,7 @@ Even a small delay at one vertipad has the power to propagate to the whole netwo
 
 ### Aircraft
 
-Aircraft from multiple manufacturers may operate on the Arrow network. Different makes and models may have differing specifications, such as cargo capacity, range, and handicap accessibility.
+Aircraft from multiple manufacturers may operate on the Aetheric network. Different makes and models may have differing specifications, such as cargo capacity, range, and handicap accessibility.
 
 These factors are considered by the scheduler when matching an aircraft to a flight plan, as well as proximity to the departure location at the departure time.
 

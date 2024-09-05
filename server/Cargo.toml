@@ -1,8 +1,8 @@
 [package]
-description = "Arrow fleet routing and vertiport scheduling with gRPC API."
-keywords    = ["vtol", "server", "grpc", "rest", "scheduler"]               # max 5
+description = "Aetheric fleet routing and vertiport scheduling with gRPC API."
+keywords    = ["vtol", "server", "grpc", "rest", "scheduler"]                  # max 5
 name        = "svc-scheduler"
-version     = "0.4.1-develop.5"
+version     = "0.4.1-develop.9"
 
 authors.workspace      = true
 categories.workspace   = true
@@ -33,8 +33,6 @@ stub_client = ["stub_backends"]
 anyhow           = "1.0"
 cargo-husky      = "1"
 cfg-if           = "1.0"
-chrono           = { version = "0.4", features = ["serde"] }
-chrono-tz        = "0.8"
 clap             = { version = "4.4", features = ["derive"] }
 config           = "0.13"
 deadpool-redis   = { version = "0.13", features = ["serde"] }
@@ -61,12 +59,11 @@ tokio            = { version = "1.33", features = ["full"] }
 tokio-util       = "0.7"
 tonic            = "0.10"
 tonic-health     = "0.10"
-uuid             = { version = "1.5", features = ["serde", "v4"] }
 vecmath          = "1.0"
 
 [dependencies.lib-common]
-git = "https://github.com/Arrow-air/lib-common.git"
-tag = "latest-develop"
+git = "https://github.com/aetheric-oss/lib-common.git"
+tag = "v2.0.0"
 
 [dependencies.svc-storage-client-grpc]
 features = [
@@ -77,12 +74,12 @@ features = [
   "vertiport",
   "group",
 ]
-git = "https://github.com/Arrow-air/svc-storage.git"
-tag = "latest-develop"
+git = "https://github.com/aetheric-oss/svc-storage.git"
+tag = "v0.12.0"
 
 [dependencies.svc-gis-client-grpc]
-git = "https://github.com/Arrow-air/svc-gis.git"
-tag = "latest-develop"
+git = "https://github.com/aetheric-oss/svc-gis.git"
+tag = "v0.2.0"
 
 [dependencies.log4rs]
 features = [

@@ -90,3 +90,7 @@ seccomp
 Lcov
 linestring
 rotorcraft
+AETH
+datelike
+amsmith
+Rnever

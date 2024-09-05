@@ -1,8 +1,8 @@
 //! Provides calendar/scheduling utilities
 //! Parses and serializes string RRULEs with duration and provides api to query if time slot is available.
 
-use chrono::{DateTime, Duration, NaiveDateTime, TimeZone, Utc};
 use iso8601_duration::Duration as Iso8601Duration;
+use lib_common::time::{chrono_tz, DateTime, Duration, NaiveDateTime, TimeZone, Utc};
 pub use rrule::{RRuleSet, Tz as RRuleTz};
 use std::cmp::{max, min};
 use std::fmt::{Display, Formatter, Result as FmtResult};
@@ -14,34 +14,65 @@ const MAX_EVENT_COUNT: u16 = 100;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Timeslot {
-    pub time_start: DateTime<Utc>,
-    pub time_end: DateTime<Utc>,
+    time_start: DateTime<Utc>,
+    time_end: DateTime<Utc>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum TimeslotError {
+    /// The timeslots do not overlap
     NoOverlap,
+
+    /// The end time is before the start time
+    Invalid,
+}
+
+impl Display for TimeslotError {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        match self {
+            TimeslotError::NoOverlap => write!(f, "No overlap between timeslots"),
+            TimeslotError::Invalid => write!(f, "Invalid timeslot"),
+        }
+    }
 }
 
 impl Timeslot {
+    pub fn new(time_start: DateTime<Utc>, time_end: DateTime<Utc>) -> Result<Self, TimeslotError> {
+        if time_end < time_start {
+            return Err(TimeslotError::Invalid);
+        }
+
+        Ok(Self {
+            time_start,
+            time_end,
+        })
+    }
+
+    pub fn time_end(&self) -> DateTime<Utc> {
+        self.time_end
+    }
+
+    pub fn time_start(&self) -> DateTime<Utc> {
+        self.time_start
+    }
+
     pub fn duration(&self) -> Duration {
-        self.time_end - self.time_start
+        self.time_end() - self.time_start
     }
 
     pub fn split(&self, min_duration: &Duration, max_duration: &Duration) -> Vec<Timeslot> {
         let mut slots = vec![];
         let mut current_time = self.time_start;
 
-        while current_time < self.time_end {
+        while current_time < self.time_end() {
             let next_time = min(current_time + *max_duration, self.time_end);
-            let timeslot = Timeslot {
-                time_start: current_time,
-                time_end: next_time,
-            };
 
-            if timeslot.duration() >= *min_duration {
-                slots.push(timeslot);
-            }
+            // if new timeslot is valid and >= the minimum duration
+            let _ = Timeslot::new(current_time, next_time).map(|timeslot| {
+                if timeslot.duration() >= *min_duration {
+                    slots.push(timeslot);
+                }
+            });
 
             current_time = next_time;
         }
@@ -59,7 +90,7 @@ impl Timeslot {
             time_end: min(self.time_end, other.time_end),
         };
 
-        if slot.time_start >= slot.time_end {
+        if slot.time_start() >= slot.time_end() {
             return Err(TimeslotError::NoOverlap);
         }
 
@@ -73,7 +104,7 @@ impl Sub for Timeslot {
     fn sub(self, other: Self) -> Self::Output {
         // Occupied slot ends before available slot starts
         //  or occupied slot starts after available slot ends
-        if self.time_end <= other.time_start || self.time_start >= other.time_end {
+        if self.time_end() <= other.time_start() || self.time_start() >= other.time_end() {
             return vec![self];
         }
 
@@ -83,7 +114,7 @@ impl Sub for Timeslot {
         //     | Available | Available |
         //                =
         //       (no available slots)
-        if other.time_start <= self.time_start && other.time_end >= self.time_end {
+        if other.time_start() <= self.time_start() && other.time_end() >= self.time_end() {
             // other timeslot obliterates this available timeslot
             return vec![];
         }
@@ -94,17 +125,18 @@ impl Sub for Timeslot {
         // |     Available          |
         //            =
         // | Av. |           | Av.  |
-        if self.time_start < other.time_start && self.time_end > other.time_end {
-            return vec![
-                Timeslot {
-                    time_start: self.time_start,
-                    time_end: other.time_start,
-                },
-                Timeslot {
-                    time_start: other.time_end,
-                    time_end: self.time_end,
-                },
-            ];
+        if self.time_start() < other.time_start() && self.time_end() > other.time_end() {
+            let mut results = vec![];
+
+            if let Ok(left) = Timeslot::new(self.time_start, other.time_start) {
+                results.push(left);
+            };
+
+            if let Ok(right) = Timeslot::new(other.time_end, self.time_end) {
+                results.push(right);
+            };
+
+            return results;
         }
 
         //        | Occupied |
@@ -112,11 +144,11 @@ impl Sub for Timeslot {
         // | Available |
         //       =
         //  | Av. |
-        if self.time_start < other.time_start && self.time_end <= other.time_end {
-            return vec![Timeslot {
-                time_start: self.time_start,
-                time_end: other.time_start,
-            }];
+        if self.time_start() < other.time_start() && self.time_end() <= other.time_end() {
+            match Timeslot::new(self.time_start, other.time_start) {
+                Ok(left) => return vec![left],
+                Err(_) => return vec![],
+            }
         }
 
         //
@@ -125,25 +157,25 @@ impl Sub for Timeslot {
         //      |     Available      |
         //            =
         //                     | Av. |
-        if self.time_start >= other.time_start && self.time_end > other.time_end {
-            return vec![Timeslot {
-                time_start: other.time_end,
-                time_end: self.time_end,
-            }];
+        if self.time_start() >= other.time_start() && self.time_end() > other.time_end() {
+            match Timeslot::new(other.time_end, self.time_end) {
+                Ok(right) => return vec![right],
+                Err(_) => return vec![],
+            }
         }
 
-        router_warn!("(sub) Unhandled case: {:?} {:?}", self, other);
+        router_warn!("Unhandled case: {:?} {:?}", self, other);
 
         vec![]
     }
 }
 
-// /// formats chrono::DateTime to string in format: `YYYYMMDDThhmmssZ`, e.g. 20221026T133000Z
+// /// formats DateTime to string in format: `YYYYMMDDThhmmssZ`, e.g. 20221026T133000Z
 fn datetime_to_ical_format(dt: &DateTime<RRuleTz>) -> String {
-    router_debug!("(datetime_to_ical_format) {:?}", dt);
+    router_debug!("{:?}", dt);
     let mut tz_prefix = String::new();
     let mut tz_postfix = String::new();
-    router_debug!("(datetime_to_ical_format) tz: {:?}", dt.timezone());
+    router_debug!("tz: {:?}", dt.timezone());
     let tz = dt.timezone();
     match tz {
         RRuleTz::Local(_) => {}
@@ -158,7 +190,7 @@ fn datetime_to_ical_format(dt: &DateTime<RRuleTz>) -> String {
     }
 
     let dt = dt.format("%Y%m%dT%H%M%S");
-    router_debug!("(datetime_to_ical_format) dt: {:?}", dt);
+    router_debug!("dt: {:?}", dt);
     format!("{}{}{}", tz_prefix, dt, tz_postfix)
 }
 
@@ -208,22 +240,22 @@ impl FromStr for Calendar {
     ///   "DTSTART:20221020T180000Z;DURATION:PT1H" not "DURATION:PT1H;DTSTART:20221020T180000Z"
     /// Duration is in ISO8601 format (`iso8601_duration` crate)
     fn from_str(calendar_str: &str) -> Result<Self, Self::Err> {
-        router_debug!("(from_str) Parsing calendar: {}", calendar_str);
+        router_debug!("Parsing calendar: {}", calendar_str);
         let rrule_sets: Vec<&str> = calendar_str
             .split("DTSTART:")
             .filter(|s| !s.is_empty())
             .collect();
-        router_debug!("(from_str) rrule_sets: {:?}", rrule_sets);
+        router_debug!("rrule_sets: {:?}", rrule_sets);
         let mut recurrent_events: Vec<RecurrentEvent> = Vec::new();
         for rrule_set_str in rrule_sets {
-            router_debug!("(from_str) rrule_set_str: {}", rrule_set_str);
+            router_debug!("rrule_set_str: {}", rrule_set_str);
             let rrules_with_header: Vec<&str> = rrule_set_str
                 .split('\n')
                 .filter(|s| !s.is_empty())
                 .collect();
             if rrules_with_header.len() < 2 {
                 router_error!(
-                    "(from_str) Invalid rrule {} with header length: {}",
+                    "Invalid rrule {} with header length: {}",
                     calendar_str,
                     rrules_with_header.len()
                 );
@@ -236,42 +268,36 @@ impl FromStr for Calendar {
                 .filter(|s| !s.is_empty())
                 .collect();
             if header_parts.len() != 2 {
-                router_error!(
-                    "(from_str) Invalid header parts length: {}",
-                    header_parts.len()
-                );
+                router_error!("Invalid header parts length: {}", header_parts.len());
                 return Err(CalendarError::HeaderPartsLength);
             }
 
             let dtstart = header_parts[0];
             let duration: &str = header_parts[1];
-            let Ok(duration) = duration.parse::<Iso8601Duration>() else {
-                router_error!("(from_str) Invalid duration: {:?}", duration);
-                return Err(CalendarError::Duration);
-            };
-
-            let Some(duration) = duration.to_chrono() else {
-                router_error!(
-                    "(from_str) Could not convert duration to chrono::DateTime: {:?}",
-                    duration
-                );
-                return Err(CalendarError::Duration);
-            };
+            let duration = duration
+                .parse::<Iso8601Duration>()
+                .map_err(|e| {
+                    router_error!("Invalid duration: {:?}", e);
+                    CalendarError::Duration
+                })?
+                .to_chrono()
+                .ok_or_else(|| {
+                    router_error!("Could not convert duration to DateTime: {:?}", duration);
+                    CalendarError::Duration
+                })?;
 
             let str = "DTSTART:".to_owned() + dtstart + "\n" + rrules.join("\n").as_str();
-            let rrset_res = RRuleSet::from_str(&str);
-
-            let Ok(rrule_set) = rrset_res else {
-                router_error!("(from_str) Invalid rrule set: {:?}", rrset_res.unwrap_err());
-                return Err(CalendarError::RruleSet);
-            };
+            let rrule_set = RRuleSet::from_str(&str).map_err(|e| {
+                router_error!("Invalid rrule set: {:?}", e);
+                CalendarError::RruleSet
+            })?;
 
             recurrent_events.push(RecurrentEvent {
                 rrule_set,
                 duration,
             });
         }
-        router_debug!("(from_str) Parsed calendar: {:?}", recurrent_events);
+        router_debug!("Parsed calendar: {:?}", recurrent_events);
         Ok(Calendar {
             events: recurrent_events,
         })
@@ -347,10 +373,14 @@ impl Calendar {
                     continue;
                 }
 
-                let timeslot = Timeslot {
-                    time_start: max(slot_start, *time_start),
-                    time_end: min(slot_end, *time_end),
-                };
+                let timeslot = Timeslot::new(
+                    max(slot_start, *time_start),
+                    min(slot_end, *time_end),
+                )
+                .map_err(|e| {
+                    router_error!("(Calendar to_timeslots) could not make timeslot {:?}", e);
+                    CalendarError::Internal
+                })?;
 
                 router_debug!("(Calendar to_timeslots) timeslot: {:?}", &timeslot);
                 timeslots.push(timeslot);
@@ -364,7 +394,7 @@ impl Calendar {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{Duration, TimeZone, Utc};
+    use lib_common::time::{Duration, LocalResult, TimeZone, Utc};
     use std::str::FromStr;
 
     const CAL_WORKDAYS_8AM_6PM: &str = "DTSTART:20221020T180000Z;DURATION:PT14H\n\
@@ -430,14 +460,12 @@ mod tests {
 
         let cal_start = Utc.with_ymd_and_hms(2022, 10, 20, 8, 0, 0).unwrap();
         let expected_timeslots = vec![
-            Timeslot {
-                time_start: cal_start,                                 // 8AM
-                time_end: cal_start + Duration::try_hours(4).unwrap(), // 12PM
-            },
-            Timeslot {
-                time_start: cal_start + Duration::try_hours(6).unwrap(), // 2PM
-                time_end: cal_start + Duration::try_hours(10).unwrap(),  // 6PM
-            },
+            Timeslot::new(cal_start, cal_start + Duration::try_hours(4).unwrap()).unwrap(),
+            Timeslot::new(
+                cal_start + Duration::try_hours(6).unwrap(),
+                cal_start + Duration::try_hours(10).unwrap(),
+            )
+            .unwrap(),
         ];
 
         // Get full day schedule
@@ -469,14 +497,8 @@ mod tests {
         let end: DateTime<Utc> = cal_start + Duration::try_hours(8).unwrap();
 
         let expected_timeslots = vec![
-            Timeslot {
-                time_start: start,                                     // 10 AM
-                time_end: cal_start + Duration::try_hours(4).unwrap(), // 12PM
-            },
-            Timeslot {
-                time_start: cal_start + Duration::try_hours(6).unwrap(), // 2PM
-                time_end: end,                                           // 4PM
-            },
+            Timeslot::new(start, cal_start + Duration::try_hours(4).unwrap()).unwrap(),
+            Timeslot::new(cal_start + Duration::try_hours(6).unwrap(), end).unwrap(),
         ];
 
         // Get full day schedule
@@ -502,10 +524,7 @@ mod tests {
         let start: DateTime<Utc> = cal_start + Duration::try_hours(2).unwrap();
         let end: DateTime<Utc> = cal_start + Duration::try_hours(3).unwrap();
 
-        let expected_timeslots = vec![Timeslot {
-            time_start: start, // 10 AM
-            time_end: end,     // 11AM
-        }];
+        let expected_timeslots = vec![Timeslot::new(start, end).unwrap()];
 
         // Get full day schedule
         let timeslots = calendar.to_timeslots(&start, &end).unwrap();
@@ -532,20 +551,36 @@ mod tests {
         let end: DateTime<Utc> = cal_start + Duration::try_hours(16).unwrap();
 
         let expected_timeslots = vec![
-            Timeslot {
-                time_start: cal_start,                                 // 8
-                time_end: cal_start + Duration::try_hours(4).unwrap(), // 12
-            },
-            Timeslot {
-                time_start: cal_start + Duration::try_hours(6).unwrap(), // 14
-                time_end: cal_start + Duration::try_hours(10).unwrap(),  // 18
-            },
+            Timeslot::new(cal_start, cal_start + Duration::try_hours(4).unwrap()).unwrap(),
+            Timeslot::new(
+                cal_start + Duration::try_hours(6).unwrap(),
+                cal_start + Duration::try_hours(10).unwrap(),
+            )
+            .unwrap(),
         ];
 
         // Get full day schedule
         let timeslots = calendar.to_timeslots(&start, &end).unwrap();
         assert_eq!(timeslots.len(), 2);
         assert_eq!(timeslots, expected_timeslots);
+    }
+
+    #[test]
+    fn test_timeslot_sub_complete() {
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
+            panic!();
+        };
+
+        let timeslot_a =
+            Timeslot::new(dt_start, dt_start + Duration::try_minutes(5).unwrap()).unwrap();
+        let timeslot_b = Timeslot::new(
+            dt_start + Duration::try_minutes(3).unwrap(),
+            dt_start + Duration::try_minutes(4).unwrap(),
+        )
+        .unwrap();
+
+        let timeslots = timeslot_b - timeslot_a;
+        assert_eq!(timeslots.len(), 0);
     }
 
     /// |         a         |
@@ -555,34 +590,29 @@ mod tests {
     /// |    |         |    |
     #[test]
     fn test_timeslot_sub_cleave() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
-        else {
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
             panic!();
         };
 
-        let timeslot_a = Timeslot {
-            time_start: dt_start,
-            time_end: dt_start + Duration::try_hours(3).unwrap(),
-        };
-
-        let timeslot_b = Timeslot {
-            time_start: dt_start + Duration::try_hours(1).unwrap(),
-            time_end: dt_start + Duration::try_hours(2).unwrap(),
-        };
+        let timeslot_a =
+            Timeslot::new(dt_start, dt_start + Duration::try_hours(3).unwrap()).unwrap();
+        let timeslot_b = Timeslot::new(
+            dt_start + Duration::try_hours(1).unwrap(),
+            dt_start + Duration::try_hours(2).unwrap(),
+        )
+        .unwrap();
 
         let timeslots = timeslot_a - timeslot_b;
         assert_eq!(timeslots.len(), 2);
         assert_eq!(
             timeslots,
             vec![
-                Timeslot {
-                    time_start: dt_start,
-                    time_end: dt_start + Duration::try_hours(1).unwrap(),
-                },
-                Timeslot {
-                    time_start: dt_start + Duration::try_hours(2).unwrap(),
-                    time_end: dt_start + Duration::try_hours(3).unwrap(),
-                },
+                Timeslot::new(dt_start, dt_start + Duration::try_hours(1).unwrap()).unwrap(),
+                Timeslot::new(
+                    dt_start + Duration::try_hours(2).unwrap(),
+                    dt_start + Duration::try_hours(3).unwrap()
+                )
+                .unwrap(),
             ]
         );
     }
@@ -594,29 +624,24 @@ mod tests {
     /// |              |
     #[test]
     fn test_timeslot_sub_crop_end() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
-        else {
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
             panic!();
         };
 
-        let timeslot_a = Timeslot {
-            time_start: dt_start,
-            time_end: dt_start + Duration::try_hours(3).unwrap(),
-        };
+        let timeslot_a =
+            Timeslot::new(dt_start, dt_start + Duration::try_hours(3).unwrap()).unwrap();
 
-        let timeslot_b = Timeslot {
-            time_start: dt_start + Duration::try_hours(2).unwrap(),
-            time_end: dt_start + Duration::try_hours(4).unwrap(),
-        };
+        let timeslot_b = Timeslot::new(
+            dt_start + Duration::try_hours(2).unwrap(),
+            dt_start + Duration::try_hours(4).unwrap(),
+        )
+        .unwrap();
 
         let timeslots = timeslot_a - timeslot_b;
         assert_eq!(timeslots.len(), 1);
         assert_eq!(
             timeslots,
-            vec![Timeslot {
-                time_start: dt_start,
-                time_end: dt_start + Duration::try_hours(2).unwrap(),
-            },]
+            vec![Timeslot::new(dt_start, dt_start + Duration::try_hours(2).unwrap()).unwrap(),]
         );
     }
 
@@ -627,36 +652,34 @@ mod tests {
     ///           |               |
     #[test]
     fn test_timeslot_sub_crop_start() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
-        else {
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
             panic!();
         };
 
-        let timeslot_a = Timeslot {
-            time_start: dt_start + Duration::try_hours(1).unwrap(),
-            time_end: dt_start + Duration::try_hours(3).unwrap(),
-        };
+        let timeslot_a = Timeslot::new(
+            dt_start + Duration::try_hours(1).unwrap(),
+            dt_start + Duration::try_hours(3).unwrap(),
+        )
+        .unwrap();
 
-        let timeslot_b = Timeslot {
-            time_start: dt_start,
-            time_end: dt_start + Duration::try_hours(2).unwrap(),
-        };
+        let timeslot_b =
+            Timeslot::new(dt_start, dt_start + Duration::try_hours(2).unwrap()).unwrap();
 
         let timeslots = timeslot_a - timeslot_b;
         assert_eq!(timeslots.len(), 1);
         assert_eq!(
             timeslots,
-            vec![Timeslot {
-                time_start: dt_start + Duration::try_hours(2).unwrap(),
-                time_end: dt_start + Duration::try_hours(3).unwrap(),
-            },]
+            vec![Timeslot::new(
+                dt_start + Duration::try_hours(2).unwrap(),
+                dt_start + Duration::try_hours(3).unwrap()
+            )
+            .unwrap(),]
         );
     }
 
     #[test]
     fn test_timeslot_sub_no_overlap() {
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0)
-        else {
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 24, 0, 0, 0) else {
             panic!();
         };
 
@@ -665,15 +688,14 @@ mod tests {
         // |    b    |
         //           =
         //           |               |
-        let timeslot_a = Timeslot {
-            time_start: dt_start + Duration::try_hours(2).unwrap(),
-            time_end: dt_start + Duration::try_hours(3).unwrap(),
-        };
+        let timeslot_a = Timeslot::new(
+            dt_start + Duration::try_hours(2).unwrap(),
+            dt_start + Duration::try_hours(3).unwrap(),
+        )
+        .unwrap();
 
-        let timeslot_b = Timeslot {
-            time_start: dt_start,
-            time_end: dt_start + Duration::try_hours(2).unwrap(),
-        };
+        let timeslot_b =
+            Timeslot::new(dt_start, dt_start + Duration::try_hours(2).unwrap()).unwrap();
 
         let timeslots = timeslot_a - timeslot_b;
         assert_eq!(timeslots.len(), 1);
@@ -684,18 +706,88 @@ mod tests {
         //                     |    b    |
         //           =
         //           |               |
-        let timeslot_a = Timeslot {
-            time_start: dt_start,
-            time_end: dt_start + Duration::try_hours(1).unwrap(),
-        };
+        let timeslot_a =
+            Timeslot::new(dt_start, dt_start + Duration::try_hours(1).unwrap()).unwrap();
 
-        let timeslot_b = Timeslot {
-            time_start: dt_start + Duration::try_hours(1).unwrap(),
-            time_end: dt_start + Duration::try_hours(2).unwrap(),
-        };
+        let timeslot_b = Timeslot::new(
+            dt_start + Duration::try_hours(1).unwrap(),
+            dt_start + Duration::try_hours(2).unwrap(),
+        )
+        .unwrap();
 
         let timeslots = timeslot_a - timeslot_b;
         assert_eq!(timeslots.len(), 1);
         assert_eq!(timeslots, vec![timeslot_a]);
+    }
+
+    #[test]
+    fn test_timeslot_duration() {
+        let now = Utc::now();
+
+        let duration_minutes = Duration::try_minutes(rand::random::<u16>() as i64).unwrap();
+        let timeslot = Timeslot::new(now, now + duration_minutes).unwrap();
+        assert_eq!(timeslot.duration(), duration_minutes);
+
+        let timeslot = Timeslot::new(now, now).unwrap();
+        assert_eq!(timeslot.duration(), Duration::zero());
+
+        let error = Timeslot::new(now, now - Duration::try_milliseconds(1).unwrap()).unwrap_err();
+        assert_eq!(error, TimeslotError::Invalid);
+    }
+
+    #[test]
+    fn test_timeslot_error_display() {
+        assert_eq!(
+            format!("{}", TimeslotError::NoOverlap),
+            "No overlap between timeslots"
+        );
+        assert_eq!(format!("{}", TimeslotError::Invalid), "Invalid timeslot");
+    }
+
+    #[test]
+    fn test_calendar_error_display() {
+        assert_eq!(format!("{}", CalendarError::Rrule), "Invalid rrule");
+        assert_eq!(format!("{}", CalendarError::RruleSet), "Invalid rrule set");
+        assert_eq!(
+            format!("{}", CalendarError::HeaderPartsLength),
+            "Invalid header parts length"
+        );
+        assert_eq!(format!("{}", CalendarError::Duration), "Invalid duration");
+        assert_eq!(format!("{}", CalendarError::Internal), "Internal error");
+    }
+
+    #[test]
+    fn test_timeslot_split() {
+        let now = Utc::now();
+        let duration = Duration::try_hours(1).unwrap();
+        let expected_chunks = 3;
+        let timeslot = Timeslot::new(now, now + duration * expected_chunks).unwrap();
+
+        let slots = timeslot.split(&duration, &duration);
+        assert_eq!(slots.len() as i32, expected_chunks);
+        assert_eq!(slots[0].duration(), duration);
+        assert_eq!(slots[1].duration(), duration);
+        assert_eq!(slots[2].duration(), duration);
+
+        // the three hour slot will be split into two slots of 2 hours and 1 hour
+        let slots = timeslot.split(&duration, &(duration * (expected_chunks - 1)));
+        assert_eq!(slots.len() as i32, expected_chunks - 1);
+        assert_eq!(slots[0].duration(), duration * (expected_chunks - 1));
+        assert_eq!(slots[1].duration(), duration);
+
+        // minimum slot split is the size of the timeslot
+        let slots = timeslot.split(
+            &timeslot.duration(),
+            &(timeslot.duration() + Duration::try_seconds(1).unwrap()),
+        );
+        assert_eq!(slots.len(), 1);
+        assert_eq!(slots[0].duration(), timeslot.duration());
+
+        // minimum slot split is larger the size of the timeslot
+        let slots = timeslot.split(
+            &(timeslot.duration() + Duration::try_seconds(1).unwrap()),
+            &(timeslot.duration() + Duration::try_seconds(2).unwrap()),
+        );
+        assert_eq!(slots.len(), 0);
     }
 }

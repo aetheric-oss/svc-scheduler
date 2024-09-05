@@ -1,6 +1,6 @@
 ## DO NOT EDIT!
-# This file was provisioned by Terraform
-# File origin: https://github.com/Arrow-air/tf-github/tree/main/src/templates/rust-svc/.github/workflows/api_docs.yml
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/.github/workflows/api_docs.yml
 
 on:
   pull_request:
@@ -22,7 +22,7 @@ jobs:
 
       - name: Check for openapi spec
         id: openapi_files
-        uses: andstor/file-existence-action@v2
+        uses: andstor/file-existence-action@v3
         with:
           files: "openapi/*.rs"
 
@@ -38,7 +38,7 @@ jobs:
 
       - name: Check for proto files
         id: grpc_api_files
-        uses: andstor/file-existence-action@v2
+        uses: andstor/file-existence-action@v3
         with:
           files: "proto/*.proto"
 

@@ -1,4 +1,4 @@
-![Arrow Banner](https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png)
+![Aetheric Banner](https://github.com/aetheric-oss/.github/raw/main/assets/doc-banner.png)
 
 # Interface Control Document (ICD) - `svc-scheduler`
 
@@ -10,17 +10,17 @@ This document defines the gRPC interface unique to the `svc-scheduler` microserv
 
 | Attribute     | Description                                                       |
 | ------------- |-------------------------------------------------------------------|
-| Maintainer(s) | [Services Team](https://github.com/orgs/Arrow-air/teams/services) |
-| Stuckee       | A.M. Smith ([@ServiceDog](https://github.com/servicedog))         |
+| Maintainer(s) | [Aetheric Realm Team](https://github.com/orgs/aetheric-oss/teams/dev-realm) |
+| Stuckee       | A.M. Smith ([@amsmith-pro](https://github.com/amsmith-pro))         |
 | Status        | Development                                                       |
 
 ## :books: Related Documents
 
 Document | Description
 --- | ---
-[High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md) | Overview of Arrow microservices.
-[High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Arrow microservices.
-[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
+[High-Level Concept of Operations (CONOPS)](https://github.com/aetheric-oss/se-services/blob/develop/docs/conops.md) | Overview of Aetheric microservices.
+[High-Level Interface Control Document (ICD)](https://github.com/aetheric-oss/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Aetheric microservices.
+[Requirements - `svc-scheduler`](https://nocodb.aetheric.nl/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
 [Concept of Operations - `svc-scheduler`](./conops.md) | Defines the motivation and duties of this microservice.
 [Interface Control Document (ICD) - `svc-scheduler`](./icd.md) | Defines the inputs and outputs of this microservice.
 [Software Design Document (SDD) - `svc-scheduler`](./sdd.md) | Specifies the internal activity of this microservice.
@@ -28,7 +28,7 @@ Document | Description
 
 ## :hammer: Frameworks
 
-See [High-Level Services ICD](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md).
+See [High-Level Services ICD](https://github.com/aetheric-oss/se-services/blob/develop/docs/icd.md).
 
 ## :speech_balloon: gRPC
 
@@ -39,7 +39,7 @@ See [High-Level Services ICD](https://github.com/Arrow-air/se-services/blob/deve
 
 ### Integrated Authentication & Encryption
 
-See [High-Level Services ICD](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md).
+See [High-Level Services ICD](https://github.com/aetheric-oss/se-services/blob/develop/docs/icd.md).
 
 ### gRPC Server Methods ("Services")
 

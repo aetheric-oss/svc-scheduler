@@ -3,10 +3,10 @@ use crate::router::flight_plan::*;
 use crate::router::schedule::*;
 use svc_storage_client_grpc::prelude::*;
 
-use chrono::Duration;
+use lib_common::time::{DateTime, Duration, Utc};
+use lib_common::uuid::Uuid;
 use std::collections::HashMap;
 use std::str::FromStr;
-use uuid::Uuid;
 
 /// Enum with all Aircraft types
 #[derive(Debug, Copy, Clone)]
@@ -15,7 +15,7 @@ pub enum AircraftType {
     Cargo,
 }
 
-/// TODO(R4): Hardcoded for the demo. This is solely used to
+/// TODO(R5): Hardcoded for the demo. This is solely used to
 ///  estimate a duration of a flight.
 const AVERAGE_CARGO_AIRCRAFT_CRUISE_VELOCITY_M_PER_S: f32 = 10.0;
 
@@ -26,13 +26,22 @@ pub enum VehicleError {
     ClientError,
 
     /// Vehicle data is corrupt or invalid
-    InvalidData,
+    Data,
+
+    /// Vehicle has an invalid UUID
+    VehicleId,
+
+    /// Vehicle doesn't have a hangar_id
+    HangarId,
+
+    /// Vehicle doesn't have a hangar_bay_id
+    HangarBayId,
 
     /// Vehicle doesn't have a schedule
-    NoScheduleProvided,
+    NoSchedule,
 
     /// Vehicle has an invalid schedule
-    InvalidSchedule,
+    Schedule,
 
     /// Internal error
     Internal,
@@ -42,9 +51,12 @@ impl std::fmt::Display for VehicleError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             VehicleError::ClientError => write!(f, "Vehicle client error"),
-            VehicleError::InvalidData => write!(f, "Vehicle data is corrupt or invalid"),
-            VehicleError::NoScheduleProvided => write!(f, "Vehicle doesn't have a schedule"),
-            VehicleError::InvalidSchedule => write!(f, "Vehicle has an invalid schedule"),
+            VehicleError::Data => write!(f, "Vehicle data is corrupt or invalid"),
+            VehicleError::VehicleId => write!(f, "Vehicle has an invalid UUID"),
+            VehicleError::HangarId => write!(f, "Vehicle doesn't have a hangar_id"),
+            VehicleError::HangarBayId => write!(f, "Vehicle doesn't have a hangar_bay_id"),
+            VehicleError::NoSchedule => write!(f, "Vehicle doesn't have a schedule"),
+            VehicleError::Schedule => write!(f, "Vehicle has an invalid schedule"),
             VehicleError::Internal => write!(f, "Internal error"),
         }
     }
@@ -69,9 +81,16 @@ impl Availability {
     fn subtract(&self, flight_plan: &FlightPlanSchedule) -> Vec<Self> {
         let mut slots = vec![];
 
-        let flight_plan_timeslot = Timeslot {
-            time_start: flight_plan.origin_timeslot_start,
-            time_end: flight_plan.target_timeslot_start,
+        let Ok(flight_plan_timeslot) = Timeslot::new(
+            flight_plan.origin_timeslot_start,
+            flight_plan.target_timeslot_start,
+        ) else {
+            router_error!(
+                "Invalid flight plan timeslot, returning no availabilities: {:?} {:?}",
+                flight_plan.origin_timeslot_start,
+                flight_plan.target_timeslot_start
+            );
+            return slots;
         };
 
         let timeslots = self.timeslot - flight_plan_timeslot;
@@ -80,10 +99,10 @@ impl Availability {
             self.timeslot,
             flight_plan_timeslot
         );
-        router_debug!("(Availability::subtract) result: {:?}", timeslots);
+        router_debug!("result: {:?}", timeslots);
         for timeslot in timeslots {
             let (vertiport_id, vertipad_id) =
-                if timeslot.time_start < flight_plan_timeslot.time_start {
+                if timeslot.time_start() < flight_plan_timeslot.time_start() {
                     (self.vertiport_id.clone(), self.vertipad_id.clone())
                 } else {
                     (
@@ -107,81 +126,61 @@ impl TryFrom<vehicle::Object> for Aircraft {
     type Error = VehicleError;
 
     fn try_from(vehicle: vehicle::Object) -> Result<Self, VehicleError> {
-        let vehicle_uuid = match Uuid::parse_str(&vehicle.id) {
-            Ok(uuid) => uuid.to_string(),
-            Err(e) => {
-                router_error!("(try_from) Vehicle {} has invalid UUID: {}", vehicle.id, e);
+        let vehicle_uuid = Uuid::parse_str(&vehicle.id)
+            .map_err(|e| {
+                router_error!("Vehicle {} has invalid UUID: {}", vehicle.id, e);
+                VehicleError::VehicleId
+            })?
+            .to_string();
 
-                return Err(VehicleError::InvalidData);
-            }
-        };
+        let data = vehicle.data.as_ref().ok_or_else(|| {
+            router_error!("Vehicle doesn't have data: {:?}", vehicle);
+            VehicleError::Data
+        })?;
 
-        let Some(data) = vehicle.data else {
-            router_error!("(try_from) Vehicle doesn't have data: {:?}", vehicle);
+        let hangar_id = data.hangar_id.clone().ok_or_else(|| {
+            router_error!("Vehicle {} doesn't have hangar_id.", vehicle_uuid);
+            VehicleError::HangarId
+        })?;
 
-            return Err(VehicleError::InvalidData);
-        };
+        let hangar_id = Uuid::parse_str(&hangar_id)
+            .map_err(|e| {
+                router_error!("Vehicle {} has invalid hangar_id: {}", vehicle_uuid, e);
 
-        let Some(hangar_id) = data.hangar_id else {
-            router_error!(
-                "(try_from) Vehicle {} doesn't have hangar_id.",
-                vehicle_uuid
-            );
+                VehicleError::HangarId
+            })?
+            .to_string();
 
-            return Err(VehicleError::InvalidData);
-        };
+        let hangar_bay_id = data.hangar_bay_id.clone().ok_or_else(|| {
+            router_error!("Vehicle {} doesn't have hangar_bay_id.", vehicle_uuid);
+            VehicleError::HangarBayId
+        })?;
 
-        let hangar_id = match Uuid::parse_str(&hangar_id) {
-            Ok(uuid) => uuid.to_string(),
-            Err(e) => {
-                router_error!(
-                    "(try_from) Vehicle {} has invalid hangar_id: {}",
-                    vehicle_uuid,
-                    e
-                );
+        let hangar_bay_id = Uuid::parse_str(&hangar_bay_id)
+            .map_err(|e| {
+                router_error!("Vehicle {} has invalid hangar_bay_id: {}", vehicle_uuid, e);
 
-                return Err(VehicleError::InvalidData);
-            }
-        };
+                VehicleError::HangarBayId
+            })?
+            .to_string();
 
-        let Some(hangar_bay_id) = data.hangar_bay_id else {
-            router_error!(
-                "(try_from) Vehicle {} doesn't have hangar_bay_id.",
-                vehicle_uuid
-            );
-
-            return Err(VehicleError::InvalidData);
-        };
-
-        let hangar_bay_id = match Uuid::parse_str(&hangar_bay_id) {
-            Ok(uuid) => uuid.to_string(),
-            Err(e) => {
-                router_error!(
-                    "(try_from) Vehicle {} has invalid hangar_bay_id: {}",
-                    vehicle_uuid,
-                    e
-                );
-
-                return Err(VehicleError::InvalidData);
-            }
-        };
-
-        let Some(calendar) = data.schedule else {
+        let calendar = data.schedule.clone().ok_or_else(|| {
             // If vehicle doesn't have a schedule, it is not available
             //  MUST have a schedule to be a valid aircraft choice, even if the
             //  schedule is 24/7. Must be explicit.
-            return Err(VehicleError::NoScheduleProvided);
-        };
+            router_error!("Vehicle {} doesn't have a schedule.", vehicle_uuid);
+            VehicleError::NoSchedule
+        })?;
 
-        let Ok(vehicle_calendar) = Calendar::from_str(&calendar) else {
+        let vehicle_calendar = Calendar::from_str(&calendar).map_err(|e| {
             router_debug!(
-                "(try_from) Invalid schedule for vehicle {}: {}",
+                "Invalid schedule for vehicle {} {}; {e}",
                 vehicle_uuid,
                 calendar
             );
 
-            return Err(VehicleError::InvalidSchedule);
-        };
+            VehicleError::Schedule
+        })?;
 
         Ok(Aircraft {
             vehicle_uuid,
@@ -193,64 +192,67 @@ impl TryFrom<vehicle::Object> for Aircraft {
 }
 
 /// Request a list of all aircraft from svc-storage
+#[cfg(not(tarpaulin_include))]
+// no_coverage: (R5) needs running backend, integration tests
 pub async fn get_aircraft(
     clients: &GrpcClients,
     aircraft_id: Option<String>,
 ) -> Result<Vec<Aircraft>, VehicleError> {
-    // TODO(R4): Private aircraft, disabled aircraft, etc. should be filtered out here
+    // TODO(R5): Private aircraft, disabled aircraft, etc. should be filtered out here
     //  This is a lot of aircraft. Possible filters:
     //   geographical area within N kilometers of request origin vertiport
     //   private aircraft
     //   disabled aircraft
 
-    // TODO(R4): Ignore aircraft that haven't been updated recently
+    // TODO(R5): Ignore aircraft that haven't been updated recently
     // We should further limit this, but for now we'll just get all aircraft
     //  Need something to sort by, ascending distance from the
     //  departure vertiport or charge level before cutting off the list
-    let mut filter = AdvancedSearchFilter {
-        results_per_page: 1000,
-        ..Default::default()
+
+    let mut filter = match aircraft_id {
+        Some(id) => AdvancedSearchFilter::search_equals("vehicle_id".to_string(), id.to_string()),
+        None => AdvancedSearchFilter::default(),
     };
 
-    if let Some(id) = aircraft_id {
-        filter = filter.and_equals("vehicle_id".to_string(), id)
-    }
+    filter.results_per_page = 1000;
 
-    let Ok(response) = clients.storage.vehicle.search(filter).await else {
-        router_error!("(get_aircraft) request to svc-storage failed.");
-        return Err(VehicleError::ClientError);
-    };
-
-    Ok(response
+    let response = clients
+        .storage
+        .vehicle
+        .search(filter)
+        .await
+        .map_err(|e| {
+            router_error!("request to svc-storage failed: {e}");
+            VehicleError::ClientError
+        })?
         .into_inner()
         .list
         .into_iter()
         .filter_map(|v| Aircraft::try_from(v).ok())
-        .collect())
+        .collect();
+
+    Ok(response)
 }
 
 /// Estimates the time needed to travel between two locations including loading and unloading
 /// Estimate should be rather generous to block resources instead of potentially overloading them
-pub fn estimate_flight_time_seconds(distance_meters: &f32) -> Result<Duration, VehicleError> {
-    router_debug!(
-        "(estimate_flight_time_seconds) distance_meters: {}",
-        *distance_meters
-    );
+pub fn estimate_flight_time_seconds(distance_meters: &f64) -> Result<Duration, VehicleError> {
+    router_debug!("distance_meters: {}", *distance_meters);
 
-    let aircraft = AircraftType::Cargo; // TODO(R4): Hardcoded for demo
-    router_debug!("(estimate_flight_time_seconds) aircraft: {:?}", aircraft);
+    let aircraft = AircraftType::Cargo; // TODO(R5): Hardcoded for demo
+    router_debug!("aircraft: {:?}", aircraft);
 
     match aircraft {
         AircraftType::Cargo => {
-            let liftoff_duration_s: f32 = 10.0; // TODO(R4): Calculate from altitude of corridor
-            let landing_duration_s: f32 = 10.0; // TODO(R4): Calculate from altitude of corridor
+            let liftoff_duration_s: f32 = 10.0; // TODO(R5): Calculate from altitude of corridor
+            let landing_duration_s: f32 = 10.0; // TODO(R5): Calculate from altitude of corridor
 
             let cruise_duration_s: f32 =
-                *distance_meters / AVERAGE_CARGO_AIRCRAFT_CRUISE_VELOCITY_M_PER_S;
+                (*distance_meters as f32) / AVERAGE_CARGO_AIRCRAFT_CRUISE_VELOCITY_M_PER_S;
 
             let total_duration_s: f32 = liftoff_duration_s + cruise_duration_s + landing_duration_s;
             Duration::try_milliseconds((total_duration_s * 1000.0) as i64).ok_or_else(|| {
-                router_error!("(estimate_flight_time_seconds) error creating time delta.");
+                router_error!("error creating time delta.");
                 VehicleError::Internal
             })
         }
@@ -261,12 +263,13 @@ pub fn estimate_flight_time_seconds(distance_meters: &f32) -> Result<Duration, V
 ///  given a list of existing flight plans.
 pub fn get_aircraft_availabilities(
     existing_flight_plans: &[FlightPlanSchedule],
+    earliest_departure_time: &DateTime<Utc>,
     aircraft: &[Aircraft],
     timeslot: &Timeslot,
 ) -> Result<HashMap<String, Vec<Availability>>, VehicleError> {
-    router_debug!("(get_aircraft_availabilities) aircraft: {:?}", aircraft);
+    router_debug!("aircraft: {:?}", aircraft);
     let deadhead_padding: Duration = Duration::try_hours(2).ok_or_else(|| {
-        router_error!("(get_aircraft_availabilities) error creating time delta.");
+        router_error!("error creating time delta.");
         VehicleError::Internal
     })?;
 
@@ -274,28 +277,34 @@ pub fn get_aircraft_availabilities(
     for a in aircraft.iter() {
         let hangar_id = a.hangar_id.clone();
         let hangar_bay_id = a.hangar_bay_id.clone();
-
         // Aircraft also needs time to deadhead before and after primary flight
         // Base availability from vehicle calendar
         a.vehicle_calendar
             .to_timeslots(
-                &(timeslot.time_start - deadhead_padding),
-                &(timeslot.time_end + deadhead_padding),
+                &(timeslot.time_start() - deadhead_padding),
+                &(timeslot.time_end() + deadhead_padding),
             )
             .map_err(|e| {
-                router_error!(
-                    "(get_aircraft_availabilities) error creating timeslots: {}",
-                    e
-                );
+                router_error!("error creating timeslots: {}", e);
                 VehicleError::Internal
             })?
             .into_iter()
             .for_each(|timeslot| {
+                // ignore timeslots that are in the past
+                // the user will need time to select an itinerary, by the time they select
+                // the itinerary start should not be in the past. Add delta to compensate
+                let Ok(tmp) = Timeslot::new(
+                    timeslot.time_start().max(*earliest_departure_time),
+                    timeslot.time_end(),
+                ) else {
+                    return;
+                };
+
                 aircraft_availabilities
                     .entry(a.vehicle_uuid.clone())
                     .or_default()
                     .push(Availability {
-                        timeslot,
+                        timeslot: tmp,
                         vertiport_id: hangar_id.clone(),
                         vertipad_id: hangar_bay_id.clone(),
                     });
@@ -303,7 +312,7 @@ pub fn get_aircraft_availabilities(
     }
 
     router_debug!(
-        "(get_aircraft_availabilities) aircraft base availabilities: {:?}",
+        "aircraft base availabilities: {:?}",
         aircraft_availabilities
     );
 
@@ -317,15 +326,12 @@ pub fn get_aircraft_availabilities(
                 .flat_map(|a| a.subtract(fp))
                 .collect::<Vec<Availability>>();
         } else {
-            router_warn!(
-                "(get_aircraft_availabilities) Flight plan for unknown aircraft: {}",
-                fp.vehicle_id
-            );
+            router_warn!("Flight plan for unknown aircraft: {}", fp.vehicle_id);
         }
     });
 
     router_debug!(
-        "(get_aircraft_availabilities) aircraft availabilities after flight plans: {:?}",
+        "aircraft availabilities after flight plans: {:?}",
         aircraft_availabilities
     );
 
@@ -335,7 +341,7 @@ pub fn get_aircraft_availabilities(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{TimeZone, Utc};
+    use lib_common::time::{Datelike, LocalResult, TimeZone, Utc};
 
     #[test]
     fn test_subtract_flight_plan() {
@@ -345,16 +351,13 @@ mod tests {
         let vertipad_middle_id = Uuid::new_v4().to_string();
         let aircraft_id = Uuid::new_v4().to_string();
 
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 20, 0, 0, 0)
-        else {
+        let year = Utc::now().year() + 1;
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(year, 10, 20, 0, 0, 0) else {
             panic!();
         };
 
         let availability = Availability {
-            timeslot: Timeslot {
-                time_start: dt_start,
-                time_end: dt_start + Duration::try_hours(2).unwrap(),
-            },
+            timeslot: Timeslot::new(dt_start, dt_start + Duration::try_hours(2).unwrap()).unwrap(),
             vertiport_id: vertiport_start_id.clone(),
             vertipad_id: vertipad_start_id.clone(),
         };
@@ -370,6 +373,7 @@ mod tests {
                 origin_timeslot_end: dt_start + Duration::try_minutes(10).unwrap(),
                 target_timeslot_start: dt_start + Duration::try_minutes(20).unwrap(),
                 target_timeslot_end: dt_start + Duration::try_minutes(20).unwrap(),
+                path: Some(vec![]),
             },
             FlightPlanSchedule {
                 vehicle_id: aircraft_id.clone(),
@@ -381,6 +385,7 @@ mod tests {
                 origin_timeslot_end: dt_start + Duration::try_minutes(25).unwrap(),
                 target_timeslot_start: dt_start + Duration::try_minutes(35).unwrap(),
                 target_timeslot_end: dt_start + Duration::try_minutes(35).unwrap(),
+                path: Some(vec![]),
             },
         ];
 
@@ -389,10 +394,7 @@ mod tests {
         assert_eq!(
             result[0],
             Availability {
-                timeslot: Timeslot {
-                    time_start: dt_start,
-                    time_end: flight_plans[0].origin_timeslot_start,
-                },
+                timeslot: Timeslot::new(dt_start, flight_plans[0].origin_timeslot_start).unwrap(),
                 vertiport_id: vertiport_start_id.clone(),
                 vertipad_id: vertipad_start_id.clone()
             }
@@ -400,10 +402,11 @@ mod tests {
         assert_eq!(
             result[1],
             Availability {
-                timeslot: Timeslot {
-                    time_start: flight_plans[0].target_timeslot_start,
-                    time_end: dt_start + Duration::try_hours(2).unwrap(),
-                },
+                timeslot: Timeslot::new(
+                    flight_plans[0].target_timeslot_start,
+                    dt_start + Duration::try_hours(2).unwrap()
+                )
+                .unwrap(),
                 vertiport_id: vertiport_middle_id.clone(),
                 vertipad_id: vertipad_middle_id.clone()
             }
@@ -414,10 +417,7 @@ mod tests {
         assert_eq!(
             result[0],
             Availability {
-                timeslot: Timeslot {
-                    time_start: dt_start,
-                    time_end: flight_plans[1].origin_timeslot_start,
-                },
+                timeslot: Timeslot::new(dt_start, flight_plans[1].origin_timeslot_start).unwrap(),
                 vertiport_id: vertiport_start_id.clone(),
                 vertipad_id: vertipad_start_id.clone()
             }
@@ -425,10 +425,11 @@ mod tests {
         assert_eq!(
             result[1],
             Availability {
-                timeslot: Timeslot {
-                    time_start: flight_plans[1].target_timeslot_start,
-                    time_end: dt_start + Duration::try_hours(2).unwrap(),
-                },
+                timeslot: Timeslot::new(
+                    flight_plans[1].target_timeslot_start,
+                    dt_start + Duration::try_hours(2).unwrap()
+                )
+                .unwrap(),
                 vertiport_id: vertiport_start_id.clone(),
                 vertipad_id: vertipad_start_id.clone()
             }
@@ -449,10 +450,7 @@ mod tests {
         assert_eq!(
             availabilities[0],
             Availability {
-                timeslot: Timeslot {
-                    time_start: dt_start,
-                    time_end: flight_plans[0].origin_timeslot_start,
-                },
+                timeslot: Timeslot::new(dt_start, flight_plans[0].origin_timeslot_start).unwrap(),
                 vertiport_id: vertiport_start_id.clone(),
                 vertipad_id: vertipad_start_id.clone()
             }
@@ -460,10 +458,11 @@ mod tests {
         assert_eq!(
             availabilities[1],
             Availability {
-                timeslot: Timeslot {
-                    time_start: flight_plans[0].target_timeslot_start,
-                    time_end: flight_plans[1].origin_timeslot_start,
-                },
+                timeslot: Timeslot::new(
+                    flight_plans[0].target_timeslot_start,
+                    flight_plans[1].origin_timeslot_start
+                )
+                .unwrap(),
                 vertiport_id: vertiport_middle_id.clone(),
                 vertipad_id: vertipad_middle_id.clone()
             }
@@ -471,10 +470,11 @@ mod tests {
         assert_eq!(
             availabilities[2],
             Availability {
-                timeslot: Timeslot {
-                    time_start: flight_plans[1].target_timeslot_start,
-                    time_end: dt_start + Duration::try_hours(2).unwrap(),
-                },
+                timeslot: Timeslot::new(
+                    flight_plans[1].target_timeslot_start,
+                    dt_start + Duration::try_hours(2).unwrap()
+                )
+                .unwrap(),
                 vertiport_id: vertiport_start_id.clone(),
                 vertipad_id: vertipad_start_id.clone()
             }
@@ -490,8 +490,8 @@ mod tests {
         ))
         .unwrap();
 
-        let chrono::LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(2023, 10, 20, 0, 0, 0)
-        else {
+        let year = Utc::now().year() + 1;
+        let LocalResult::Single(dt_start) = Utc.with_ymd_and_hms(year, 10, 20, 0, 0, 0) else {
             panic!();
         };
 
@@ -502,10 +502,7 @@ mod tests {
         assert_eq!(timeslots.len(), 1);
         assert_eq!(
             timeslots[0],
-            Timeslot {
-                time_start: dt_start,
-                time_end: dt_start + Duration::try_hours(2).unwrap(),
-            }
+            Timeslot::new(dt_start, dt_start + Duration::try_hours(2).unwrap()).unwrap()
         );
 
         let vertiport_start_id = Uuid::new_v4().to_string();
@@ -521,10 +518,7 @@ mod tests {
             hangar_bay_id: vertipad_start_id.clone(),
         }];
 
-        let timeslot = Timeslot {
-            time_start: dt_start,
-            time_end: dt_start + Duration::try_hours(2).unwrap(),
-        };
+        let timeslot = Timeslot::new(dt_start, dt_start + Duration::try_hours(2).unwrap()).unwrap();
 
         let flight_plans = vec![
             FlightPlanSchedule {
@@ -537,6 +531,7 @@ mod tests {
                 origin_timeslot_end: dt_start + Duration::try_minutes(10).unwrap(),
                 target_timeslot_start: dt_start + Duration::try_minutes(20).unwrap(),
                 target_timeslot_end: dt_start + Duration::try_minutes(20).unwrap(),
+                path: Some(vec![]),
             },
             FlightPlanSchedule {
                 vehicle_id: aircraft_id.clone(),
@@ -548,10 +543,17 @@ mod tests {
                 origin_timeslot_end: dt_start + Duration::try_minutes(25).unwrap(),
                 target_timeslot_start: dt_start + Duration::try_minutes(35).unwrap(),
                 target_timeslot_end: dt_start + Duration::try_minutes(35).unwrap(),
+                path: Some(vec![]),
             },
         ];
 
-        let mut gaps = get_aircraft_availabilities(&flight_plans, &aircraft, &timeslot).unwrap();
+        let mut gaps = get_aircraft_availabilities(
+            &flight_plans,
+            &timeslot.time_start(),
+            &aircraft,
+            &timeslot,
+        )
+        .unwrap();
 
         println!("gaps: {:?}", gaps);
 
@@ -561,14 +563,11 @@ mod tests {
         println!("gaps: {:?}", gaps);
 
         assert_eq!(gaps.len(), 3);
-        gaps.sort_by(|a, b| b.timeslot.time_start.cmp(&a.timeslot.time_start));
+        gaps.sort_by(|a, b| b.timeslot.time_start().cmp(&a.timeslot.time_start()));
         assert_eq!(
             gaps.pop().unwrap(),
             Availability {
-                timeslot: Timeslot {
-                    time_start: dt_start,
-                    time_end: flight_plans[0].origin_timeslot_start
-                },
+                timeslot: Timeslot::new(dt_start, flight_plans[0].origin_timeslot_start).unwrap(),
                 vertiport_id: vertiport_start_id.clone(),
                 vertipad_id: vertipad_start_id.clone()
             }
@@ -577,10 +576,11 @@ mod tests {
         assert_eq!(
             gaps.pop().unwrap(),
             Availability {
-                timeslot: Timeslot {
-                    time_start: flight_plans[0].target_timeslot_start,
-                    time_end: flight_plans[1].origin_timeslot_start
-                },
+                timeslot: Timeslot::new(
+                    flight_plans[0].target_timeslot_start,
+                    flight_plans[1].origin_timeslot_start
+                )
+                .unwrap(),
                 vertiport_id: vertiport_middle_id.clone(),
                 vertipad_id: vertipad_middle_id.clone()
             }
@@ -589,16 +589,161 @@ mod tests {
         assert_eq!(
             gaps.pop().unwrap(),
             Availability {
-                timeslot: Timeslot {
-                    time_start: flight_plans[1].target_timeslot_start,
+                timeslot: Timeslot::new(
+                    flight_plans[1].target_timeslot_start,
                     // see 'deadhead_padding' in the function
                     // the vehicle schedule in this example is 3 hours long, less than the deadhead padding,
                     //  so the end time is the end of the vehicle schedule in this case
-                    time_end: dt_start + Duration::try_hours(vehicle_duration_hours).unwrap(), // the vehicle schedule is 3 hours long
-                },
+                    dt_start + Duration::try_hours(vehicle_duration_hours).unwrap()
+                )
+                .unwrap(),
                 vertiport_id: vertiport_start_id,
                 vertipad_id: vertipad_start_id
             }
         );
+    }
+
+    #[test]
+    fn test_vehicle_error_display() {
+        assert_eq!(
+            format!("{}", VehicleError::ClientError),
+            "Vehicle client error"
+        );
+        assert_eq!(
+            format!("{}", VehicleError::Data),
+            "Vehicle data is corrupt or invalid"
+        );
+        assert_eq!(
+            format!("{}", VehicleError::VehicleId),
+            "Vehicle has an invalid UUID"
+        );
+        assert_eq!(
+            format!("{}", VehicleError::HangarId),
+            "Vehicle doesn't have a hangar_id"
+        );
+        assert_eq!(
+            format!("{}", VehicleError::HangarBayId),
+            "Vehicle doesn't have a hangar_bay_id"
+        );
+        assert_eq!(
+            format!("{}", VehicleError::NoSchedule),
+            "Vehicle doesn't have a schedule"
+        );
+        assert_eq!(
+            format!("{}", VehicleError::Schedule),
+            "Vehicle has an invalid schedule"
+        );
+        assert_eq!(format!("{}", VehicleError::Internal), "Internal error");
+    }
+
+    #[test]
+    fn test_try_from_vehicle_object_aircraft() {
+        const CAL_STR: &str = "DTSTART:20221020T180000Z;DURATION:PT14H
+            RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
+
+        let vehicle_data = vehicle::Data {
+            vehicle_model_id: Uuid::new_v4().to_string(),
+            serial_number: format!("S-MOCK-{:0>8}", 12345678),
+            registration_number: format!("N-DEMO-{:0>8}", 12345678),
+            description: Some("Demo vehicle filled with Mock data".to_owned()),
+            asset_group_id: None,
+            schedule: Some(CAL_STR.to_owned()),
+            hangar_id: Some(Uuid::new_v4().to_string()),
+            hangar_bay_id: Some(Uuid::new_v4().to_string()),
+            last_maintenance: Some(Utc::now().into()),
+            next_maintenance: Some(Utc::now().into()),
+            created_at: Some(Utc::now().into()),
+            updated_at: Some(Utc::now().into()),
+        };
+
+        let vehicle = vehicle::Object {
+            id: Uuid::new_v4().to_string(),
+            data: Some(vehicle_data.clone()),
+        };
+
+        // valid
+        let _ = Aircraft::try_from(vehicle.clone()).unwrap();
+
+        // Invalid vehicle UUID
+        let tmp = vehicle::Object {
+            id: "invalid".to_string(),
+            data: None,
+        };
+        let e = Aircraft::try_from(tmp).unwrap_err();
+        assert_eq!(e, VehicleError::VehicleId);
+
+        // Missing data
+        let tmp = vehicle::Object {
+            id: Uuid::new_v4().to_string(),
+            data: None,
+        };
+        let e = Aircraft::try_from(tmp).unwrap_err();
+        assert_eq!(e, VehicleError::Data);
+
+        // Missing hangar_id
+        let tmp = vehicle::Object {
+            id: Uuid::new_v4().to_string(),
+            data: Some(vehicle::Data {
+                hangar_id: None,
+                ..vehicle_data.clone()
+            }),
+        };
+        let e = Aircraft::try_from(tmp).unwrap_err();
+        assert_eq!(e, VehicleError::HangarId);
+
+        // Missing hangar_bay_id
+        let tmp = vehicle::Object {
+            id: Uuid::new_v4().to_string(),
+            data: Some(vehicle::Data {
+                hangar_bay_id: None,
+                ..vehicle_data.clone()
+            }),
+        };
+        let e = Aircraft::try_from(tmp).unwrap_err();
+        assert_eq!(e, VehicleError::HangarBayId);
+
+        // Invalid hangar id
+        let tmp = vehicle::Object {
+            id: Uuid::new_v4().to_string(),
+            data: Some(vehicle::Data {
+                hangar_id: Some("invalid".to_string()),
+                ..vehicle_data.clone()
+            }),
+        };
+        let e = Aircraft::try_from(tmp).unwrap_err();
+        assert_eq!(e, VehicleError::HangarId);
+
+        // Invalid hangar bay id
+        let tmp = vehicle::Object {
+            id: Uuid::new_v4().to_string(),
+            data: Some(vehicle::Data {
+                hangar_bay_id: Some("invalid".to_string()),
+                ..vehicle_data.clone()
+            }),
+        };
+        let e = Aircraft::try_from(tmp).unwrap_err();
+        assert_eq!(e, VehicleError::HangarBayId);
+
+        // Missing schedule
+        let tmp = vehicle::Object {
+            id: Uuid::new_v4().to_string(),
+            data: Some(vehicle::Data {
+                schedule: None,
+                ..vehicle_data.clone()
+            }),
+        };
+        let e = Aircraft::try_from(tmp).unwrap_err();
+        assert_eq!(e, VehicleError::NoSchedule);
+
+        // Invalid schedule
+        let tmp = vehicle::Object {
+            id: Uuid::new_v4().to_string(),
+            data: Some(vehicle::Data {
+                schedule: Some("invalid".to_string()),
+                ..vehicle_data.clone()
+            }),
+        };
+        let e = Aircraft::try_from(tmp).unwrap_err();
+        assert_eq!(e, VehicleError::Schedule);
     }
 }

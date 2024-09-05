@@ -1,13 +1,16 @@
 //! gRPC server implementation
 
+use lib_common::logger::load_logger_config_from_file;
 use log::info;
 use svc_scheduler::*;
 
 #[tokio::main]
 #[cfg(not(tarpaulin_include))]
+// no_coverage: (Rnever) Main function, integration tested
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Will use default config settings if no environment vars are found.
-    let config = Config::try_from_env().unwrap_or_default();
+    let config = Config::try_from_env()
+        .map_err(|e| format!("Failed to load configuration from environment: {}", e))?;
 
     info!("(main) Loading config.");
 

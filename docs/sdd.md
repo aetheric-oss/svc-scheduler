@@ -1,4 +1,4 @@
-![Arrow Banner](https://github.com/Arrow-air/tf-github/raw/main/src/templates/doc-banner-services.png)
+![Aetheric Banner](https://github.com/aetheric-oss/.github/raw/main/assets/doc-banner.png)
 
 # Software Design Document (SDD) - `svc-scheduler`
 
@@ -8,7 +8,7 @@ This document details the software implementation of `svc-scheduler` (scheduler 
 
 The scheduler module is responsible for calculating possible itineraries (including deadhead flights) for a journey between a departure and destination vertipad. It does so with the schedules of all resources (vertiports/pads, aircrafts, pilots) in mind to avoid double-booking.
 
-Created itineraries are saved to storage and can be cancelled. Flight queries, confirmations, and cancellation requests are made by other microservices in the Arrow network (such as `svc-cargo`).
+Created itineraries are saved to storage and can be cancelled. Flight queries, confirmations, and cancellation requests are made by other microservices in the Aetheric network (such as `svc-cargo`).
 
 *Note: This module is intended to be used by other Arrow micro-services via gRPC.*
 
@@ -18,17 +18,17 @@ Created itineraries are saved to storage and can be cancelled. Flight queries, c
 
 | Attribute     | Description                                                       |
 | ------------- |-------------------------------------------------------------------|
-| Maintainer(s) | [Services Team](https://github.com/orgs/Arrow-air/teams/services) |
-| Stuckee       | [Alex M. Smith](https://github.com/servicedog)                   |
+| Maintainer(s) | [Aetheric Realm Team](https://github.com/orgs/aetheric-oss/teams/dev-realm) |
+| Stuckee       | [Alex M. Smith](https://github.com/amsmith-pro)                   |
 | Status        | Development                                                       |
 
 ## :books: Related Documents
 
 Document | Description
 --- | ----
-[High-Level Concept of Operations (CONOPS)](https://github.com/Arrow-air/se-services/blob/develop/docs/conops.md) | Overview of Arrow microservices.
-[High-Level Interface Control Document (ICD)](https://github.com/Arrow-air/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Arrow microservices.
-[Requirements - `svc-scheduler`](https://nocodb.arrowair.com/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
+[High-Level Concept of Operations (CONOPS)](https://github.com/aetheric-oss/se-services/blob/develop/docs/conops.md) | Overview of Aetheric microservices.
+[High-Level Interface Control Document (ICD)](https://github.com/aetheric-oss/se-services/blob/develop/docs/icd.md)  | Interfaces and frameworks common to all Aetheric microservices.
+[Requirements - `svc-scheduler`](https://nocodb.aetheric.nl/dashboard/#/nc/view/bdffd78a-75bf-40b0-a45d-948cbee2241c) | Requirements and user stories for this microservice.
 [Concept of Operations - `svc-scheduler`](./conops.md) | Defines the motivation and duties of this microservice.
 [Interface Control Document - `svc-scheduler`](./icd.md)| Defines the inputs and outputs of this microservice.
 [Routing Scenarios](https://docs.google.com/presentation/d/1Nt91KVIczhxngurfyeIJtG8J0m_38jGU1Cnqm1_BfPc/edit#slide=id.g1454d6dfbcf_0_731) | Graphical representation of various routing scenarios
@@ -195,7 +195,7 @@ sequenceDiagram
         scheduler-->>scheduler: task.status = REJECTED<br>task.status_rationale = ID_NOT_FOUND
     end
 
-    Note over scheduler: TODO(R4): Seal the gap created by the removed flight<br>plans. For now, just mark itinerary as cancelled.
+    Note over scheduler: TODO(R5): Seal the gap created by the removed flight<br>plans. For now, just mark itinerary as cancelled.
     scheduler->>+storage: itinerary::update(...)<br>itinerary.status = CANCELLED
     storage-->>-scheduler: Ok or Error
 
@@ -239,7 +239,7 @@ sequenceDiagram
     scheduler->>scheduler: main control loop<br>create_itinerary_impl(&task)
     scheduler->>+storage: search(...)<br>1 Aircraft, 2 Vertipads Information
     storage->>scheduler: Records for the aircraft and<br>vertipads in proposed itinerary
-    scheduler->>scheduler: Confirm that itinerary is possible
+    scheduler->>scheduler: Confirm that itinerary is possible<br>check intersections with existing zones<br>and flight paths
 
     break invalid itinerary
         scheduler->>scheduler: task.status = REJECTED<br>task.status_rationale = SCHEDULE_CONFLICT
@@ -557,7 +557,7 @@ sequenceDiagram
     scheduler->>scheduler: Build vertipads' availabilities<br>given existing flight plans<br>and the vertipad's operating hours.
     
     loop (possible departure timeslot, possible arrival timeslot)
-        scheduler->>scheduler: Calculate flight duration <br>between the two vertiports at<br>this time (considering temporary<br>no-fly zones and waypoints).
+        scheduler->>scheduler: Calculate flight duration <br>between the two vertiports at<br>this time (considering temporary<br>no-fly zones, existing flight paths, and waypoints).
         scheduler->>scheduler: If an aircraft can depart, travel,<br>and land within available<br>timeslots, append to results.
     end
 

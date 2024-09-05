@@ -1,11 +1,11 @@
 //! Redis connection pool implementation
 
 use crate::tasks::{Task, TaskStatus};
-use chrono::{DateTime, Utc};
 use deadpool_redis::{
     redis::{AsyncCommands, FromRedisValue, Value},
     Pool, Runtime,
 };
+use lib_common::time::{DateTime, Utc};
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::sync::Arc;
 use svc_storage_client_grpc::prelude::flight_plan::FlightPriority;
@@ -21,21 +21,25 @@ static REDIS_POOL: OnceCell<Arc<Mutex<TaskPool>>> = OnceCell::const_new();
 /// Initializes the pool if it hasn't been initialized yet.
 pub async fn get_pool() -> Option<TaskPool> {
     if !REDIS_POOL.initialized() {
-        let config = crate::Config::try_from_env().unwrap_or_default();
+        let Ok(config) = crate::Config::try_from_env() else {
+            tasks_error!("could not build configuration for cache.");
+            panic!("(get_pool) could not build configuration for cache.");
+        };
+
         let Some(pool) = TaskPool::new(config.clone()) else {
-            tasks_error!("(get_pool) could not create Redis pool.");
+            tasks_error!("could not create Redis pool.");
             panic!("(get_pool) could not create Redis pool.");
         };
 
         let value = Arc::new(Mutex::new(pool));
         if let Err(e) = REDIS_POOL.set(value) {
-            tasks_error!("(get_pool) could not set Redis pool: {e}");
+            tasks_error!("could not set Redis pool: {e}");
             panic!("(get_pool) could not set Redis pool: {e}");
         };
     }
 
     let Some(arc) = REDIS_POOL.get() else {
-        tasks_error!("(get_pool) could not get Redis pool.");
+        tasks_error!("could not get Redis pool.");
         return None;
     };
 
@@ -44,7 +48,7 @@ pub async fn get_pool() -> Option<TaskPool> {
 }
 
 /// Represents errors that can occur during cache operations.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CacheError {
     /// Could not build configuration for cache.
     CouldNotConfigure,
@@ -121,6 +125,7 @@ impl RedisPool for TaskPool {
     }
 }
 
+#[derive(Debug)]
 struct NextTask {
     task_id: i64,
     queue_name: String,
@@ -132,51 +137,43 @@ impl FromRedisValue for NextTask {
         let Value::Bulk(ref v) = v else {
             return Err(RedisError::from((
                 ErrorKind::TypeError,
-                "Unexpected Redis value",
+                "Unexpected Redis value, not a Bulk type",
             )));
         };
 
         let [Value::Data(ref queue_name), Value::Bulk(ref values)] = v[..] else {
             return Err(RedisError::from((
                 ErrorKind::TypeError,
-                "Unexpected Redis value",
+                "Unexpected Redis values, not a Bulk of [Data, Bulk]",
             )));
         };
 
-        let Ok(queue_name) = String::from_utf8(queue_name.to_vec()) else {
-            return Err(RedisError::from((
-                ErrorKind::TypeError,
-                "Unexpected Redis value",
-            )));
-        };
+        let queue_name = String::from_utf8(queue_name.to_vec()).map_err(|_| {
+            RedisError::from((ErrorKind::TypeError, "Invalid queue name, non UTF-8."))
+        })?;
 
         let Value::Bulk(ref values) = values[0] else {
             return Err(RedisError::from((
                 ErrorKind::TypeError,
-                "Unexpected Redis value",
+                "Unexpected values, first Bulk value not a Bulk type",
             )));
         };
 
         let [Value::Data(ref task_id), _] = values[..] else {
             return Err(RedisError::from((
                 ErrorKind::TypeError,
-                "Unexpected Redis value",
+                "Unexpected values, first member not a Data type",
             )));
         };
 
-        let Ok(task_id) = String::from_utf8(task_id.to_vec()) else {
-            return Err(RedisError::from((
-                ErrorKind::TypeError,
-                "Unexpected Redis value",
-            )));
-        };
-
-        let Ok(task_id) = task_id.parse::<i64>() else {
-            return Err(RedisError::from((
-                ErrorKind::TypeError,
-                "Unexpected Redis value",
-            )));
-        };
+        let task_id = String::from_utf8(task_id.to_vec())
+            .map_err(|_| {
+                RedisError::from((ErrorKind::TypeError, "Could not parse task_id to String."))
+            })?
+            .parse::<i64>()
+            .map_err(|_| {
+                RedisError::from((ErrorKind::TypeError, "Could not parse task_id to i64."))
+            })?;
 
         let t = NextTask {
             task_id,
@@ -193,7 +190,30 @@ pub trait RedisPool {
     /// Returns a reference to the underlying pool.
     fn pool(&self) -> &Pool;
 
+    /// Validate a new task
+    /// Separated for easier unit testing
+    fn new_task_validation(task: &Task, expiry: DateTime<Utc>) -> Result<(), CacheError> {
+        if expiry <= Utc::now() {
+            tasks_error!("expiry must be in the future.");
+            return Err(CacheError::OperationFailed);
+        }
+
+        if task.metadata.status != TaskStatus::Queued as i32 {
+            tasks_error!("new task status must be 'Queued'.");
+            return Err(CacheError::OperationFailed);
+        }
+
+        if task.metadata.status_rationale.is_some() {
+            tasks_error!("new task status rationale must be 'None'.");
+            return Err(CacheError::OperationFailed);
+        }
+
+        Ok(())
+    }
+
     /// Creates a new task and returns the task_id for it
+    #[cfg(not(tarpaulin_include))]
+    // no_coverage: (R5) need redis backend to test this
     async fn new_task(
         &mut self,
         task: &Task,
@@ -203,20 +223,7 @@ pub trait RedisPool {
     where
         Self: Send + Sync + 'async_trait,
     {
-        if expiry <= Utc::now() {
-            tasks_error!("(RedisPool new_task) expiry must be in the future.");
-            return Err(CacheError::OperationFailed);
-        }
-
-        if task.metadata.status != TaskStatus::Queued as i32 {
-            tasks_error!("(RedisPool new_task) new task status must be 'Queued'.");
-            return Err(CacheError::OperationFailed);
-        }
-
-        if task.metadata.status_rationale.is_some() {
-            tasks_error!("(RedisPool new_task) new task status rationale must be 'None'.");
-            return Err(CacheError::OperationFailed);
-        }
+        Self::new_task_validation(task, expiry)?;
 
         let queue_name = match priority {
             FlightPriority::Emergency => "scheduler:emergency",
@@ -225,27 +232,23 @@ pub trait RedisPool {
             FlightPriority::Low => "scheduler:low",
         };
 
-        let Ok(expiry_ms) = TryInto::<usize>::try_into(expiry.timestamp_millis()) else {
-            tasks_error!("(RedisPool new_task) Could not convert expiry into redis usize type.");
-            return Err(CacheError::OperationFailed);
-        };
+        let expiry_ms = TryInto::<usize>::try_into(expiry.timestamp_millis()).map_err(|e| {
+            tasks_error!("Could not convert expiry into redis usize type: {e}");
+            CacheError::OperationFailed
+        })?;
 
-        let mut connection = match self.pool().get().await {
-            Ok(c) => c,
-            Err(e) => {
-                tasks_error!(
-                    "(RedisPool update_task) could not get connection from pool: {}",
-                    e
-                );
-                return Err(CacheError::OperationFailed);
-            }
-        };
+        let mut connection = self.pool().get().await.map_err(|e| {
+            tasks_error!("could not get connection from pool: {}", e);
+
+            CacheError::OperationFailed
+        })?;
 
         let counter_key = "scheduler:tasks";
+
         // Increment the task counter,
         //  add the task to the tasks hash, and add the task to the queue.
         //
-        // TODO(R4): Update this to a transaction (atomic).
+        // TODO(R5): Update this to a transaction (atomic).
         // deadpool_redis::Pool::get() returns an aio::Connection type, which doesn't
         //  implement DerefMut. Causes issues using the transaction() function
         // let result = redis::transaction(
@@ -271,85 +274,87 @@ pub trait RedisPool {
         // let task_id = match result {
         //     Ok(t) => t,
         //     Err(e) => {
-        //         tasks_error!("(RedisPool new_task) unexpected redis response: {:?}", e);
+        //         tasks_error!("unexpected redis response: {:?}", e);
         //         return Err(CacheError::OperationFailed);
         //     }
         // };
 
         // Get new task ID
-        let task_id: i64 = match connection.hincr(counter_key, "counter", 1).await {
-            Ok(Value::Int(t)) => t,
-            Ok(value) => {
-                tasks_error!(
-                    "(RedisPool new_task) unexpected redis response: {:?}",
-                    value
-                );
-                return Err(CacheError::OperationFailed);
-            }
-            Err(e) => {
-                tasks_error!("(RedisPool new_task) unexpected redis response: {:?}", e);
-                return Err(CacheError::OperationFailed);
-            }
+        let response = connection
+            .hincr(counter_key, "counter", 1)
+            .await
+            .map_err(|e| {
+                tasks_error!("unexpected redis response: {:?}", e);
+
+                CacheError::OperationFailed
+            })?;
+
+        let Value::Int(task_id) = response else {
+            tasks_error!("unexpected redis response: {:?}", response);
+
+            return Err(CacheError::OperationFailed);
         };
 
         // Add task to tasks hash
         let key = format!("{counter_key}:{task_id}");
-        match connection.hset(key.clone(), "data".to_string(), task).await {
-            Ok(Value::Int(1)) => (),
-            Ok(value) => {
-                tasks_error!(
-                    "(RedisPool new_task) unexpected redis response: {:?}",
-                    value
-                );
-                return Err(CacheError::OperationFailed);
-            }
-            Err(e) => {
-                tasks_error!("(RedisPool new_task) could not set task #{task_id} data: {e}",);
-                return Err(CacheError::OperationFailed);
-            }
+        let Value::Int(1) = connection
+            .hset(key.clone(), "data".to_string(), task)
+            .await
+            .map_err(|e| {
+                tasks_error!("could not set task #{task_id} data: {e}",);
+
+                CacheError::OperationFailed
+            })?
+        else {
+            tasks_error!("unexpected redis response: {:?}", response);
+
+            return Err(CacheError::OperationFailed);
         };
 
         // Add expiration to task
-        // Currently shouldn't cause to fail, but may in the future
-        match connection.expire_at(key.clone(), expiry_ms).await {
-            Ok(Value::Int(1)) => (),
-            Ok(value) => {
-                tasks_error!(
-                    "(RedisPool new_task) unexpected redis response: {:?}",
-                    value
-                );
-            }
-            Err(e) => {
-                tasks_error!("(RedisPool new_task) could not set task #{task_id} expiry: {e}",);
+        // TODO(R6): cleanup job for tasks that don't have an expiry date
+        let response = connection
+            .expire_at(key.clone(), expiry_ms)
+            .await
+            .map_err(|e| {
+                tasks_error!("could not set task #{task_id} expiry: {e}",);
+                CacheError::OperationFailed
+            })?;
+
+        match response {
+            Value::Int(1) => (),
+            value => {
+                tasks_error!("unexpected redis response: {:?}", value);
+
+                return Err(CacheError::OperationFailed);
             }
         };
 
         // Add task to queue
-        match connection
+        let response = connection
             .zadd(queue_name.to_string(), task_id, expiry_ms)
             .await
-        {
-            Ok(Value::Int(1)) => (),
-            Ok(value) => {
-                tasks_error!(
-                    "(RedisPool new_task) unexpected redis response: {:?}",
-                    value
-                );
-                return Err(CacheError::OperationFailed);
-            }
-            Err(e) => {
-                tasks_error!("(RedisPool new_task) could not set task #{task_id} data: {e}",);
-                return Err(CacheError::OperationFailed);
-            }
+            .map_err(|e| {
+                tasks_error!("could not add task #{task_id} to '{queue_name}' queue: {e}",);
+
+                CacheError::OperationFailed
+            })?;
+
+        let Value::Int(1) = response else {
+            tasks_error!("unexpected redis response: {:?}", response);
+
+            return Err(CacheError::OperationFailed);
         };
 
-        tasks_info!("(RedisPool new_task) created new task #{task_id} in '{queue_name}' queue.",);
-        tasks_debug!("(RedisPool new_task) new task #{task_id} data: {:?}", task);
+        tasks_info!("created new task #{task_id} in '{queue_name}' queue.",);
+        tasks_debug!("new task #{task_id} data: {:?}", task);
 
         Ok(task_id)
     }
 
     /// Updates task information
+    #[cfg(not(tarpaulin_include))]
+    // no_coverage: (R5) need redis backend to test this
     async fn update_task(
         &mut self,
         task_id: i64,
@@ -360,32 +365,26 @@ pub trait RedisPool {
         Self: Send + Sync + 'async_trait,
     {
         let key = format!("scheduler:tasks:{}", task_id);
-        let mut connection = match self.pool().get().await {
-            Ok(c) => c,
-            Err(e) => {
-                tasks_error!(
-                    "(RedisPool update_task) could not get connection from pool: {}",
-                    e
-                );
-                return Err(CacheError::OperationFailed);
-            }
-        };
+        let mut connection = self.pool().get().await.map_err(|e| {
+            tasks_error!("could not get connection from pool: {}", e);
+            CacheError::OperationFailed
+        })?;
 
-        let Ok(expiry_ms) = TryInto::<usize>::try_into(expiry.timestamp_millis()) else {
-            tasks_error!("(RedisPool update_task) Could not convert expiry into redis usize type.");
-            return Err(CacheError::OperationFailed);
-        };
+        let expiry_ms = TryInto::<usize>::try_into(expiry.timestamp_millis()).map_err(|_| {
+            tasks_error!("Could not convert expiry into redis usize type.");
+            CacheError::OperationFailed
+        })?;
 
         //
         // If this is used on a nonexistent key, it will NOT create a task
         //
-        // TODO(R4): Use a transaction
+        // TODO(R5): Use a transaction
         //  Currently has issues as deadpool_redis::Pool::get() returns an aio::Connection type,
         //  which doesn't implement DerefMut
         // let result = redis::transaction(&mut con, &[key], |con, pipe| {
         //     if !con.hexists(key, "data")? {
         //         tasks_error!(
-        //             "(RedisPool update_task) task with id {} does not exist.",
+        //             "task with id {} does not exist.",
         //             task_id
         //         );
         //         return Ok(None);
@@ -398,51 +397,49 @@ pub trait RedisPool {
         // });
         // match result {
         //     Ok(Some(_)) => {
-        //         tasks_info!("(RedisPool update_task) updated task #{task_id}.");
+        //         tasks_info!("updated task #{task_id}.");
         //         tasks_debug!(
-        //             "(RedisPool update_task) updated task #{task_id} data: {:?}",
+        //             "updated task #{task_id} data: {:?}",
         //             task
         //         );
         //         Ok(())
         //     }
         //     Ok(None) => {
         //         tasks_error!(
-        //             "(RedisPool update_task) task with id {} does not exist.",
+        //             "task with id {} does not exist.",
         //             task_id
         //         );
         //         Err(CacheError::OperationFailed)
         //     }
         //     Err(e) => {
-        //         tasks_error!("(RedisPool update_task) unexpected redis response: {e}");
+        //         tasks_error!("unexpected redis response: {e}");
         //         Err(CacheError::OperationFailed)
         //     }
         // }
 
-        match connection.hset(key.clone(), "data".to_string(), task).await {
-            Ok(Value::Int(0)) => (), // zero new fields added in update
-            Ok(value) => {
-                tasks_error!(
-                    "(RedisPool update_task) unexpected redis response: {:?}",
-                    value
-                );
-                return Err(CacheError::OperationFailed);
-            }
-            Err(e) => {
-                tasks_error!("(RedisPool update_task) could not set task #{task_id} data: {e}",);
-                return Err(CacheError::OperationFailed);
-            }
+        let response = connection
+            .hset(key.clone(), "data".to_string(), task)
+            .await
+            .map_err(|e| {
+                tasks_error!("could not set task #{task_id} data: {e}",);
+                CacheError::OperationFailed
+            })?;
+
+        // expect zero new fields added in update
+        let Value::Int(0) = response else {
+            tasks_error!("unexpected redis response: {:?}", response);
+
+            return Err(CacheError::OperationFailed);
         };
 
+        // don't fail if expiry can't be changed, this task already exists
         match connection.expire_at(key.clone(), expiry_ms).await {
             Ok(Value::Int(1)) => (),
             Ok(value) => {
-                tasks_error!(
-                    "(RedisPool new_task) unexpected redis response: {:?}",
-                    value
-                );
+                tasks_error!("unexpected redis response: {:?}", value);
             }
             Err(e) => {
-                tasks_error!("(RedisPool new_task) could not set task #{task_id} expiry: {e}",);
+                tasks_error!("could not set task #{task_id} expiry: {e}",);
             }
         };
 
@@ -450,35 +447,34 @@ pub trait RedisPool {
     }
 
     /// Gets task information
+    #[cfg(not(tarpaulin_include))]
+    // no_coverage: (R5) need redis backend to test this
     async fn get_task_data(&mut self, task_id: i64) -> Result<Task, CacheError>
     where
         Self: Send + Sync + 'async_trait,
     {
         let key = format!("scheduler:tasks:{}", task_id);
-        let mut connection = match self.pool().get().await {
-            Ok(c) => c,
-            Err(e) => {
-                tasks_error!(
-                    "(RedisPool update_task) could not get connection from pool: {}",
-                    e
-                );
-                return Err(CacheError::OperationFailed);
-            }
-        };
 
-        match connection.hget(key, "data".to_string()).await {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                tasks_error!(
-                    "(RedisPool get_task_data) unexpected redis response: {:?}",
-                    e
-                );
-                Err(CacheError::OperationFailed)
-            }
-        }
+        self.pool()
+            .get()
+            .await
+            .map_err(|e| {
+                tasks_error!("could not get connection from pool: {}", e);
+
+                CacheError::OperationFailed
+            })?
+            .hget(key, "data".to_string())
+            .await
+            .map_err(|e| {
+                tasks_error!("could not get task #{task_id} from hash: {e}",);
+
+                CacheError::OperationFailed
+            })
     }
 
     /// Updates task information
+    #[cfg(not(tarpaulin_include))]
+    // no_coverage: (R5) need redis backend to test this
     async fn next_task(&mut self) -> Result<(i64, Task), CacheError>
     where
         Self: Send + Sync + 'async_trait,
@@ -494,65 +490,249 @@ pub trait RedisPool {
         let mut keys = queues.clone();
         keys.push(counter_key);
 
-        let mut connection = match self.pool().get().await {
-            Ok(c) => c,
-            Err(e) => {
-                tasks_error!(
-                    "(RedisPool update_task) could not get connection from pool: {}",
-                    e
-                );
-                return Err(CacheError::OperationFailed);
-            }
-        };
+        let mut connection = self.pool().get().await.map_err(|e| {
+            tasks_error!("could not get connection from pool: {e}");
+            CacheError::OperationFailed
+        })?;
 
-        // TODO(R4): Make this section a transaction if possible
+        // TODO(R5): Make this section a transaction if possible
         // DerefMut is currently not implemented for aio::Connection type returned
         //  by deadpool_redis::Pool::get()
-        let (task_id, queue_name) = match connection.zmpop_min(&queues, 1).await {
-            Ok(Value::Nil) => {
-                tasks_debug!("(RedisPool next_task) no tasks in queues.");
+        let response = connection.zmpop_min(&queues, 1).await.map_err(|e| {
+            tasks_error!("could not pop task from queue: {e}",);
+
+            CacheError::OperationFailed
+        })?;
+
+        let (task_id, queue_name) = match response {
+            Value::Nil => {
+                tasks_debug!("no tasks in queues.");
                 return Err(CacheError::Empty);
             }
-            Ok(Value::Bulk(b)) => {
-                let Ok(next_task) = NextTask::from_redis_value(&Value::Bulk(b.clone())) else {
-                    tasks_debug!("(RedisPool next_task) unexpected redis response: {:?}", b);
-                    return Err(CacheError::OperationFailed);
-                };
+            Value::Bulk(b) => {
+                let next_task =
+                    NextTask::from_redis_value(&Value::Bulk(b.clone())).map_err(|e| {
+                        tasks_debug!("unexpected redis response: {:?}; {e}", b);
+                        CacheError::OperationFailed
+                    })?;
 
                 (next_task.task_id, next_task.queue_name)
             }
-            Ok(value) => {
-                tasks_debug!(
-                    "(RedisPool next_task) unexpected redis response: {:?}",
-                    value
-                );
-                return Err(CacheError::OperationFailed);
-            }
-            Err(e) => {
-                tasks_debug!("(RedisPool next_task) could not pop task from queue: {e}");
+            value => {
+                tasks_debug!("unexpected redis response: {:?}", value);
+
                 return Err(CacheError::OperationFailed);
             }
         };
 
         let key = format!("{counter_key}:{task_id}");
-        let task = match connection.hget(key, "data".to_string()).await {
-            Ok(t) => t,
-            Err(e) => {
-                tasks_error!("(RedisPool next_task) could not get task #{task_id} from hash: {e}",);
+        let task = connection
+            .hget(key, "data".to_string())
+            .await
+            .map_err(|e| {
+                tasks_error!("could not get task #{task_id} from hash: {e}",);
 
-                return Err(CacheError::OperationFailed);
-            }
-        };
+                CacheError::OperationFailed
+            })?;
+
         //
         // End Transaction Section
         //
 
-        tasks_info!(
-            "(RedisPool next_task) popped task #{task_id} from {}.",
-            queue_name.to_string()
-        );
-        tasks_debug!("(RedisPool next_task) task #{task_id} data: {:?}", task);
+        tasks_info!("popped task #{task_id} from {}.", queue_name.to_string());
+        tasks_debug!("task #{task_id} data: {:?}", task);
 
         Ok((task_id, task))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tasks::{TaskAction, TaskBody, TaskMetadata, TaskStatus, TaskStatusRationale};
+    use lib_common::time::Duration;
+    use lib_common::uuid::Uuid;
+
+    #[test]
+    fn test_cache_error_display() {
+        assert_eq!(
+            format!("{}", CacheError::CouldNotConfigure),
+            "Could not configure cache."
+        );
+        assert_eq!(
+            format!("{}", CacheError::CouldNotConnect),
+            "Could not connect to cache."
+        );
+        assert_eq!(
+            format!("{}", CacheError::OperationFailed),
+            "Cache operation failed."
+        );
+        assert_eq!(format!("{}", CacheError::Empty), "Cache is empty.");
+    }
+
+    #[test]
+    fn test_debug_task_pool() {
+        let mut config = crate::config::Config::default();
+        config.redis.url = Some("redis://localhost:6379".to_string());
+
+        let pool = TaskPool::new(config.clone()).unwrap();
+        assert_eq!(format!("{:?}", pool), "TaskPool");
+    }
+
+    #[test]
+    fn test_new_task_pool() {
+        let mut config = crate::config::Config::default();
+
+        // no address
+        config.redis.url = None;
+        assert!(TaskPool::new(config.clone()).is_none());
+
+        // nonsense address
+        config.redis.url = Some("r??>>>>M<MM".to_string());
+        assert!(TaskPool::new(config.clone()).is_none());
+
+        // some address
+        config.redis.url = Some("redis://localhost:6379".to_string());
+        assert!(TaskPool::new(config.clone()).is_some());
+    }
+
+    #[tokio::test]
+    async fn test_redis_pool_new_task() {
+        let mut config = crate::config::Config::default();
+        config.redis.url = Some("redis://localhost:6379".to_string());
+        let mut pool = TaskPool::new(config.clone()).unwrap();
+
+        // <= Utc::now()
+        let task = Task {
+            metadata: TaskMetadata {
+                status: TaskStatus::Queued as i32,
+                status_rationale: None,
+                action: TaskAction::CancelItinerary as i32,
+                user_id: Uuid::new_v4().to_string(),
+                result: None,
+            },
+            body: TaskBody::CancelItinerary(Uuid::new_v4()),
+        };
+        let error = pool
+            .new_task(&task, FlightPriority::Emergency, Utc::now())
+            .await
+            .unwrap_err();
+        assert_eq!(error, CacheError::OperationFailed);
+
+        // status != TaskStatus::Queued as i32
+        let mut tmp = task.clone();
+        tmp.metadata.status = TaskStatus::Complete as i32;
+        let error = pool
+            .new_task(
+                &tmp,
+                FlightPriority::Emergency,
+                Utc::now() + Duration::days(1),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(error, CacheError::OperationFailed);
+
+        // status_rationale.is_some()
+        let mut tmp = task.clone();
+        tmp.metadata.status_rationale = Some(TaskStatusRationale::InvalidAction as i32);
+        let error = pool
+            .new_task(
+                &tmp,
+                FlightPriority::Emergency,
+                Utc::now() + Duration::days(1),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(error, CacheError::OperationFailed);
+    }
+
+    #[test]
+    fn test_next_task_from_redis_value() {
+        let value = Value::Bulk(vec![
+            Value::Data("scheduler:emergency".as_bytes().to_vec()),
+            Value::Bulk(vec![Value::Bulk(vec![
+                Value::Data("1".as_bytes().to_vec()),
+                Value::Data("task data".as_bytes().to_vec()),
+            ])]),
+        ]);
+
+        let next_task = NextTask::from_redis_value(&value).unwrap();
+        assert_eq!(next_task.task_id, 1);
+        assert_eq!(next_task.queue_name, "scheduler:emergency");
+
+        // not expected type
+        let value = Value::Int(1);
+        let error = NextTask::from_redis_value(&value).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::TypeError);
+
+        // bulk doesn't contain expected types
+        let value = Value::Bulk(vec![Value::Data("scheduler:emergency".as_bytes().to_vec())]);
+        let error = NextTask::from_redis_value(&value).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::TypeError);
+
+        // invalid queue name, not UTF-8
+        let value = Value::Bulk(vec![Value::Data(vec![0xFF]), Value::Bulk(vec![])]);
+        let error = NextTask::from_redis_value(&value).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::TypeError);
+        assert_eq!(
+            error.to_string(),
+            "Invalid queue name, non UTF-8.- TypeError"
+        );
+
+        // invalid task_id, not UTF-8
+        let value = Value::Bulk(vec![
+            Value::Data("scheduler:emergency".as_bytes().to_vec()),
+            Value::Bulk(vec![Value::Bulk(vec![
+                Value::Data(vec![0xFF]),
+                Value::Data("task data".as_bytes().to_vec()),
+            ])]),
+        ]);
+        let error = NextTask::from_redis_value(&value).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::TypeError);
+        assert_eq!(
+            error.to_string(),
+            "Could not parse task_id to String.- TypeError"
+        );
+
+        // invalid task_id, not able to parse to i64
+        let value = Value::Bulk(vec![
+            Value::Data("scheduler:emergency".as_bytes().to_vec()),
+            Value::Bulk(vec![Value::Bulk(vec![
+                Value::Data("not a number".as_bytes().to_vec()),
+                Value::Data("task data".as_bytes().to_vec()),
+            ])]),
+        ]);
+        let error = NextTask::from_redis_value(&value).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::TypeError);
+        assert_eq!(
+            error.to_string(),
+            "Could not parse task_id to i64.- TypeError"
+        );
+
+        // first Bulk value not a Bulk type
+        let value = Value::Bulk(vec![
+            Value::Data("scheduler:emergency".as_bytes().to_vec()),
+            Value::Bulk(vec![Value::Data("not a bulk".as_bytes().to_vec())]),
+        ]);
+        let error = NextTask::from_redis_value(&value).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::TypeError);
+        assert_eq!(
+            error.to_string(),
+            "Unexpected values, first Bulk value not a Bulk type- TypeError"
+        );
+
+        // not a data type
+        let value = Value::Bulk(vec![
+            Value::Data("scheduler:emergency".as_bytes().to_vec()),
+            Value::Bulk(vec![Value::Bulk(vec![
+                Value::Bulk(vec![]), // not a data type
+            ])]),
+        ]);
+        let error = NextTask::from_redis_value(&value).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::TypeError);
+        assert_eq!(
+            error.to_string(),
+            "Unexpected values, first member not a Data type- TypeError"
+        );
     }
 }
