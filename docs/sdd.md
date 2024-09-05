@@ -239,7 +239,7 @@ sequenceDiagram
     scheduler->>scheduler: main control loop<br>create_itinerary_impl(&task)
     scheduler->>+storage: search(...)<br>1 Aircraft, 2 Vertipads Information
     storage->>scheduler: Records for the aircraft and<br>vertipads in proposed itinerary
-    scheduler->>scheduler: Confirm that itinerary is possible;<br>check intersections with existing zones<br>and flight paths
+    scheduler->>scheduler: Confirm that itinerary is possible<br>check intersections with existing zones<br>and flight paths
 
     break invalid itinerary
         scheduler->>scheduler: task.status = REJECTED<br>task.status_rationale = SCHEDULE_CONFLICT
