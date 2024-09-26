@@ -18,7 +18,7 @@ pub struct FlightPlanSchedule {
     pub target_timeslot_start: DateTime<Utc>,
     pub target_timeslot_end: DateTime<Utc>,
     pub vehicle_id: String,
-    pub path: Option<Vec<PointZ>>,
+    pub waypoints: Option<Vec<PointZ>>,
 }
 
 impl PartialEq for FlightPlanSchedule {
@@ -76,8 +76,10 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
         //
         // Must have valid origin and target times
         //
-        let path = match data.path.clone() {
-            Some(p) => Some(
+        let waypoints = data
+            .waypoints
+            .clone()
+            .map(|p| {
                 p.points
                     .into_iter()
                     .map(|p| PointZ {
@@ -85,13 +87,12 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
                         longitude: p.x,
                         altitude_meters: p.z as f32,
                     })
-                    .collect(),
-            ),
-            None => {
-                router_warn!("Flight plan has no path: {:?}", data);
+                    .collect()
+            })
+            .or_else(|| {
+                router_warn!("Flight plan has no waypoints: {:?}", data);
                 None
-            }
-        };
+            });
 
         let origin_timeslot_start: DateTime<Utc> = data
             .origin_timeslot_start
@@ -149,11 +150,7 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
             FlightPlanError::Data
         })?;
 
-        let origin_vertiport_id = data.origin_vertiport_id.clone().ok_or_else(|| {
-            router_error!("Flight plan has no origin vertiport: [{:?}]", data);
-            FlightPlanError::Data
-        })?;
-
+        let origin_vertiport_id = data.origin_vertiport_id.clone();
         Uuid::parse_str(&origin_vertiport_id).map_err(|e| {
             router_error!(
                 "Flight plan has invalid origin vertiport ({}): [{:?}]; {}",
@@ -164,11 +161,7 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
             FlightPlanError::Data
         })?;
 
-        let target_vertiport_id = data.target_vertiport_id.clone().ok_or_else(|| {
-            router_error!("Flight plan has no target vertiport: [{:?}]", data);
-            FlightPlanError::Data
-        })?;
-
+        let target_vertiport_id = data.target_vertiport_id.clone();
         Uuid::parse_str(&target_vertiport_id).map_err(|e| {
             router_error!(
                 "Flight plan has invalid target vertiport ({}): [{:?}]; {}",
@@ -189,14 +182,14 @@ impl TryFrom<flight_plan::Data> for FlightPlanSchedule {
             target_timeslot_start,
             target_timeslot_end,
             vehicle_id: data.vehicle_id.to_string(),
-            path,
+            waypoints,
         })
     }
 }
 
 impl From<FlightPlanSchedule> for flight_plan::Data {
     fn from(val: FlightPlanSchedule) -> Self {
-        let path = val.path.map(|p| GeoLineStringZ {
+        let waypoints = val.waypoints.map(|p| GeoLineStringZ {
             points: p
                 .into_iter()
                 .map(|p| GeoPointZ {
@@ -208,16 +201,16 @@ impl From<FlightPlanSchedule> for flight_plan::Data {
         });
 
         flight_plan::Data {
-            origin_vertiport_id: Some(val.origin_vertiport_id),
+            origin_vertiport_id: val.origin_vertiport_id,
             origin_vertipad_id: val.origin_vertipad_id,
             origin_timeslot_start: Some(val.origin_timeslot_start.into()),
             origin_timeslot_end: Some(val.origin_timeslot_end.into()),
-            target_vertiport_id: Some(val.target_vertiport_id),
+            target_vertiport_id: val.target_vertiport_id,
             target_vertipad_id: val.target_vertipad_id,
             target_timeslot_start: Some(val.target_timeslot_start.into()),
             target_timeslot_end: Some(val.target_timeslot_end.into()),
             vehicle_id: val.vehicle_id,
-            path,
+            waypoints,
             ..Default::default()
         }
     }
@@ -287,7 +280,7 @@ mod tests {
             target_timeslot_start: Utc::now() + Duration::minutes(2),
             target_timeslot_end: Utc::now() + Duration::minutes(3),
             vehicle_id: Uuid::new_v4().to_string(),
-            path: Some(vec![
+            waypoints: Some(vec![
                 PointZ {
                     latitude: 0.0,
                     longitude: 0.0,
@@ -302,10 +295,7 @@ mod tests {
         };
 
         let data: flight_plan::Data = flight_plan.clone().into();
-        assert_eq!(
-            data.origin_vertiport_id,
-            Some(flight_plan.origin_vertiport_id)
-        );
+        assert_eq!(data.origin_vertiport_id, flight_plan.origin_vertiport_id);
         assert_eq!(data.origin_vertipad_id, flight_plan.origin_vertipad_id);
         assert_eq!(
             data.origin_timeslot_start,
@@ -315,10 +305,7 @@ mod tests {
             data.origin_timeslot_end,
             Some(flight_plan.origin_timeslot_end.into())
         );
-        assert_eq!(
-            data.target_vertiport_id,
-            Some(flight_plan.target_vertiport_id)
-        );
+        assert_eq!(data.target_vertiport_id, flight_plan.target_vertiport_id);
         assert_eq!(data.target_vertipad_id, flight_plan.target_vertipad_id);
         assert_eq!(
             data.target_timeslot_start,
@@ -330,18 +317,18 @@ mod tests {
         );
         assert_eq!(data.vehicle_id, flight_plan.vehicle_id);
         assert_eq!(
-            data.path,
+            data.waypoints,
             Some(GeoLineStringZ {
                 points: vec![
                     GeoPointZ {
                         y: 0.0,
                         x: 0.0,
-                        z: 0.0,
+                        z: 0.0
                     },
                     GeoPointZ {
                         y: 1.0,
                         x: 1.0,
-                        z: 1.0,
+                        z: 1.0
                     },
                 ],
             })
@@ -355,9 +342,9 @@ mod tests {
     fn test_flight_plan_schedule_try_from_data() {
         // valid
         let data = flight_plan::Data {
-            origin_vertiport_id: Some(Uuid::new_v4().to_string()),
+            origin_vertiport_id: Uuid::new_v4().to_string(),
             origin_vertipad_id: Uuid::new_v4().to_string(),
-            target_vertiport_id: Some(Uuid::new_v4().to_string()),
+            target_vertiport_id: Uuid::new_v4().to_string(),
             target_vertipad_id: Uuid::new_v4().to_string(),
             origin_timeslot_start: Some(Timestamp {
                 seconds: 0,
@@ -376,7 +363,7 @@ mod tests {
                 nanos: 0,
             }),
             vehicle_id: Uuid::new_v4().to_string(),
-            path: Some(GeoLineStringZ {
+            waypoints: Some(GeoLineStringZ {
                 points: vec![
                     GeoPointZ {
                         y: 0.0,
@@ -410,7 +397,7 @@ mod tests {
 
         // no path
         let tmp = flight_plan::Data {
-            path: None,
+            waypoints: None,
             ..data.clone()
         };
         let flight_plan = flight_plan::Object {
@@ -418,7 +405,7 @@ mod tests {
             data: Some(tmp),
         };
         let result = FlightPlanSchedule::try_from(flight_plan).unwrap();
-        assert_eq!(result.path, None);
+        assert_eq!(result.waypoints, None);
 
         // no origin_timeslot_start
         let tmp = flight_plan::Data {
@@ -499,33 +486,9 @@ mod tests {
         let error = FlightPlanSchedule::try_from(flight_plan).unwrap_err();
         assert_eq!(error, FlightPlanError::Data);
 
-        // origin vertiport id is none
-        let tmp = flight_plan::Data {
-            origin_vertiport_id: None,
-            ..data.clone()
-        };
-        let flight_plan = flight_plan::Object {
-            id: Uuid::new_v4().to_string(),
-            data: Some(tmp),
-        };
-        let error = FlightPlanSchedule::try_from(flight_plan).unwrap_err();
-        assert_eq!(error, FlightPlanError::Data);
-
-        // target vertiport id is none
-        let tmp = flight_plan::Data {
-            target_vertiport_id: None,
-            ..data.clone()
-        };
-        let flight_plan = flight_plan::Object {
-            id: Uuid::new_v4().to_string(),
-            data: Some(tmp),
-        };
-        let error = FlightPlanSchedule::try_from(flight_plan).unwrap_err();
-        assert_eq!(error, FlightPlanError::Data);
-
         // invalid origin vertiport id
         let tmp = flight_plan::Data {
-            origin_vertiport_id: Some("invalid".to_owned()),
+            origin_vertiport_id: "invalid".to_owned(),
             ..data.clone()
         };
         let flight_plan = flight_plan::Object {
@@ -537,7 +500,7 @@ mod tests {
 
         // invalid target vertiport id
         let tmp = flight_plan::Data {
-            target_vertiport_id: Some("invalid".to_owned()),
+            target_vertiport_id: "invalid".to_owned(),
             ..data.clone()
         };
         let flight_plan = flight_plan::Object {
@@ -567,7 +530,7 @@ mod tests {
             target_timeslot_start: now + Duration::minutes(2),
             target_timeslot_end: now + Duration::minutes(3),
             vehicle_id: Uuid::new_v4().to_string(),
-            path: None,
+            waypoints: None,
         };
         let mut f2 = f1.clone();
         assert_eq!(f1, f2);
