@@ -3,7 +3,7 @@
 # File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/all/.make/rust.mk
 
 RUST_IMAGE_NAME     ?= ghcr.io/arrow-air/tools/arrow-rust
-RUST_IMAGE_TAG      ?= 1.2
+RUST_IMAGE_TAG      ?= 1.3
 DOCKER_IMAGE_NAME   ?= $(PACKAGE_NAME)
 CARGO_MANIFEST_PATH ?= Cargo.toml
 CARGO_INCREMENTAL   ?= 1
