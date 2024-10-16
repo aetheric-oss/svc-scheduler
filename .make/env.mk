@@ -16,4 +16,8 @@ ENV_KEYS=$(shell grep -Ehv '^\s*(\#.*)?\s*$$' .env.base .env.repo 2>/dev/null | 
 # Check if key exists in .env, if not grep it from the .env.base/repo into your .env
 $(foreach k, $(ENV_KEYS), $(eval $(shell sh -c "grep -q '^$(k)=' .env 2>/dev/null || (echo '*** NOTE: Adding missing .env key [$(k)] to your .env file!' 1>&2 ; grep -h '^$(k)=' .env.base .env.repo 2>/dev/null >> .env ; grep '^$(k)=' .env 1>&2)")))
 
+# Add docker user / group ids
+$(eval $(shell sh -c "grep -q '^DOCKER_USER_ID=' .env 2>/dev/null || (echo '*** NOTE: Adding missing .env key [DOCKER_USER_ID] to your .env file!' 1>&2 ; echo DOCKER_USER_ID="`id -u`" >> .env ; grep '^DOCKER_USER_ID=' .env 1>&2)"))
+$(eval $(shell sh -c "grep -q '^DOCKER_GROUP_ID=' .env 2>/dev/null || (echo '*** NOTE: Adding missing .env key [DOCKER_GROUP_ID] to your .env file!' 1>&2 ; echo DOCKER_GROUP_ID="`id -g`" >> .env ; grep '^DOCKER_GROUP_ID=' .env 1>&2)"))
+
 -include $(ENV_FILE)
