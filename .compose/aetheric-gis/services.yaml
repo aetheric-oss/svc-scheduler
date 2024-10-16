@@ -1,0 +1,108 @@
+## DO NOT EDIT!
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/.compose/aetheric-gis/services.yaml
+
+---
+
+volumes:
+  postgis-data:
+  postgis-ssl:
+
+networks:
+  aetheric-realm:
+
+services:
+  gis-init-ssl:
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-gis-init-ssl
+    image: ghcr.io/arrow-air/tools/arrow-gis:1.0
+    profiles:
+      - realm-gis
+      - realm
+      - integration-test
+      - it-coverage
+    volumes:
+      - type: volume
+        source: postgis-ssl
+        target: /ssl
+      - type: bind
+        source: scripts/init-ssl.sh
+        target: /scripts/init-ssl.sh
+        read_only: true
+    environment:
+      DOCKER_USER_ID: ${DOCKER_USER_ID:-0}
+      DOCKER_GROUP_ID: ${DOCKER_GROUP_ID:-0}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["/bin/sh /scripts/init-ssl.sh"]
+
+  gis-init:
+    container_name: aetheric-gis-init
+    image: ghcr.io/arrow-air/tools/arrow-gis:1.0
+    profiles:
+      - realm-gis
+      - realm
+      - integration-test
+      - it-coverage
+    environment:
+      - SERVER_HOSTNAME=localhost
+      - PGSSLROOTCERT=/var/lib/postgresql/certs/root.crt
+      - PGSSLCERT=/var/lib/postgresql/certs/root.crt
+      - PGSSLKEY=/var/lib/postgresql/keys/root.key
+      - PGSSLMODE=require
+      - POSTGRES_DB=gis
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    user: "postgres:postgres"
+    volumes:
+      - type: bind
+        source: scripts/docker-entrypoint-init.sh
+        target: /usr/local/bin/docker-entrypoint-init.sh
+        read_only: true
+      - type: bind
+        source: scripts/init.sql
+        target: /docker-entrypoint-initdb.d/init.sql
+        read_only: true
+      - type: volume
+        source: postgis-data
+        target: /var/lib/postgresql/data
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["/bin/sh /usr/local/bin/docker-entrypoint-init.sh"]
+    depends_on:
+      gis-init-ssl:
+        condition: service_completed_successfully
+
+  gis:
+    container_name: aetheric-gis
+    image: ghcr.io/arrow-air/tools/arrow-gis:1.0
+    profiles:
+      - realm-gis
+      - realm
+      - integration-test
+    networks:
+      - aetheric-realm
+    user: "postgres:postgres"
+    restart: always
+    volumes:
+      - type: volume
+        source: postgis-data
+        target: /var/lib/postgresql/data
+      - type: volume
+        source: postgis-ssl
+        target: /var/lib/postgresql/keys
+        volume:
+          subpath: keys
+        read_only: true
+      - type: volume
+        source: postgis-ssl
+        target: /var/lib/postgresql/certs
+        volume:
+          subpath: certs
+        read_only: true
+    healthcheck:
+      test: "pg_isready -d gis -U svc_gis"
+      interval: 10s
+      timeout: 30s
+      retries: 3
+    ports:
+      - 5432:5432
+    depends_on:
+      gis-init:
+        condition: service_completed_successfully
