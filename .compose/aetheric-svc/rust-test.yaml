@@ -1,0 +1,126 @@
+## DO NOT EDIT!
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/.compose/aetheric-svc/rust-test.yaml.tftpl
+
+---
+
+#######################################################################################
+# Define extension with an anchor so it can be used as an alias to expand the fields. #
+#######################################################################################
+x-volumes-it: &volumes-it
+  volumes:
+    - type: bind
+      source: "${SOURCE_PATH:-../..}/"
+      target: "/usr/src/app"
+    - type: bind
+      source: "${SOURCE_PATH:-../..}/.cargo/registry"
+      target: "/usr/local/cargo/registry"
+    - type: bind
+      source: "../../logs/"
+      target: "/logs/"
+
+x-test: &test
+  user: ${DOCKER_USER_ID:-0}:${DOCKER_GROUP_ID:-0}
+  image: ${RUST_IMAGE_NAME}:${RUST_IMAGE_TAG}
+  networks:
+    - aetheric-realm
+  configs:
+    - source: log4rs
+      target: ${LOG_CONFIG:-/log4rs.yaml}
+    - source: dot-env
+      target: /.env
+  security_opt:
+    - seccomp:unconfined
+
+x-coverage-cmd: &coverage-cmd
+  command: sh -c "
+    cargo tarpaulin \
+      -l -v -t 600 \
+      --manifest-path '${CARGO_MANIFEST_PATH:-Cargo.toml}' \
+      --workspace \
+      --tests \
+      --features $${PACKAGE_FEATURES:-default} \
+      --out Lcov \
+      --output-dir coverage/ ;
+    sed -e 's/\\/usr\\/src\\/app\\///g' -i coverage/lcov.info &&
+    find . -name *.profraw -delete &&
+    chown -R ${DOCKER_USER_ID:-0}:${DOCKER_GROUP_ID:-0} /usr/src/app/*"
+
+services:
+  unit-test:
+    <<: *test
+    container_name: aetheric-${PACKAGE_NAME}-ut
+    command: sh -c "
+      cargo test \
+        --manifest-path '${CARGO_MANIFEST_PATH:-Cargo.toml}' \
+        --workspace \
+        --target-dir target/test/unit-test \
+        --features $${PACKAGE_FEATURES:-default};
+      chown -R ${DOCKER_USER_ID:-0}:${DOCKER_GROUP_ID:-0} /usr/src/app/*"
+    profiles:
+      - unit-test
+
+  ut-coverage:
+    <<: [*test, *coverage-cmd]
+    container_name: aetheric-${PACKAGE_NAME}-ut-coverage
+    environment:
+      - PACKAGE_FEATURES=${PACKAGE_UT_FEATURES}
+      - SERVER_HOSTNAME=aetheric-${PACKAGE_NAME}-web-server-stubbed
+      - SERVER_PORT_GRPC=50051
+    depends_on:
+      web-server-stubbed:
+        condition: service_healthy
+    profiles:
+      - ut-coverage
+
+  integration-test:
+    <<: [*test, *volumes-it]
+    container_name: aetheric-${PACKAGE_NAME}-it
+    command: sh -c "
+      cargo test \
+        --manifest-path '${CARGO_MANIFEST_PATH:-Cargo.toml}' \
+        --workspace \
+        --target-dir target/test/integration-test \
+        --test integration_test \
+        --features $${PACKAGE_FEATURES:-default};
+      chown -R ${DOCKER_USER_ID:-0}:${DOCKER_GROUP_ID:-0} /usr/src/app/*"
+    environment:
+      - PACKAGE_FEATURES=${PACKAGE_IT_FULL_FEATURES}
+      - SERVER_HOSTNAME=aetheric-${PACKAGE_NAME}-web-server
+      - SERVER_PORT_GRPC=50051
+    depends_on:
+      web-server:
+        condition: service_healthy
+    profiles:
+      - integration-test
+
+  # Runs coverage for integration tests. Will use stubbed backends since we only want to see if all code is covered.
+  # For full integration tests, the 'integration-test' target is available
+  it-coverage:
+    <<: [*test, *coverage-cmd, *volumes-it]
+    container_name: aetheric-${PACKAGE_NAME}-it-coverage
+    environment:
+      - PACKAGE_FEATURES=${PACKAGE_IT_FEATURES}
+      - SERVER_HOSTNAME=aetheric-${PACKAGE_NAME}-web-server-stubbed
+      - SERVER_PORT_GRPC=50051
+    depends_on:
+      web-server-stubbed:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    profiles:
+      - it-coverage
+
+  example:
+    <<: *test
+    container_name: aetheric-${PACKAGE_NAME}-example
+    command: cargo run --manifest-path "${CARGO_MANIFEST_PATH:-Cargo.toml}" --example "${EXAMPLE_TARGET:-grpc}"
+    environment:
+      - SERVER_HOSTNAME=aetheric-${PACKAGE_NAME}-web-server-stubbed
+      - SERVER_PORT_REST=${DOCKER_PORT_REST:-8000}
+      - SERVER_PORT_GRPC=50051
+    depends_on:
+      web-server-stubbed:
+        condition: service_healthy
+    profiles:
+      - example
