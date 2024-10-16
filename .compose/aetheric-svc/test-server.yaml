@@ -1,0 +1,43 @@
+## DO NOT EDIT!
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/.compose/aetheric-svc/test-server.yaml.tftpl
+
+---
+
+services:
+  web-server:
+    extends:
+      file: base.yaml
+      service: server
+    container_name: aetheric-${PACKAGE_NAME}-web-server
+    build:
+      context: ${DOCKER_BUILD_PATH:-../../.}
+      args:
+        - PACKAGE_NAME=${PACKAGE_NAME}
+        - ENABLE_FEATURES=${PACKAGE_RELEASE_FEATURES}
+      tags:
+        - ${PACKAGE_NAME}:local
+    depends_on:
+      svc-storage:
+        condition: service_healthy
+      svc-gis:
+        condition: service_healthy
+    profiles:
+      - integration-test
+
+  web-server-stubbed:
+    extends:
+      file: base.yaml
+      service: server
+    container_name: aetheric-${PACKAGE_NAME}-web-server-stubbed
+    build:
+      context: ${DOCKER_BUILD_PATH:-../../.}
+      args:
+        - PACKAGE_NAME=${PACKAGE_NAME}
+        - ENABLE_FEATURES=${PACKAGE_RELEASE_FEATURES},stub_backends
+      tags:
+        - ${PACKAGE_NAME}:local-stubbed
+    profiles:
+      - it-coverage
+      - ut-coverage
+      - example
