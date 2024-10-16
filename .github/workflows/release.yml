@@ -2,6 +2,8 @@
 # This file was provisioned by OpenTofu
 # File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/all/.github/workflows/release.yml
 
+---
+
 name: Tag and Release
 
 on:
@@ -154,7 +156,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
+        uses: comnoco/create-release-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.COMMITBOT_GITHUB_TOKEN }}
         with:
