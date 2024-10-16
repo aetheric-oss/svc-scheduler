@@ -1,0 +1,28 @@
+## DO NOT EDIT!
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/.compose/dozzle/services.yaml
+
+---
+
+networks:
+  proxy:
+
+services:
+  dozzle:
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-dozzle
+    image: amir20/dozzle:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 8081:8080
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.aetheric-dozzle.rule=PathPrefix(`/logs`)"
+    command:
+      - --base
+      - /logs
+    restart: always
+    profiles:
+      - realm-tools
