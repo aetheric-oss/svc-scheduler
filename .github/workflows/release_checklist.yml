@@ -1,6 +1,8 @@
 ## DO NOT EDIT!
 # This file was provisioned by OpenTofu
-# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/all/.github/workflows/rust_ci.yml
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/all/.github/workflows/release_checklist.yml
+
+---
 
 on:
   pull_request:
