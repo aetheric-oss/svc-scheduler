@@ -1,10 +1,35 @@
+## DO NOT EDIT!
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/log4rs.yaml
+
+---
 refresh_rate: 30 seconds
 appenders:
   stdout:
     kind: console
     encoder:
       # https://medium.com/nikmas-group-rust/advanced-logging-in-rust-with-log4rs-2d712bb322de
-      pattern: "{d(%Y-%m-%d %H:%M:%S)} | {({l}):5.5} | {f}:{L} — {m}{n}"
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} | {I} | {h({l}):5.5} | {f}:{L} | {m}{n}"
+    filters:
+      - kind: threshold
+        level: info
+  client_requests:
+    kind: rolling_file
+    path: "logs/client_requests.log"
+    policy:
+      trigger:
+        kind: size
+        limit: 20mb
+      roller:
+        kind: fixed_window
+        pattern: logs/client_requests_{}.gz
+        count: 5
+        base: 1
+    encoder:
+      kind: json
+    filters:
+      - kind: threshold
+        level: info
   grpc_requests:
     kind: rolling_file
     path: "logs/grpc_requests.log"
@@ -19,48 +44,60 @@ appenders:
         base: 1
     encoder:
       kind: json
-  tasks:
+    filters:
+      - kind: threshold
+        level: info
+  rest_requests:
     kind: rolling_file
-    path: "logs/tasks.log"
+    path: "logs/rest_requests.log"
     policy:
       trigger:
         kind: size
         limit: 20mb
       roller:
         kind: fixed_window
-        pattern: logs/tasks_{}.gz
+        pattern: logs/rest_requests_{}.gz
         count: 5
         base: 1
     encoder:
       kind: json
-  grpc_clients:
+    filters:
+      - kind: threshold
+        level: info
+  psql:
     kind: rolling_file
-    path: "logs/grpc_clients.log"
+    path: "logs/psql.log"
     policy:
       trigger:
         kind: size
         limit: 20mb
       roller:
         kind: fixed_window
-        pattern: logs/grpc_clients_{}.gz
+        pattern: logs/psql{}.gz
         count: 5
         base: 1
     encoder:
       kind: json
-  router:
+    filters:
+      - kind: threshold
+        level: info
+  postgis:
     kind: rolling_file
-    path: "logs/router.log"
+    path: "logs/postgis.log"
     policy:
       trigger:
         kind: size
         limit: 20mb
       roller:
         kind: fixed_window
-        pattern: logs/router_{}.gz
+        pattern: logs/postgis_{}.gz
         count: 5
         base: 1
     encoder:
       kind: json
+    filters:
+      - kind: threshold
+        level: info
   tests:
     kind: rolling_file
     path: "logs/tests.log"
@@ -75,34 +112,63 @@ appenders:
         base: 1
     encoder:
       kind: json
+    filters:
+      - kind: threshold
+        level: info
+  debug_file:
+    kind: rolling_file
+    path: "logs/debug.log"
+    policy:
+      trigger:
+        kind: size
+        limit: 20mb
+      roller:
+        kind: fixed_window
+        pattern: logs/debug_{}.gz
+        count: 5
+        base: 1
+    encoder:
+      kind: json
+    filters:
+      - kind: threshold
+        level: debug
 
 root:
-  level: info
+  level: debug
   appenders:
+    - debug_file
     - stdout
 
 loggers:
+  backend::psql:
+    level: debug
+    appenders:
+      - psql
+  backend::postgis:
+    level: debug
+    appenders:
+      - postgis
+  app::rest:
+    level: debug
+    appenders:
+      - rest_requests
   app::grpc:
-    level: info
+    level: debug
     appenders:
       - grpc_requests
-  app::tasks:
-    level: info
+  app::grpc::clients::grpc:
+    level: debug
     appenders:
-      - tasks
+      - client_requests
   app::client::storage::grpc:
-    level: info
+    level: debug
     appenders:
-      - grpc_clients
-  app::router:
-    level: info
-    appenders:
-      - stdout
+      - client_requests
   test::ut:
-    level: info
+    level: debug
     appenders:
       - tests
   test::it:
     level: debug
     appenders:
-      - stdout
+      - tests
