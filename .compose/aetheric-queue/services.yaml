@@ -1,0 +1,34 @@
+## DO NOT EDIT!
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/.compose/aetheric-queue/services.yaml
+
+---
+
+volumes:
+  queue-data:
+
+networks:
+  aetheric-realm:
+
+services:
+  queue:
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-queue
+    image: rabbitmq:3.11-alpine
+    profiles:
+      - realm
+      - integration-test
+      - it-coverage
+    networks:
+      - aetheric-realm
+    restart: always
+    ports:
+      - 5672:5672
+      - 15672:15672
+    command: rabbitmq-server
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics","ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - queue-data:/data
