@@ -2,7 +2,7 @@
 # This file was provisioned by OpenTofu
 # File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/all/.make/toml.mk
 
-TOML_FILES ?= $(shell find . -type f -iname '*.toml' ! -path "./target")
+TOML_FILES ?= $(shell find . -type f -iname '*.toml' ! -iwholename "*./node_modules/*" ! -path "./build" ! -iwholename "*.terraform*" ! -iwholename "*.cargo/*" ! -iwholename "./target/*")
 
 .help-toml:
 	@echo ""
