@@ -1,10 +1,9 @@
-#!/bin/sh
-#
 ## DO NOT EDIT!
 # This file was provisioned by OpenTofu
 # File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/all/.cargo-husky/hooks/pre-commit
-##
-#
+
+#!/bin/sh
+
 # This hook was set by cargo-husky v1.5.0: https://github.com/rhysd/cargo-husky#readme
 
 # Style templates for console output.
