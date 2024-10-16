@@ -2,9 +2,10 @@
 # This file was provisioned by OpenTofu
 # File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/all/.make/rust.mk
 
-RUST_IMAGE_NAME     ?= ghcr.io/arrow-air/tools/arrow-rust
-RUST_IMAGE_TAG      ?= 1.3
+DOCKER_NAME         ?= ${PACKAGE_NAME}
 DOCKER_IMAGE_NAME   ?= $(PACKAGE_NAME)
+DOCKER_USER_ID      ?= $(shell echo `id -u`)
+DOCKER_GROUP_ID     ?= $(shell echo `id -g`)
 CARGO_MANIFEST_PATH ?= Cargo.toml
 CARGO_INCREMENTAL   ?= 1
 RUSTC_BOOTSTRAP     ?= 0
@@ -15,10 +16,6 @@ ADDITIONAL_OPT      ?=
 
 PACKAGE_BUILD_FEATURES   ?= ""
 PACKAGE_RELEASE_FEATURES ?= ""
-# Keep backwards compatible for now (keeping PACKAGE_TEST_FEATURES in addition to PACKAGE_UT_FEATURES), can be removed once all repo's have their .env.repo file updated
-PACKAGE_TEST_FEATURES    ?= ""
-PACKAGE_UT_FEATURES      ?= $(PACKAGE_TEST_FEATURES)
-PACKAGE_IT_FEATURES      ?= ""
 
 # Can contain quotes, but we don't want quotes
 EXCLUSIVE_FEATURES_TEST  := $(shell echo ${EXCLUSIVE_FEATURES_TEST})
@@ -27,40 +24,41 @@ COMMA := ,
 # function with a generic template to run docker with the required values
 # Accepts $1 = command to run, $2 = additional command flags (optional)
 ifeq ("$(CARGO_MANIFEST_PATH)", "")
-cargo_run = echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo check...$(SGR0)"
+	cargo_run = echo "$(BOLD)$(YELLOW)No Cargo.toml found in any of the subdirectories, skipping cargo check...$(SGR0)"
 else
-cargo_run = docker run \
-	--name=$(DOCKER_NAME)-$(subst $(COMMA),_,$@) \
-	--rm \
-	--user `id -u`:`id -g` \
-	--workdir=/usr/src/app \
-	$(ADDITIONAL_OPT) \
-	-v "$(SOURCE_PATH)/:/usr/src/app" \
-	-v "$(SOURCE_PATH)/.cargo/registry:/usr/local/cargo/registry" \
-	-e CARGO_INCREMENTAL=$(CARGO_INCREMENTAL) \
-	-e RUSTC_BOOTSTRAP=$(RUSTC_BOOTSTRAP) \
-	-t $(RUST_IMAGE_NAME):$(RUST_IMAGE_TAG) \
-	cargo $(1) --manifest-path "$(CARGO_MANIFEST_PATH)" $(2)
+	cargo_run = docker run \
+		--name=$(DOCKER_NAME)-$(subst $(COMMA),_,$@) \
+		--rm \
+		--user $(DOCKER_USER_ID):$(DOCKER_GROUP_ID) \
+		--workdir=/usr/src/app \
+		$(ADDITIONAL_OPT) \
+		-v "$(SOURCE_PATH)/:/usr/src/app" \
+		-v "$(SOURCE_PATH)/.cargo/registry:/usr/local/cargo/registry" \
+		-e CARGO_INCREMENTAL=$(CARGO_INCREMENTAL) \
+		-e RUSTC_BOOTSTRAP=$(RUSTC_BOOTSTRAP) \
+		-t $(RUST_IMAGE_NAME):$(RUST_IMAGE_TAG) \
+		cargo $(1) --manifest-path "$(CARGO_MANIFEST_PATH)" $(2)
 endif
 
 rust-docker-pull:
 	@docker pull -q $(RUST_IMAGE_NAME):$(RUST_IMAGE_TAG)
 latest-docker-pull:
-	@docker pull -q $(DOCKER_IMAGE_NAME):latest || true
+	@docker pull -q $(DOCKER_IMAGE_NAME):latest 2>/dev/null || true
+dev-docker-pull:
+	@docker pull -q $(DOCKER_IMAGE_NAME):dev 2>/dev/null || true
 
 .help-rust:
 	@echo ""
 	@echo "$(SMUL)$(BOLD)$(GREEN)Rust$(SGR0)"
 	@echo "  $(YELLOW)All cargo commands will use '--manifest-path $(CARGO_MANIFEST_PATH)'$(SGR0)"
 	@echo "  $(BOLD)rust-build$(SGR0)       -- Run 'cargo build'"
+	@echo "  $(BOLD)rust-test$(SGR0)        -- Run 'cargo test --workspace'"
 	@echo "  $(BOLD)rust-release$(SGR0)     -- Run 'cargo build --release --target RELEASE_TARGET'"
 	@echo "                     (RELEASE_TARGET=$(RELEASE_TARGET))"
 	@echo "  $(BOLD)rust-publish$(SGR0)     -- Run 'cargo publish --package $(PUBLISH_PACKAGE_NAME)'"
 	@echo "                     uses '--dry-run' by default, automation uses PUBLISH_DRY_RUN=0 to upload crate"
 	@echo "  $(BOLD)rust-clean$(SGR0)       -- Run 'cargo clean'"
 	@echo "  $(BOLD)rust-check$(SGR0)       -- Run 'cargo check'"
-	@echo "  $(BOLD)rust-test$(SGR0)        -- Run 'cargo test --workspace'"
-	@echo "  $(BOLD)rust-example-ARG$(SGR0) -- Run 'cargo run --example ARG' (replace ARG with example name)"
 	@echo "  $(BOLD)rust-clippy$(SGR0)      -- Run 'cargo clippy --workspace -- -D warnings'"
 	@echo "  $(BOLD)rust-fmt$(SGR0)         -- Run 'cargo fmt --workspace -- --check' to check rust file formats."
 	@echo "  $(BOLD)rust-tidy$(SGR0)        -- Run 'cargo fmt --workspace' to fix rust file formats if needed."
@@ -68,7 +66,11 @@ latest-docker-pull:
 	@echo "  $(BOLD)rust-openapi$(SGR0)     -- Run 'cargo run -- --api ./out/$(PACKAGE_NAME)-openapi.json'."
 	@echo "  $(BOLD)rust-validate-openapi$(SGR0) -- Run validation on the ./out/$(PACKAGE_NAME)-openapi.json."
 	@echo "  $(BOLD)rust-grpc-api$(SGR0)    -- Generate a $(PACKAGE_NAME)-grpc-api.json from proto/*.proto files."
-	@echo "  $(BOLD)rust-coverage$(SGR0)    -- Run tarpaulin unit test coverage report"
+	@echo "  $(BOLD)rust-example-grpc$(SGR0)-- Run 'docker compose run --rm example' EXAMPLE_TARGET=grpc with stubbed backend server"
+	@echo "  $(BOLD)rust-example-rest$(SGR0)-- Run 'docker compose run --rm example' EXAMPLE_TARGET=rest with stubbed backend server"
+	@echo "  $(BOLD)rust-ut-coverage$(SGR0) -- Run 'docker compose run --rm ut-coverage' with 'test_util' feature enabled to generate tarpaulin unit test coverage report"
+	@echo "  $(BOLD)rust-it-coverage$(SGR0) -- Run 'docker compose run --rm it-coverage' with 'test_util' feature enabled to generate tarpaulin integration test coverage report"
+	@echo "  $(BOLD)rust-it-full$(SGR0)     -- Run 'docker compose run --rm it-full' to run full integration test with running backends"
 	@echo "  $(CYAN)Combined targets$(SGR0)"
 	@echo "  $(BOLD)rust-test-all$(SGR0)    -- Run targets: rust-build rust-check rust-test rust-clippy rust-fmt"
 	@echo "  $(BOLD)rust-all$(SGR0)         -- Run targets; rust-clean rust-test-all rust-release"
@@ -113,21 +115,6 @@ rust-test: check-cargo-registry rust-docker-pull rust-test-features
 	@echo "$(CYAN)Running cargo test with features [$(PACKAGE_UT_FEATURES)]...$(SGR0)"
 	@$(call cargo_run,test,--features $(PACKAGE_UT_FEATURES) --workspace)
 
-rust-example-%: EXAMPLE_TARGET=$*
-rust-example-%: DOCKER_IMAGE_TAG=dev
-rust-example-%: check-cargo-registry check-logs-dir rust-docker-pull docker-build-dev
-	@echo "$(YELLOW) Make sure the $(DOCKER_IMAGE_NAME):dev image is available by runnning 'make docker-build-dev' first.$(SGR0)"
-	@docker compose run \
-		--user `id -u`:`id -g` \
-		--rm \
-		-e CARGO_INCREMENTAL=1 \
-		-e RUSTC_BOOTSTRAP=0 \
-		-e EXAMPLE_TARGET=$(EXAMPLE_TARGET) \
-		-e SERVER_PORT_GRPC=$(DOCKER_PORT_GRPC) \
-		-e SERVER_PORT_REST=$(DOCKER_PORT_REST) \
-		-e SERVER_HOSTNAME=$(DOCKER_NAME)-web-server \
-		example ; docker compose down
-
 rust-clippy: check-cargo-registry rust-docker-pull
 	@echo "$(CYAN)Running clippy...$(SGR0)"
 	@$(call cargo_run,clippy,--workspace -- -D warnings)
@@ -161,33 +148,31 @@ rust-grpc-api:
 	mkdir -p $(OUTPUTS_PATH)
 	@docker run \
 		--rm \
-		--user `id -u`:`id -g` \
+		--user $(DOCKER_USER_ID):$(DOCKER_GROUP_ID) \
 		-v $(SOURCE_PATH)/proto:/protos \
 		-v $(OUTPUTS_PATH):/out \
 		pseudomuto/protoc-gen-doc \
 		--doc_opt=json,$(PACKAGE_NAME)-grpc-api.json
 
-rust-it-coverage: DOCKER_IMAGE_TAG=dev
-rust-it-coverage: check-cargo-registry check-logs-dir rust-docker-pull latest-docker-pull
-	@docker compose run \
-		--rm \
-		--user `id -u`:`id -g` \
-		-e SERVER_PORT_GRPC=$(DOCKER_PORT_GRPC) \
-		-e SERVER_PORT_REST=$(DOCKER_PORT_REST) \
-		-e SERVER_HOSTNAME=$(DOCKER_NAME)-web-server \
-		it-coverage ; docker compose down
-	@sed -e "s/\/usr\/src\/app\///g" -i coverage/lcov.info
+rust-example-grpc: EXAMPLE_TARGET=grpc
+rust-example-grpc: check-cargo-registry check-logs-dir rust-docker-pull docker-compose-run-example
 
-rust-ut-coverage: DOCKER_IMAGE_TAG=latest
-rust-ut-coverage: check-cargo-registry rust-docker-pull
-	@docker compose run \
-		--rm \
-		--user `id -u`:`id -g` \
-		-e SERVER_PORT_GRPC=$(DOCKER_PORT_GRPC) \
-		-e SERVER_PORT_REST=$(DOCKER_PORT_REST) \
-		-e SERVER_HOSTNAME=$(DOCKER_NAME)-web-server \
-		ut-coverage ; docker compose down
-	@sed -e "s/\/usr\/src\/app\///g" -i coverage/lcov.info
+rust-example-rest: EXAMPLE_TARGET=rest
+rust-example-rest: check-cargo-registry check-logs-dir rust-docker-pull docker-compose-run-example
+
+# Run unit test for this service.
+# Client stubs can be enabled since we don't need to test any integrations.
+rust-ut-coverage: check-cargo-registry check-logs-dir rust-docker-pull docker-compose-run-ut-coverage
+
+# Run integration test for this service.
+# Client stubs should not be enabled since we want to make actual calls to the server.
+# We will run our tests against a web-server which runs with stubbed backends so we don't need to run
+# any other services it depends on but are still able to validate the integration with these services.
+rust-it-coverage: check-cargo-registry check-logs-dir rust-docker-pull docker-compose-run-it-coverage
+
+# Run full integration test for this service.
+# Should not use any stubs for backends so all dependencies should be started by docker compose
+rust-it-full: check-cargo-registry check-logs-dir rust-docker-pull docker-compose-run-integration-test
 
 release-checklist: docker-pull
 	@echo "$(CYAN)Running release checklist...$(SGR0)"
