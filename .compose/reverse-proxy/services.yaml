@@ -1,0 +1,37 @@
+## DO NOT EDIT!
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/.compose/reverse-proxy/services.yaml
+
+---
+
+networks:
+  proxy:
+
+services:
+  reverse-proxy:
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-reverse-proxy
+    # The official v3 Traefik docker image
+    image: traefik:v3.1
+    # Enables the web UI and tells Traefik to listen to docker
+    command:
+      - --accessLog
+      - --log.level=INFO
+      - --api.insecure=true
+      - --serversTransport.insecureSkipVerify=true
+      - --providers.docker
+      - --providers.docker.network=${COMPOSE_PROJECT_NAME}_proxy
+      - --providers.docker.watch
+      - --providers.docker.exposedByDefault=false
+      - --entryPoints.web.address=:80
+    ports:
+      # The HTTP port
+      - "80:80"
+      # The Web UI (enabled by --api.insecure=true)
+      - "8080:8080"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - proxy
+    profiles:
+      - realm-tools
