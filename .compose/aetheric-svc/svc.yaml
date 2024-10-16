@@ -1,0 +1,194 @@
+## DO NOT EDIT!
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/.compose/aetheric-svc/svc.yaml.tftpl
+
+---
+
+services:
+  ################
+  # API services #
+  ################
+
+  assets:
+    image: ${ASSETS_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${ASSETS_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-assets
+    extends:
+      file: base.yaml
+      service: server
+    ports:
+      - 8001:8000
+    depends_on:
+      svc-storage:
+        condition: service_healthy
+
+  atc:
+    image: ${ATC_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${ATC_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-atc
+    extends:
+      file: base.yaml
+      service: server
+    ports:
+      - 8002:8000
+    depends_on:
+      svc-storage:
+        condition: service_healthy
+
+  cargo:
+    image: ${CARGO_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${CARGO_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-cargo
+    extends:
+      file: base.yaml
+      service: server
+    ports:
+      - 8003:8000
+    depends_on:
+      svc-storage:
+        condition: service_healthy
+      svc-scheduler:
+        condition: service_healthy
+      svc-pricing:
+        condition: service_healthy
+      svc-contact:
+        condition: service_healthy
+
+  contact:
+    image: ${CONTACT_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${CONTACT_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-contact
+    extends:
+      file: base.yaml
+      service: server
+    ports:
+      - 8004:8000
+    depends_on:
+      svc-storage:
+        condition: service_healthy
+
+  discovery:
+    image: ${DISCOVERY_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${DISCOVERY_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-discovery
+    extends:
+      file: base.yaml
+      service: server
+    ports:
+      - 8005:8000
+    depends_on:
+      svc-gis:
+        condition: service_healthy
+      svc-telemetry:
+        condition: service_healthy
+
+  docs:
+    image: ${DOCS_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${DOCS_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-docs
+    extends:
+      file: base.yaml
+      service: server
+    ports:
+      - 8006:8000
+
+  itest:
+    image: ${ITEST_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${ITEST_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-itest
+    extends:
+      file: base.yaml
+      service: server
+    ports:
+      - 8007:8000
+
+  telemetry:
+    image: ${TELEMETRY_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${TELEMETRY_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-telemetry
+    extends:
+      file: base.yaml
+      service: server
+    ports:
+      - 8008:8000
+    depends_on:
+      svc-storage:
+        condition: service_healthy
+      svc-gis:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+      queue:
+        condition: service_healthy
+
+
+  ######################
+  # gRPC only services #
+  ######################
+
+  compliance:
+    image: ${COMPLIANCE_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${COMPLIANCE_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-compliance
+    extends:
+      file: base.yaml
+      service: server
+    depends_on:
+      svc-gis:
+        condition: service_healthy
+      queue:
+        condition: service_healthy
+
+  devops-test:
+    image: ${DEVOPS_TEST_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${DEVOPS_TEST_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-devops-test
+    extends:
+      file: base.yaml
+      service: server
+    depends_on:
+      svc-assets:
+        condition: service_healthy
+
+  gis:
+    image: ${GIS_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${GIS_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-gis
+    extends:
+      file: base.yaml
+      service: server
+    depends_on:
+      gis:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    volumes:
+      - type: volume
+        source: postgis-ssl
+        target: /ssl
+        read_only: true
+
+  pricing:
+    image: ${PRICING_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${PRICING_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-pricing
+    extends:
+      file: base.yaml
+      service: server
+
+  scheduler:
+    image: ${SCHEDULER_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${SCHEDULER_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-scheduler
+    extends:
+      file: base.yaml
+      service: server
+    depends_on:
+      svc-storage:
+        condition: service_healthy
+      svc-gis:
+        condition: service_healthy
+
+  storage:
+    image: ${STORAGE_IMAGE:-ghcr.io/aetheric-oss/svc-assets}:${STORAGE_TAG:-latest-develop}
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-svc-storage
+    extends:
+      file: base.yaml
+      service: server
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - type: volume
+        source: db-ssl
+        target: /cockroach/ssl
+        read_only: true
+
+
