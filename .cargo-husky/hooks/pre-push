@@ -1,7 +1,8 @@
-#!/bin/sh
-#
 ## DO NOT EDIT!
 # This file was provisioned by OpenTofu
 # File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/all/.cargo-husky/hooks/pre-push
+
+#!/bin/sh
+
 ##
 # Do nothing
