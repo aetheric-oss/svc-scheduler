@@ -1,0 +1,80 @@
+## DO NOT EDIT!
+# This file was provisioned by OpenTofu
+# File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/.compose/aetheric-db/services.yaml
+
+---
+
+volumes:
+  db-data:
+  db-ssl:
+
+networks:
+  proxy:
+  aetheric-realm:
+
+services:
+  db-init-ssl:
+    container_name: aetheric-${COMPOSE_PROJECT_NAME}-db-init-ssl
+    image: cockroachdb/cockroach:latest-v24.2
+    profiles:
+      - realm-db
+      - realm
+      - integration-test
+      - it-coverage
+    volumes:
+      - type: volume
+        source: db-data
+        target: /cockroach/cockroach-data
+      - type: volume
+        source: db-ssl
+        target: /cockroach/ssl
+      - type: bind
+        source: scripts/init-ssl.sh
+        target: /scripts/init-ssl.sh
+        read_only: true
+    environment:
+      DOCKER_USER_ID: ${DOCKER_USER_ID:-0}
+      DOCKER_GROUP_ID: ${DOCKER_GROUP_ID:-0}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["/bin/sh /scripts/init-ssl.sh"]
+
+  db:
+    container_name: aetheric-db
+    image: cockroachdb/cockroach:latest-v24.2
+    profiles:
+      - realm-db
+      - realm
+      - integration-test
+      - it-coverage
+    ports:
+      - 36257:36257
+      - 8082:8080
+    networks:
+      - aetheric-realm
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.aetheric-db.loadbalancer.server.scheme=https"
+      - "traefik.http.routers.aetheric-db.rule=PathPrefix(`/db/`)"
+      - "traefik.http.routers.aetheric-db.middlewares=aetheric-db-strip-prefixes"
+      - "traefik.http.middlewares.aetheric-db-strip-prefixes.stripprefix.prefixes=/db"
+    volumes:
+      - type: bind
+        source: scripts/init.sql
+        target: /docker-entrypoint-initdb.d/init.sql
+      - type: volume
+        source: db-data
+        target: /cockroach/cockroach-data
+      - type: volume
+        source: db-ssl
+        target: /cockroach/ssl
+        read_only: true
+    healthcheck:
+      test: "curl -sf http://localhost:8080 > /dev/null"
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    command: start-single-node --certs-dir=/cockroach/ssl/certs --advertise-addr=aetheric-db --listen-addr=:26257 --sql-addr=:36257
+    depends_on:
+      db-init-ssl:
+        condition: service_completed_successfully
