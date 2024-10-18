@@ -19,6 +19,18 @@ x-volumes-it: &volumes-it
       source: "../../logs/"
       target: "/logs/"
 
+x-volumes-ut: &volumes-ut
+  volumes:
+    - type: bind
+      source: "${SOURCE_PATH:-../..}/"
+      target: "/usr/src/app"
+    - type: bind
+      source: "${SOURCE_PATH:-../..}/.cargo/registry"
+      target: "/usr/local/cargo/registry"
+    - type: bind
+      source: "../../logs/"
+      target: "/logs/"
+
 x-test: &test
   user: ${DOCKER_USER_ID:-0}:${DOCKER_GROUP_ID:-0}
   image: ${RUST_IMAGE_NAME}:${RUST_IMAGE_TAG}
@@ -48,7 +60,7 @@ x-coverage-cmd: &coverage-cmd
 
 services:
   unit-test:
-    <<: *test
+    <<: [*test, *volumes-ut]
     container_name: aetheric-${PACKAGE_NAME}-ut
     command: sh -c "
       cargo test \
@@ -61,7 +73,7 @@ services:
       - unit-test
 
   ut-coverage:
-    <<: [*test, *coverage-cmd]
+    <<: [*test, *volumes-ut, *coverage-cmd]
     container_name: aetheric-${PACKAGE_NAME}-ut-coverage
     environment:
       - PACKAGE_FEATURES=${PACKAGE_UT_FEATURES}
