@@ -153,16 +153,19 @@ jobs:
         with:
           path: .env
           key: dot-env-${{ github.run_id }}
-      - run: |
+      - name: Run coverage test
+        run: |
           mkdir -p coverage
           make rust-ut-coverage | tee coverage/ut.txt
           echo UT_COV=$(sed '/||/,$!d' coverage/ut.txt) >> $GITHUB_ENV
-      - uses: coverallsapp/github-action@master
+      - name: Upload coverage report
+        uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.github_token }}
           path-to-lcov: coverage/lcov.info
           base-path: .
-      - uses: thollander/actions-comment-pull-request@v2
+      - name: Place coverage report output in comment
+        uses: thollander/actions-comment-pull-request@v2
         continue-on-error: true
         with:
           message: |
