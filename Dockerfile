@@ -2,7 +2,7 @@
 # This file was provisioned by OpenTofu
 # File origin: https://github.com/aetheric-oss/tofu-github/tree/main/src/modules/vars/templates/rust/svc/Dockerfile
 
-FROM --platform=$BUILDPLATFORM ghcr.io/arrow-air/tools/arrow-rust:1.2 AS build
+FROM --platform=$BUILDPLATFORM ghcr.io/arrow-air/tools/arrow-rust:1.3 AS build
 
 ENV CARGO_INCREMENTAL=1
 ENV RUSTC_BOOTSTRAP=0
