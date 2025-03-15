@@ -25,6 +25,6 @@ endif
 		--user `id -u`:`id -g` \
 		-w "/usr/src/app" \
 		-v "$(PWD):/usr/src/app" \
-		-t ghcr.io/tcort/markdown-link-check:3.12.2 \
+		-t ghcr.io/tcort/markdown-link-check:3.13.7 \
 		-c $(LINK_CHECKER_JSON) $(MARKDOWN_FILES)
 endif
