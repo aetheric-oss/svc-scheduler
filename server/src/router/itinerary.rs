@@ -141,14 +141,16 @@ pub fn validate_itinerary(
 
         for fp in [fp_1, fp_2] {
             let length = fp
-                .path
+                .waypoints
                 .as_ref()
                 .ok_or_else(|| {
-                    router_error!("Flight plan should have a path: {:#?}", flight_plans);
+                    router_error!("Flight plan should have waypoints: {:#?}", flight_plans);
                     ItineraryError::NoPath
                 })?
                 .len();
 
+            // The waypoints should start and end with the mandatory egress and ingress waypoints of
+            //  the vertiport/pad.
             if length < 2 {
                 router_error!(
                     "Flight plan path needs two or more points: {:#?}",
@@ -210,11 +212,10 @@ pub async fn calculate_itineraries(
             continue;
         };
 
-        let path = Some(GeoLineStringZ {
+        let waypoints = Some(GeoLineStringZ {
             points: pair
-                .path
-                .clone()
-                .into_iter()
+                .waypoints
+                .iter()
                 .map(|point| GeoPointZ {
                     y: point.latitude,
                     x: point.longitude,
@@ -225,11 +226,11 @@ pub async fn calculate_itineraries(
 
         for (aircraft_id, availability) in &ordered {
             let flight_plan = svc_storage_client_grpc::prelude::flight_plan::Data {
-                origin_vertiport_id: Some(pair.origin_vertiport_id.clone()),
-                target_vertiport_id: Some(pair.target_vertiport_id.clone()),
+                origin_vertiport_id: pair.origin_vertiport_id.clone(),
+                target_vertiport_id: pair.target_vertiport_id.clone(),
                 origin_vertipad_id: pair.origin_vertipad_id.clone(),
                 target_vertipad_id: pair.target_vertipad_id.clone(),
-                path: path.clone(),
+                waypoints: waypoints.clone(),
                 vehicle_id: aircraft_id.clone(),
                 ..Default::default()
             };
@@ -332,15 +333,22 @@ async fn deadhead_helper(
 
     let (path, distance_meters) = paths.remove(0);
     let points = path
-        .into_iter()
-        .map(|point| GeoPointZ {
-            y: point.latitude,
-            x: point.longitude,
-            z: point.altitude_meters as f64,
-        })
-        .collect();
+        .iter()
+        .filter_map(|node| {
+            if node.node_type == NodeType::Vertiport as i32 {
+                return None;
+            }
 
-    let path = Some(GeoLineStringZ { points });
+            node.geom.map(|geom| GeoPointZ {
+                y: geom.latitude,
+                x: geom.longitude,
+                z: geom.altitude_meters as f64,
+            })
+        })
+        .collect::<Vec<GeoPointZ>>();
+
+    // Leave off the vertiport locations
+    let waypoints = Some(GeoLineStringZ { points });
 
     let flight_duration = estimate_flight_time_seconds(&distance_meters).map_err(|e| {
         router_error!("Could not estimate flight time: {e}");
@@ -364,12 +372,12 @@ async fn deadhead_helper(
         origin_timeslot_end: Some(origin_timeslot_end.into()),
         target_timeslot_start: Some(target_timeslot_start.into()),
         target_timeslot_end: Some(target_timeslot_end.into()),
-        origin_vertiport_id: Some(args.origin_vertiport_id.to_string()),
+        origin_vertiport_id: args.origin_vertiport_id.to_string(),
         origin_vertipad_id: args.origin_vertipad_id.to_string(),
-        target_vertiport_id: Some(args.target_vertiport_id.to_string()),
+        target_vertiport_id: args.target_vertiport_id.to_string(),
         target_vertipad_id: args.target_vertipad_id.to_string(),
         vehicle_id: args.vehicle_id.to_string(),
-        path,
+        waypoints,
         ..Default::default()
     };
 
@@ -407,16 +415,6 @@ async fn get_itinerary(
 
     println!("(get_itinerary) overlap: {:#?}", overlap);
 
-    let Some(ref origin_vertiport_id) = flight_plan.origin_vertiport_id else {
-        router_error!("Flight plan doesn't have origin_vertiport_id.",);
-        return Err(ItineraryError::Data);
-    };
-
-    let Some(ref target_vertiport_id) = flight_plan.target_vertiport_id else {
-        router_error!("Flight plan doesn't have target_vertiport_id.",);
-        return Err(ItineraryError::Data);
-    };
-
     let vehicle_id = flight_plan.vehicle_id.clone();
     let deadhead_loading_time = Duration::zero();
 
@@ -424,14 +422,14 @@ async fn get_itinerary(
     // 1) Create the flight plan for the deadhead flight to the requested departure vertiport
     //
     let mut flight_plans = vec![];
-    if *origin_vertiport_id != availability.vertiport_id {
+    if flight_plan.origin_vertiport_id != availability.vertiport_id {
         router_debug!("plotting deadhead to origin.");
         println!("(get_itinerary) plotting deadhead to origin.");
 
         let args = DeadheadHelperArgs {
             origin_vertiport_id: &availability.vertiport_id,
             origin_vertipad_id: &availability.vertipad_id,
-            target_vertiport_id: origin_vertiport_id,
+            target_vertiport_id: &flight_plan.origin_vertiport_id,
             target_vertipad_id: &flight_plan.origin_vertipad_id,
             vehicle_id: &vehicle_id,
             aircraft_earliest: availability.timeslot.time_start(),
@@ -496,7 +494,7 @@ async fn get_itinerary(
     // 3) Create the post deadhead flight to take the aircraft away from the pad
     //  when flight is completed
     //
-    if *target_vertiport_id != availability.vertiport_id {
+    if flight_plan.target_vertiport_id != availability.vertiport_id {
         router_debug!("plotting deadhead from target.");
         println!("(get_itinerary) plotting deadhead from target.");
 
@@ -508,13 +506,8 @@ async fn get_itinerary(
             return Err(ItineraryError::Data);
         };
 
-        let Some(target_vertiport_id) = &main_flight_plan.target_vertiport_id else {
-            router_error!("Last flight plan has no target vertiport.");
-            return Err(ItineraryError::Data);
-        };
-
         let args = DeadheadHelperArgs {
-            origin_vertiport_id: target_vertiport_id,
+            origin_vertiport_id: &main_flight_plan.target_vertiport_id,
             origin_vertipad_id: &main_flight_plan.target_vertipad_id,
             target_vertiport_id: &availability.vertiport_id,
             target_vertipad_id: &availability.vertipad_id,
@@ -575,12 +568,12 @@ mod tests {
         let flight_window = Timeslot::new(time_start, time_end).unwrap();
 
         let flight_plan = flight_plan::Data {
-            origin_vertiport_id: Some(vertiport_3.clone()),
-            target_vertiport_id: Some(vertiport_2.clone()),
+            origin_vertiport_id: vertiport_3.clone(),
+            target_vertiport_id: vertiport_2.clone(),
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineStringZ { points: vec![] }),
+            waypoints: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -598,36 +591,18 @@ mod tests {
 
         // 3 flight plans: deadhead to vertiport_3, flight to vertiport_2, deadhead to vertiport_1
         assert_eq!(itinerary.len(), 3);
-        assert_eq!(
-            itinerary[0].origin_vertiport_id.clone().unwrap(),
-            vertiport_1
-        );
-        assert_eq!(
-            itinerary[0].target_vertiport_id.clone().unwrap(),
-            vertiport_3
-        );
+        assert_eq!(itinerary[0].origin_vertiport_id.clone(), vertiport_1);
+        assert_eq!(itinerary[0].target_vertiport_id.clone(), vertiport_3);
         assert_eq!(itinerary[0].target_vertipad_id.clone(), vertipad_1);
 
-        assert_eq!(
-            itinerary[1].origin_vertiport_id.clone().unwrap(),
-            vertiport_3
-        );
+        assert_eq!(itinerary[1].origin_vertiport_id.clone(), vertiport_3);
         assert_eq!(itinerary[1].origin_vertipad_id.clone(), vertipad_1);
-        assert_eq!(
-            itinerary[1].target_vertiport_id.clone().unwrap(),
-            vertiport_2
-        );
+        assert_eq!(itinerary[1].target_vertiport_id.clone(), vertiport_2);
         assert_eq!(itinerary[1].target_vertipad_id.clone(), vertipad_2);
 
-        assert_eq!(
-            itinerary[2].origin_vertiport_id.clone().unwrap(),
-            vertiport_2
-        );
+        assert_eq!(itinerary[2].origin_vertiport_id.clone(), vertiport_2);
         assert_eq!(itinerary[2].origin_vertipad_id.clone(), vertipad_2);
-        assert_eq!(
-            itinerary[2].target_vertiport_id.clone().unwrap(),
-            vertiport_1
-        );
+        assert_eq!(itinerary[2].target_vertiport_id.clone(), vertiport_1);
 
         // Land at earliest possible time
         assert_eq!(
@@ -692,12 +667,12 @@ mod tests {
         let flight_window = Timeslot::new(time_start, time_end).unwrap();
 
         let flight_plan = flight_plan::Data {
-            origin_vertiport_id: Some(vertiport_3.clone()),
-            target_vertiport_id: Some(vertiport_1.clone()),
+            origin_vertiport_id: vertiport_3.clone(),
+            target_vertiport_id: vertiport_1.clone(),
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineStringZ { points: vec![] }),
+            waypoints: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -715,25 +690,13 @@ mod tests {
 
         // 2 flight plans: deadhead to vertiport_3, flight to vertiport_1
         assert_eq!(itinerary.len(), 2);
-        assert_eq!(
-            itinerary[0].origin_vertiport_id.clone().unwrap(),
-            vertiport_1
-        );
-        assert_eq!(
-            itinerary[0].target_vertiport_id.clone().unwrap(),
-            vertiport_3
-        );
+        assert_eq!(itinerary[0].origin_vertiport_id.clone(), vertiport_1);
+        assert_eq!(itinerary[0].target_vertiport_id.clone(), vertiport_3);
         assert_eq!(itinerary[0].target_vertipad_id.clone(), vertipad_1);
 
-        assert_eq!(
-            itinerary[1].origin_vertiport_id.clone().unwrap(),
-            vertiport_3
-        );
+        assert_eq!(itinerary[1].origin_vertiport_id.clone(), vertiport_3);
         assert_eq!(itinerary[1].origin_vertipad_id.clone(), vertipad_1);
-        assert_eq!(
-            itinerary[1].target_vertiport_id.clone().unwrap(),
-            vertiport_1
-        );
+        assert_eq!(itinerary[1].target_vertiport_id.clone(), vertiport_1);
         assert_eq!(itinerary[1].target_vertipad_id.clone(), vertipad_2);
 
         // Land at earliest possible time
@@ -786,12 +749,12 @@ mod tests {
         let flight_window = Timeslot::new(time_start, time_end).unwrap();
 
         let flight_plan = flight_plan::Data {
-            origin_vertiport_id: Some(vertiport_1.clone()),
-            target_vertiport_id: Some(vertiport_3.clone()),
+            origin_vertiport_id: vertiport_1.clone(),
+            target_vertiport_id: vertiport_3.clone(),
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineStringZ { points: vec![] }),
+            waypoints: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -809,26 +772,14 @@ mod tests {
 
         // 2 flight plans: flight to vertiport_3, deadhead to vertiport_1
         assert_eq!(itinerary.len(), 2);
-        assert_eq!(
-            itinerary[0].origin_vertiport_id.clone().unwrap(),
-            vertiport_1
-        );
+        assert_eq!(itinerary[0].origin_vertiport_id.clone(), vertiport_1);
         assert_eq!(itinerary[0].origin_vertipad_id.clone(), vertipad_1);
-        assert_eq!(
-            itinerary[0].target_vertiport_id.clone().unwrap(),
-            vertiport_3
-        );
+        assert_eq!(itinerary[0].target_vertiport_id.clone(), vertiport_3);
         assert_eq!(itinerary[0].target_vertipad_id.clone(), vertipad_2);
 
-        assert_eq!(
-            itinerary[1].origin_vertiport_id.clone().unwrap(),
-            vertiport_3
-        );
+        assert_eq!(itinerary[1].origin_vertiport_id.clone(), vertiport_3);
         assert_eq!(itinerary[1].origin_vertipad_id.clone(), vertipad_2);
-        assert_eq!(
-            itinerary[1].target_vertiport_id.clone().unwrap(),
-            vertiport_1
-        );
+        assert_eq!(itinerary[1].target_vertiport_id.clone(), vertiport_1);
 
         // Land at earliest possible time
         assert_eq!(
@@ -887,12 +838,12 @@ mod tests {
         let flight_window = Timeslot::new(time_start, time_end).unwrap();
 
         let flight_plan = flight_plan::Data {
-            origin_vertiport_id: Some(vertiport_3.clone()),
-            target_vertiport_id: Some(vertiport_2.clone()),
+            origin_vertiport_id: vertiport_3.clone(),
+            target_vertiport_id: vertiport_2.clone(),
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineStringZ { points: vec![] }),
+            waypoints: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -910,36 +861,18 @@ mod tests {
 
         // 3 flight plans: deadhead to vertiport_3, flight to vertiport_2, deadhead to vertiport_1
         assert_eq!(itinerary.len(), 3);
-        assert_eq!(
-            itinerary[0].origin_vertiport_id.clone().unwrap(),
-            vertiport_1
-        );
-        assert_eq!(
-            itinerary[0].target_vertiport_id.clone().unwrap(),
-            vertiport_3
-        );
+        assert_eq!(itinerary[0].origin_vertiport_id.clone(), vertiport_1);
+        assert_eq!(itinerary[0].target_vertiport_id.clone(), vertiport_3);
         assert_eq!(itinerary[0].target_vertipad_id.clone(), vertipad_1);
 
-        assert_eq!(
-            itinerary[1].origin_vertiport_id.clone().unwrap(),
-            vertiport_3
-        );
+        assert_eq!(itinerary[1].origin_vertiport_id.clone(), vertiport_3);
         assert_eq!(itinerary[1].origin_vertipad_id.clone(), vertipad_1);
-        assert_eq!(
-            itinerary[1].target_vertiport_id.clone().unwrap(),
-            vertiport_2
-        );
+        assert_eq!(itinerary[1].target_vertiport_id.clone(), vertiport_2);
         assert_eq!(itinerary[1].target_vertipad_id.clone(), vertipad_2);
 
-        assert_eq!(
-            itinerary[2].origin_vertiport_id.clone().unwrap(),
-            vertiport_2
-        );
+        assert_eq!(itinerary[2].origin_vertiport_id.clone(), vertiport_2);
         assert_eq!(itinerary[2].origin_vertipad_id.clone(), vertipad_2);
-        assert_eq!(
-            itinerary[2].target_vertiport_id.clone().unwrap(),
-            vertiport_1
-        );
+        assert_eq!(itinerary[2].target_vertiport_id.clone(), vertiport_1);
 
         // First itinerary for aircraft leaves at earliest aircraft convenience
         assert_eq!(
@@ -982,12 +915,12 @@ mod tests {
         let flight_window = Timeslot::new(time_start, time_end).unwrap();
 
         let flight_plan = flight_plan::Data {
-            origin_vertiport_id: Some(vertiport_3.clone()),
-            target_vertiport_id: Some(vertiport_2.clone()),
+            origin_vertiport_id: vertiport_3.clone(),
+            target_vertiport_id: vertiport_2.clone(),
             origin_vertipad_id: vertipad_1.clone(),
             target_vertipad_id: vertipad_2.clone(),
             vehicle_id,
-            path: Some(GeoLineStringZ { points: vec![] }),
+            waypoints: Some(GeoLineStringZ { points: vec![] }),
             ..Default::default()
         };
 
@@ -1062,7 +995,7 @@ mod tests {
                     time_end + flight_duration,
                 )
                 .unwrap(),
-                path: vec![],
+                waypoints: vec![],
                 distance_meters,
             },
             TimeslotPair {
@@ -1080,7 +1013,7 @@ mod tests {
                     time_end + Duration::try_hours(2).unwrap() + flight_duration,
                 )
                 .unwrap(),
-                path: vec![],
+                waypoints: vec![],
                 distance_meters,
             },
         ];
@@ -1126,7 +1059,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             }],
             &mut vertipad_ids,
             &mut aircraft_id,
@@ -1157,7 +1090,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1169,7 +1102,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: Uuid::new_v4().to_string(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             },
         ];
 
@@ -1199,7 +1132,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone(),
-                path: None,
+                waypoints: None,
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1211,18 +1144,18 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(33).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(34).unwrap(),
                 vehicle_id,
-                path: None,
+                waypoints: None,
             },
         ];
 
         let e = validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id).unwrap_err();
         assert_eq!(e, ItineraryError::NoPath);
 
-        flight_plans[0].path = Some(vec![]);
+        flight_plans[0].waypoints = Some(vec![]);
         let e = validate_itinerary(&flight_plans, &mut vertipad_ids, &mut aircraft_id).unwrap_err();
         assert_eq!(e, ItineraryError::PathTooShort);
 
-        flight_plans[0].path = Some(vec![PointZ {
+        flight_plans[0].waypoints = Some(vec![PointZ {
             latitude: 0.0,
             longitude: 0.0,
             altitude_meters: 0.0,
@@ -1250,7 +1183,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1262,7 +1195,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             },
         ];
 
@@ -1293,7 +1226,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: vertiport_2,
@@ -1305,7 +1238,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(40).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(41).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             },
         ];
 
@@ -1323,16 +1256,16 @@ mod tests {
         let vertipad_1 = Uuid::new_v4().to_string();
         let vertipad_2 = Uuid::new_v4().to_string();
 
-        let path = Some(vec![
+        let waypoints = Some(vec![
             PointZ {
                 latitude: 0.0,
                 longitude: 0.0,
-                altitude_meters: 0.0,
+                altitude_meters: 20.0,
             },
             PointZ {
                 latitude: 0.0,
                 longitude: 0.0,
-                altitude_meters: 0.0,
+                altitude_meters: 20.0,
             },
         ]);
 
@@ -1347,7 +1280,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(30).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(31).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
-                path: path.clone(),
+                waypoints: waypoints.clone(),
             },
             FlightPlanSchedule {
                 origin_vertiport_id: Uuid::new_v4().to_string(),
@@ -1359,7 +1292,7 @@ mod tests {
                 target_timeslot_start: Utc::now() + Duration::try_minutes(40).unwrap(),
                 target_timeslot_end: Utc::now() + Duration::try_minutes(41).unwrap(),
                 vehicle_id: vehicle_id.clone().to_string(),
-                path,
+                waypoints,
             },
         ];
 

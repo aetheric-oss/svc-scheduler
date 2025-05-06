@@ -339,14 +339,14 @@ pub struct TimeslotPair {
     pub target_vertiport_id: String,
     pub target_vertipad_id: String,
     pub target_timeslot: Timeslot,
-    pub path: Vec<PointZ>,
+    pub waypoints: Vec<PointZ>,
     pub distance_meters: f64,
 }
 
 impl From<TimeslotPair> for flight_plan::Data {
     fn from(val: TimeslotPair) -> Self {
         let points = val
-            .path
+            .waypoints
             .iter()
             .map(|p| GeoPointZ {
                 y: p.latitude,
@@ -355,17 +355,17 @@ impl From<TimeslotPair> for flight_plan::Data {
             })
             .collect();
 
-        let path = Some(GeoLineStringZ { points });
+        let waypoints = Some(GeoLineStringZ { points });
         flight_plan::Data {
-            origin_vertiport_id: Some(val.origin_vertiport_id),
+            origin_vertiport_id: val.origin_vertiport_id,
             origin_vertipad_id: val.origin_vertipad_id,
             origin_timeslot_start: Some(val.origin_timeslot.time_start().into()),
             origin_timeslot_end: Some(val.origin_timeslot.time_end().into()),
-            target_vertiport_id: Some(val.target_vertiport_id),
+            target_vertiport_id: val.target_vertiport_id,
             target_vertipad_id: val.target_vertipad_id,
             target_timeslot_start: Some(val.target_timeslot.time_start().into()),
             target_timeslot_end: Some(val.target_timeslot.time_end().into()),
-            path,
+            waypoints,
             ..Default::default()
         }
     }
@@ -445,21 +445,20 @@ pub async fn get_vertipad_timeslot_pairs(
 
             // For now only get the first path
             let (path, distance_meters) = paths.remove(0);
-            //  else {
-            //     // no path found, perhaps temporary no-fly zone
-            //     //  is blocking journeys from this depart timeslot
-            //     // Break out and try the next depart timeslot
-            //     router_debug!(
-            //         "No path found from vertiport {}
-            //         to vertiport {} (from {} to {}).",
-            //         origin_vertiport_id,
-            //         target_vertiport_id,
-            //         ots.time_start(),
-            //         tts.time_end()
-            //     );
+            let waypoints = path
+                .into_iter()
+                .filter_map(|node| {
+                    if node.node_type != NodeType::Waypoint as i32 {
+                        return None;
+                    }
 
-            //     break 'target;
-            // };
+                    node.geom.map(|geom| PointZ {
+                        latitude: geom.latitude,
+                        longitude: geom.longitude,
+                        altitude_meters: geom.altitude_meters,
+                    })
+                })
+                .collect::<Vec<PointZ>>();
 
             let estimated_duration_s =
                 estimate_flight_time_seconds(&distance_meters).map_err(|e| {
@@ -524,7 +523,7 @@ pub async fn get_vertipad_timeslot_pairs(
                 target_vertiport_id: target_vertiport_id.to_string(),
                 target_vertipad_id: target_vertipad_id.clone(),
                 target_timeslot,
-                path,
+                waypoints, // leave off ground points
                 distance_meters,
             });
         }
@@ -947,7 +946,7 @@ mod tests {
     fn test_from_timeslot_pair_data() {
         let now = Utc::now();
         let val = TimeslotPair {
-            path: vec![
+            waypoints: vec![
                 PointZ {
                     latitude: 1.0,
                     longitude: 2.0,
@@ -973,20 +972,14 @@ mod tests {
         };
 
         let data: flight_plan::Data = val.into();
-        assert_eq!(
-            data.origin_vertiport_id,
-            Some("origin_vertiport_id".to_string())
-        );
+        assert_eq!(data.origin_vertiport_id, "origin_vertiport_id".to_string());
         assert_eq!(data.origin_vertipad_id, "origin_vertipad_id");
         assert_eq!(data.origin_timeslot_start, Some(now.into()));
         assert_eq!(
             data.origin_timeslot_end,
             Some((now + Duration::try_seconds(1).unwrap()).into())
         );
-        assert_eq!(
-            data.target_vertiport_id,
-            Some("target_vertiport_id".to_string())
-        );
+        assert_eq!(data.target_vertiport_id, "target_vertiport_id".to_string());
         assert_eq!(data.target_vertipad_id, "target_vertipad_id");
         assert_eq!(
             data.target_timeslot_start,
@@ -997,13 +990,13 @@ mod tests {
             Some((now + Duration::try_seconds(3).unwrap()).into())
         );
 
-        let path = data.path.unwrap();
-        assert_eq!(path.points.len(), 2);
-        assert_eq!(path.points[0].y, 1.0);
-        assert_eq!(path.points[0].x, 2.0);
-        assert_eq!(path.points[0].z, 3.0);
-        assert_eq!(path.points[1].y, 4.0);
-        assert_eq!(path.points[1].x, 5.0);
-        assert_eq!(path.points[1].z, 6.0);
+        let waypoints = data.waypoints.unwrap();
+        assert_eq!(waypoints.points.len(), 2);
+        assert_eq!(waypoints.points[0].y, 1.0);
+        assert_eq!(waypoints.points[0].x, 2.0);
+        assert_eq!(waypoints.points[0].z, 3.0);
+        assert_eq!(waypoints.points[1].y, 4.0);
+        assert_eq!(waypoints.points[1].x, 5.0);
+        assert_eq!(waypoints.points[1].z, 6.0);
     }
 }

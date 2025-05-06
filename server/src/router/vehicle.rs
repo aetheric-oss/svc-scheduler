@@ -373,7 +373,7 @@ mod tests {
                 origin_timeslot_end: dt_start + Duration::try_minutes(10).unwrap(),
                 target_timeslot_start: dt_start + Duration::try_minutes(20).unwrap(),
                 target_timeslot_end: dt_start + Duration::try_minutes(20).unwrap(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             },
             FlightPlanSchedule {
                 vehicle_id: aircraft_id.clone(),
@@ -385,7 +385,7 @@ mod tests {
                 origin_timeslot_end: dt_start + Duration::try_minutes(25).unwrap(),
                 target_timeslot_start: dt_start + Duration::try_minutes(35).unwrap(),
                 target_timeslot_end: dt_start + Duration::try_minutes(35).unwrap(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             },
         ];
 
@@ -531,7 +531,7 @@ mod tests {
                 origin_timeslot_end: dt_start + Duration::try_minutes(10).unwrap(),
                 target_timeslot_start: dt_start + Duration::try_minutes(20).unwrap(),
                 target_timeslot_end: dt_start + Duration::try_minutes(20).unwrap(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             },
             FlightPlanSchedule {
                 vehicle_id: aircraft_id.clone(),
@@ -543,7 +543,7 @@ mod tests {
                 origin_timeslot_end: dt_start + Duration::try_minutes(25).unwrap(),
                 target_timeslot_start: dt_start + Duration::try_minutes(35).unwrap(),
                 target_timeslot_end: dt_start + Duration::try_minutes(35).unwrap(),
-                path: Some(vec![]),
+                waypoints: Some(vec![]),
             },
         ];
 
@@ -650,6 +650,7 @@ mod tests {
             schedule: Some(CAL_STR.to_owned()),
             hangar_id: Some(Uuid::new_v4().to_string()),
             hangar_bay_id: Some(Uuid::new_v4().to_string()),
+            loading_type: Some(vehicle::LoadingType::Land.into()),
             last_maintenance: Some(Utc::now().into()),
             next_maintenance: Some(Utc::now().into()),
             created_at: Some(Utc::now().into()),

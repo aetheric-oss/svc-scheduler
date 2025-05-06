@@ -358,8 +358,8 @@ async fn create_flight_plan(
 ) -> flight_plan::Object {
     let mut flight_plan = flight_plan::mock::get_data_obj();
     flight_plan.vehicle_id = String::from(vehicle_id);
-    flight_plan.origin_vertiport_id = Some(origin_vertipad.data.clone().unwrap().vertiport_id);
-    flight_plan.target_vertiport_id = Some(target_vertipad.data.clone().unwrap().vertiport_id);
+    flight_plan.origin_vertiport_id = origin_vertipad.data.clone().unwrap().vertiport_id;
+    flight_plan.target_vertiport_id = target_vertipad.data.clone().unwrap().vertiport_id;
     flight_plan.origin_vertipad_id = origin_vertipad.id.clone();
     flight_plan.target_vertipad_id = target_vertipad.id.clone();
     flight_plan.origin_timeslot_start = Some(
